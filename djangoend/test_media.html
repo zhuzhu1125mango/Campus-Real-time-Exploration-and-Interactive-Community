@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>媒体文件测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .image-container {
+            margin-bottom: 30px;
+        }
+        img {
+            max-width: 200px;
+            border: 1px solid #ddd;
+            margin-top: 10px;
+        }
+        .file-list {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>媒体文件测试页面</h1>
+    
+    <div class="file-list">
+        <h2>头像文件列表</h2>
+        <div id="avatar-list">加载中...</div>
+    </div>
+    
+    <div class="image-container">
+        <h2>测试头像图片显示</h2>
+        <div>
+            <p>直接URL: /media/avatars/avatar_1743088654593.jpg</p>
+            <img src="/media/avatars/avatar_1743088654593.jpg" alt="直接URL">
+        </div>
+        
+        <div>
+            <p>绝对URL: http://localhost:8000/media/avatars/avatar_1743088654593.jpg</p>
+            <img src="http://localhost:8000/media/avatars/avatar_1743088654593.jpg" alt="绝对URL">
+        </div>
+        
+        <div>
+            <p>时间戳URL: http://localhost:8000/media/avatars/avatar_1743088654593.jpg?_=123456</p>
+            <img src="http://localhost:8000/media/avatars/avatar_1743088654593.jpg?_=123456" alt="时间戳URL">
+        </div>
+    </div>
+
+    <script>
+        // 获取头像文件列表
+        fetch('/media/avatars/')
+            .then(response => {
+                if (response.ok) {
+                    return response.text();
+                }
+                throw new Error('无法获取头像列表');
+            })
+            .then(html => {
+                document.getElementById('avatar-list').innerHTML = html;
+            })
+            .catch(error => {
+                document.getElementById('avatar-list').innerHTML = `<p>错误: ${error.message}</p>`;
+            });
+    </script>
+</body>
+</html> 
