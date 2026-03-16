@@ -139,8 +139,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { forumApi } from '@/api/forum'
 import { useUserStore } from '@/stores/userStore'
-import { ElMessage } from 'element-plus'
-import type { Category, Board, Post, Topic, User, ForumStats } from '@/types/forum'
+import type { Category, Board, Topic, ForumStats } from '@/types/forum'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -166,13 +165,6 @@ const loadingHotTopics = ref(true)
 const errorHotTopics = ref<string | null>(null)
 
 // 声明需要的变量
-const currentPosts = ref<Post[]>([])
-const currentTopic = ref<Topic | null>(null)
-const showReplyForm = ref(false)
-const replyContent = ref('')
-const currentBoard = ref<Board | null>(null)
-const showNewTopicForm = ref(false)
-const newTopic = ref({ title: '', content: '' })
 
 // 登录状态
 const isLoggedIn = computed(() => userStore.isLoggedIn)

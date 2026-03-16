@@ -104,7 +104,7 @@
             <input
               :type="showConfirmPasswordEmail ? 'text' : 'password'"
               id="confirmPassword-email"
-              v-model="emailForm.password2"
+              v-model="emailForm.password_confirm"
               required
               placeholder="请再次输入密码"
               minlength="8"
@@ -211,7 +211,7 @@
             <input
               :type="showConfirmPasswordPhone ? 'text' : 'password'"
               id="confirmPassword-phone"
-              v-model="phoneForm.password2"
+              v-model="phoneForm.password_confirm"
               required
               placeholder="请再次输入密码"
               minlength="8"
@@ -264,7 +264,7 @@ const emailForm = ref({
   email: '',
   code: '',
   password: '',
-  password2: ''
+  password_confirm: ''
 })
 
 // 手机号注册表单
@@ -273,7 +273,7 @@ const phoneForm = ref({
   phone: '',
   code: '',
   password: '',
-  password2: ''
+  password_confirm: ''
 })
 
 // 验证码倒计时
@@ -296,7 +296,7 @@ const isValidPhone = computed(() => {
 // 邮箱注册
 const handleEmailRegister = async () => {
   // 验证密码
-  if (emailForm.value.password !== emailForm.value.password2) {
+  if (emailForm.value.password !== emailForm.value.password_confirm) {
     showToast('两次输入的密码不一致', 'error')
     return
   }
@@ -314,20 +314,25 @@ const handleEmailRegister = async () => {
   loading.value = true
   
   try {
-    await userApi.register({
+    const registerData: any = {
       username: emailForm.value.username,
       email: emailForm.value.email,
-      code: emailForm.value.code,
       password: emailForm.value.password,
-      password2: emailForm.value.password2
-    })
+      password_confirm: emailForm.value.password_confirm
+    }
+    
+    // 只有当用户输入了验证码时，才发送code字段
+    if (emailForm.value.code) {
+      registerData.code = emailForm.value.code
+    }
+    
+    await userApi.register(registerData)
     
     showToast('注册成功，请登录', 'success')
     
     // 注册成功，跳转到登录页
     router.push('/login')
   } catch (error: any) {
-    console.error('注册失败:', error)
     let errorMsg = '注册失败，请稍后重试'
     if (error.response?.data?.detail) {
       errorMsg = error.response.data.detail
@@ -340,6 +345,8 @@ const handleEmailRegister = async () => {
           break
         }
       }
+    } else if (error.message) {
+      errorMsg = error.message
     }
     showToast(errorMsg, 'error')
   } finally {
@@ -350,7 +357,7 @@ const handleEmailRegister = async () => {
 // 手机号注册
 const handlePhoneRegister = async () => {
   // 验证密码
-  if (phoneForm.value.password !== phoneForm.value.password2) {
+  if (phoneForm.value.password !== phoneForm.value.password_confirm) {
     showToast('两次输入的密码不一致', 'error')
     return
   }
@@ -368,20 +375,25 @@ const handlePhoneRegister = async () => {
   loading.value = true
   
   try {
-    await userApi.register({
+    const registerData: any = {
       username: phoneForm.value.username,
       phone: phoneForm.value.phone,
-      code: phoneForm.value.code,
       password: phoneForm.value.password,
-      password2: phoneForm.value.password2
-    })
+      password_confirm: phoneForm.value.password_confirm
+    }
+    
+    // 只有当用户输入了验证码时，才发送code字段
+    if (phoneForm.value.code) {
+      registerData.code = phoneForm.value.code
+    }
+    
+    await userApi.register(registerData)
     
     showToast('注册成功，请登录', 'success')
     
     // 注册成功，跳转到登录页
     router.push('/login')
   } catch (error: any) {
-    console.error('注册失败:', error)
     let errorMsg = '注册失败，请稍后重试'
     if (error.response?.data?.detail) {
       errorMsg = error.response.data.detail
@@ -394,6 +406,8 @@ const handlePhoneRegister = async () => {
           break
         }
       }
+    } else if (error.message) {
+      errorMsg = error.message
     }
     showToast(errorMsg, 'error')
   } finally {
@@ -425,11 +439,7 @@ const sendEmailCode = async () => {
     
     showToast('验证码已发送，请查看邮箱', 'success')
   } catch (error: any) {
-    console.error('发送验证码失败:', error)
-    let errorMsg = '发送验证码失败'
-    if (error.response?.data?.detail) {
-      errorMsg = error.response.data.detail
-    }
+    const errorMsg = error.response?.data?.detail || error.message || '发送验证码失败'
     showToast(errorMsg, 'error')
   }
 }
@@ -458,11 +468,7 @@ const sendPhoneCode = async () => {
     
     showToast('验证码已发送，请注意查收', 'success')
   } catch (error: any) {
-    console.error('发送验证码失败:', error)
-    let errorMsg = '发送验证码失败'
-    if (error.response?.data?.detail) {
-      errorMsg = error.response.data.detail
-    }
+    const errorMsg = error.response?.data?.detail || error.message || '发送验证码失败'
     showToast(errorMsg, 'error')
   }
 }

@@ -74,7 +74,7 @@ import { useRouter } from 'vue-router'
 import { Search, Location, School as SchoolIcon, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { schoolApi } from '@/api/school'
-import type { School, SchoolListResponse } from '@/types/school'
+import type { School } from '@/types/school'
 
 const router = useRouter()
 const schools = ref<School[]>([])
@@ -118,21 +118,7 @@ const fetchProvinces = async () => {
   }
 }
 
-// 获取城市列表
-const fetchCities = async () => {
-  if (!selectedProvince.value) {
-    cities.value = []
-    return
-  }
-  try {
-    const response = await schoolApi.getCities(selectedProvince.value)
-    if (Array.isArray(response)) {
-      cities.value = response as string[]
-    }
-  } catch (error) {
-    ElMessage.error('获取城市列表失败')
-  }
-}
+
 
 // 处理搜索
 const handleSearch = () => {

@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { userApi } from '../api/user'
-import config from '../utils/config'
 import axios from 'axios'
 
 export interface User {
@@ -47,15 +46,19 @@ export const useUserStore = defineStore('user', () => {
     const hasUser = !!user.value && !!user.value.id
     const isInitialLoad = loading.value
     
-    // 如果有token但没有用户信息，尝试获取用户信息
+    // 如果有token但没有用户信息且不在加载中，尝试获取用户信息
     if (hasToken && !hasUser && !isInitialLoad) {
-      // 只有当用户存储刚初始化且检测到token时，自动获取用户信息
-      fetchUserInfo()
+      // 异步获取用户信息，不阻塞计算属性返回
+      fetchUserInfo().catch(err => {
+        console.error('获取用户信息失败:', err)
+        failedToLoad.value = true
+      })
     }
     
     // 如果token存在但加载失败，清除无效token
     if (hasToken && !hasUser && failedToLoad.value) {
       resetState()
+      return false
     }
     
     return hasToken && hasUser
@@ -67,9 +70,10 @@ export const useUserStore = defineStore('user', () => {
     
     loading.value = true
     failedToLoad.value = false
+    error.value = null
     
     try {
-      const response = await axios.get('/api/users/profile/', {
+      const response = await axios.get('/api/users/users/me/', {
         headers: {
           'Authorization': `Bearer ${token.value}`
         }
@@ -115,9 +119,10 @@ export const useUserStore = defineStore('user', () => {
         loading.value = false
         return user.value
       }
-    } catch (error) {
+    } catch (err: any) {
       loading.value = false
       failedToLoad.value = true
+      error.value = err.response?.data?.detail || '获取用户信息失败'
       return null
     }
   }
@@ -138,8 +143,13 @@ export const useUserStore = defineStore('user', () => {
       
       // 获取用户信息
       if (response.user) {
-        user.value = response.user
-        console.log('登录成功，用户信息:', user.value)
+        // 处理avatar和banner字段可能为null的情况
+        const userData = {
+          ...response.user,
+          avatar: response.user.avatar || undefined,
+          banner: response.user.banner || undefined
+        }
+        user.value = userData
       } else {
         await fetchUserInfo()
       }
@@ -147,7 +157,6 @@ export const useUserStore = defineStore('user', () => {
       return true
     } catch (err: any) {
       error.value = err.response?.data?.detail || '登录失败，请检查用户名和密码'
-      console.error('登录失败:', err)
       return false
     } finally {
       loading.value = false
@@ -181,7 +190,6 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem(refreshTokenKey)
     localStorage.removeItem('user_avatar')
     localStorage.removeItem('user_banner')
-    console.log('登出成功，清除用户状态')
     
     resetState()
     
@@ -197,17 +205,15 @@ export const useUserStore = defineStore('user', () => {
     
     try {
       const response = await userApi.refreshToken(refreshToken.value)
-      token.value = response.access
-      refreshToken.value = response.refresh
+      token.value = response.data.access
+      refreshToken.value = response.data.refresh
       
       // 更新本地存储
-      localStorage.setItem(accessTokenKey, response.access)
-      localStorage.setItem(refreshTokenKey, response.refresh)
-      console.log('token刷新成功')
+      localStorage.setItem(accessTokenKey, response.data.access)
+      localStorage.setItem(refreshTokenKey, response.data.refresh)
       
-      return response.access
+      return response.data.access
     } catch (error) {
-      console.error('刷新token失败:', error)
       logout()
       return null
     }
@@ -224,7 +230,6 @@ export const useUserStore = defineStore('user', () => {
       }
       return true
     } catch (error) {
-      console.error('收藏学校失败:', error)
       return false
     }
   }
@@ -238,15 +243,12 @@ export const useUserStore = defineStore('user', () => {
       }
       return true
     } catch (error) {
-      console.error('取消收藏学校失败:', error)
       return false
     }
   }
   
   // 初始化获取用户信息
   if (token.value && !user.value) {
-    console.log('检测到token，尝试获取用户信息')
-    
     // 尝试从localStorage中恢复头像和背景图
     const savedAvatar = localStorage.getItem('user_avatar')
     const savedBanner = localStorage.getItem('user_banner')
@@ -266,9 +268,7 @@ export const useUserStore = defineStore('user', () => {
       }
     }
     
-    fetchUserInfo().catch(err => {
-      console.error('初始化获取用户信息失败', err)
-    })
+    fetchUserInfo()
   }
   
   // 导出所有状态和方法

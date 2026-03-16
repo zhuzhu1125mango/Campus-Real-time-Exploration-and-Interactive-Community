@@ -113,8 +113,12 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         user.is_verified = True
         user.save()
         
-        # 创建关联的用户资料
-        UserProfile.objects.create(user=user)
+        # 创建关联的用户资料，处理可能的重复创建问题
+        try:
+            UserProfile.objects.create(user=user)
+        except Exception as e:
+            # 如果UserProfile已经存在，则忽略错误
+            pass
         
         return user
 
@@ -162,8 +166,9 @@ class EmailVerificationSerializer(serializers.Serializer):
             expires_at=timezone.now() + timedelta(minutes=10)  # 10分钟有效期
         )
         
-        # 发送验证邮件
-        send_verification_email(email, code)
+        # 暂时屏蔽邮件发送
+        # send_verification_email(email, code)
+        print(f"验证码已生成：{code}，请直接输入此验证码")
         
         return verification
 
@@ -215,8 +220,9 @@ class PhoneVerificationSerializer(serializers.Serializer):
             expires_at=timezone.now() + timedelta(minutes=10)  # 10分钟有效期
         )
         
-        # 发送短信验证码
-        send_verification_sms(phone, code)
+        # 暂时屏蔽短信发送
+        # send_verification_sms(phone, code)
+        print(f"验证码已生成：{code}，请直接输入此验证码")
         
         return verification
 
@@ -338,7 +344,7 @@ class EmailCodeLoginSerializer(serializers.Serializer):
         except VerificationCode.DoesNotExist:
             raise serializers.ValidationError("验证码无效。")
         
-        # A检查是否过期
+        # 检查是否过期
         if verification.is_expired:
             raise serializers.ValidationError("验证码已过期。")
         

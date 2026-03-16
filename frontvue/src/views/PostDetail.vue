@@ -20,11 +20,11 @@
           <div class="post-stats">
             <div class="stat-item">
               <span class="icon-view"></span>
-              <span>{{ post.views || 0 }}</span>
+              <span>{{ (post as any).views || 0 }}</span>
             </div>
             <div class="stat-item">
               <span class="icon-comment"></span>
-              <span>{{ post.comments_count || 0 }}</span>
+              <span>{{ (post as any).comments_count || 0 }}</span>
             </div>
             <div 
               class="stat-item like-button" 
@@ -32,12 +32,12 @@
               @click.stop="handleLikePost"
             >
               <span class="icon-like"></span>
-              <span>{{ post.likes_count || 0 }}</span>
+              <span>{{ post.like_count || 0 }}</span>
             </div>
           </div>
         </div>
-        <div class="post-tags" v-if="post.tags && post.tags.length">
-          <span v-for="tag in post.tags" :key="tag.id" class="post-tag">{{ tag.name }}</span>
+        <div class="post-tags" v-if="(post as any).tags && (post as any).tags.length">
+          <span v-for="tag in (post as any).tags" :key="tag.id" class="post-tag">{{ tag.name }}</span>
         </div>
       </div>
       
@@ -47,7 +47,7 @@
       
       <!-- 评论区 -->
       <div class="comments-section">
-        <h2 class="comments-title">评论 ({{ post.comments_count || 0 }})</h2>
+        <h2 class="comments-title">评论 ({{ (post as any).comments_count || 0 }})</h2>
         
         <!-- 评论表单 -->
         <div v-if="isLoggedIn" class="comment-form">
@@ -91,11 +91,11 @@
               </div>
               <div 
                 class="like-button" 
-                :class="{ liked: comment.is_liked }"
+                :class="{ liked: (comment as any).is_liked }"
                 @click.stop="handleLikeComment(comment)"
               >
                 <span class="icon-like"></span>
-                <span>{{ comment.likes_count || 0 }}</span>
+                <span>{{ comment.like_count || 0 }}</span>
               </div>
             </div>
             
@@ -127,8 +127,8 @@
             </div>
             
             <!-- 回复列表 -->
-            <div v-if="comment.replies && comment.replies.length > 0" class="replies-list">
-              <div v-for="reply in comment.replies" :key="reply.id" class="reply-item">
+            <div v-if="(comment as any).replies && (comment as any).replies.length > 0" class="replies-list">
+              <div v-for="reply in (comment as any).replies" :key="reply.id" class="reply-item">
                 <div class="comment-header">
                   <div class="comment-author">
                     <img v-if="reply.author.avatar" :src="reply.author.avatar" alt="avatar" class="author-avatar" />
@@ -138,11 +138,11 @@
                   </div>
                   <div 
                     class="like-button" 
-                    :class="{ liked: reply.is_liked }"
+                    :class="{ liked: (reply as any).is_liked }"
                     @click.stop="handleLikeComment(reply)"
                   >
                     <span class="icon-like"></span>
-                    <span>{{ reply.likes_count || 0 }}</span>
+                    <span>{{ reply.like_count || 0 }}</span>
                   </div>
                 </div>
                 <div class="comment-content">{{ reply.content }}</div>
@@ -219,13 +219,13 @@ const fetchComments = async () => {
     const response = await forumApi.getPostComments(post.value.id)
     
     // 处理评论和回复的结构
-    const parentComments: Comment[] = []
+    const parentComments: (Comment & { replies?: Comment[] })[] = []
     const replyMap = new Map<number, Comment[]>()
     
     response.results.forEach((comment: Comment) => {
       if (comment.parent === null) {
         parentComments.push({...comment, replies: []})
-      } else {
+      } else if (comment.parent) {
         if (!replyMap.has(comment.parent)) {
           replyMap.set(comment.parent, [])
         }
@@ -258,9 +258,9 @@ const handleLikePost = async () => {
     
     // 更新点赞状态
     if (post.value.is_liked) {
-      post.value.likes_count = (post.value.likes_count || 0) - 1
+      post.value.like_count = (post.value.like_count || 0) - 1
     } else {
-      post.value.likes_count = (post.value.likes_count || 0) + 1
+      post.value.like_count = (post.value.like_count || 0) + 1
     }
     post.value.is_liked = !post.value.is_liked
   } catch (error) {
@@ -276,12 +276,13 @@ const handleLikeComment = async (comment: Comment) => {
     await forumApi.likeComment(comment.id)
     
     // 更新点赞状态
-    if (comment.is_liked) {
-      comment.likes_count = (comment.likes_count || 0) - 1
+    const currentLiked = (comment as any).is_liked || false
+    if (currentLiked) {
+      comment.like_count = (comment.like_count || 0) - 1
     } else {
-      comment.likes_count = (comment.likes_count || 0) + 1
+      comment.like_count = (comment.like_count || 0) + 1
     }
-    comment.is_liked = !comment.is_liked
+    (comment as any).is_liked = !currentLiked
   } catch (error) {
     console.error('点赞评论失败:', error)
   }
@@ -332,7 +333,7 @@ const submitComment = async (parentId: number | null) => {
     
     // 更新帖子的评论计数
     if (post.value) {
-      post.value.comments_count = (post.value.comments_count || 0) + 1
+      (post.value as any).comments_count = ((post.value as any).comments_count || 0) + 1
     }
   } catch (error) {
     console.error('提交评论失败:', error)

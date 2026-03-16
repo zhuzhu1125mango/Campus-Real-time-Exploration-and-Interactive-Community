@@ -59,7 +59,7 @@ export interface RegisterForm {
   phone?: string
   code?: string
   password: string
-  password2: string
+  password_confirm: string
 }
 
 export interface TokenResponse {

@@ -238,7 +238,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { schoolApi } from '../api/school'
-import type { School, AdmissionScore, Major, SchoolRating } from '../types/school'
+import type { School, SchoolRating } from '../types/school'
 import { useUserStore } from '../stores/userStore'
 
 const route = useRoute()

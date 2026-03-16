@@ -149,7 +149,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useUserStore } from '../stores/userStore'
 import ChatRoom from '../components/ChatRoom.vue'
 import ChatRoomUserCount from '../components/ChatRoomUserCount.vue'

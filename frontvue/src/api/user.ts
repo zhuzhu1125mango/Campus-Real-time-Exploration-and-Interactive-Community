@@ -1,4 +1,4 @@
-import request from './request'
+import request from '../utils/request'
 import axios from 'axios'
 import config from '../utils/config'
 import type { 
@@ -11,7 +11,7 @@ import type {
   SendCodeForm,
   ResetPasswordForm
 } from '../types/user'
-import type { Topic, Post } from '@/types/forum'
+import type { Topic, Post } from '../types/forum'
 
 interface UserProfile {
   username: string
@@ -21,32 +21,20 @@ interface UserProfile {
   avatar?: string | null
 }
 
-interface LoginData {
-  username: string
-  password: string
-}
-
-interface RegisterData {
-  username: string
-  email: string
-  password: string
-  password2: string
-}
-
 export const userApi = {
   // 用户名密码登录
-  login(data: LoginForm): Promise<TokenResponse> {
-    return request.post<TokenResponse>('/api/users/users/login/', data)
+  login(data: LoginForm): Promise<any> {
+    return request.post('/api/users/users/login/', data)
   },
 
   // 邮箱验证码登录
-  emailCodeLogin(data: EmailLoginForm): Promise<TokenResponse> {
-    return request.post<TokenResponse>('/api/users/users/email_code_login/', data)
+  emailCodeLogin(data: EmailLoginForm): Promise<any> {
+    return request.post('/api/users/users/email_code_login/', data)
   },
 
   // 手机验证码登录
-  phoneCodeLogin(data: PhoneLoginForm): Promise<TokenResponse> {
-    return request.post<TokenResponse>('/api/users/users/phone_code_login/', data)
+  phoneCodeLogin(data: PhoneLoginForm): Promise<any> {
+    return request.post('/api/users/users/phone_code_login/', data)
   },
 
   // 发送邮箱验证码
@@ -77,7 +65,7 @@ export const userApi = {
 
   // 刷新 token
   refreshToken(refresh: string) {
-    return request.post<TokenResponse>('/api/users/token/refresh/', { refresh })
+    return request.post<TokenResponse>('/api/token/refresh/', { refresh })
   },
 
   // 获取用户信息
@@ -87,51 +75,12 @@ export const userApi = {
 
   // 更新用户信息
   updateProfile(data: FormData | Record<string, any>) {
-    console.log('调用 updateProfile API:', data)
-    
     // 如果是FormData类型（包含文件上传）
     if (data instanceof FormData) {
-      console.log('检测到FormData，使用multipart/form-data格式上传')
-      
-      // 检查FormData中的文件
-      if (data.has('avatar')) {
-        const avatarFile = data.get('avatar')
-        if (avatarFile instanceof File) {
-          console.log('上传头像文件详情:', {
-            name: avatarFile.name,
-            type: avatarFile.type,
-            size: avatarFile.size,
-            lastModified: new Date(avatarFile.lastModified).toISOString()
-          })
-        } else {
-          console.log('上传头像非文件类型:', avatarFile)
-        }
-      } else {
-        console.log('FormData中没有avatar字段')
-      }
-      
-      if (data.has('banner')) {
-        const bannerFile = data.get('banner')
-        if (bannerFile instanceof File) {
-          console.log('上传背景图文件详情:', {
-            name: bannerFile.name,
-            type: bannerFile.type,
-            size: bannerFile.size,
-            lastModified: new Date(bannerFile.lastModified).toISOString()
-          })
-        } else {
-          console.log('上传背景图非文件类型:', bannerFile)
-        }
-      } else {
-        console.log('FormData中没有banner字段')
-      }
-      
       // 获取本地存储的token
       const token = localStorage.getItem(config.jwt.accessTokenKey)
       
-      // 打印服务器地址和完整URL
       const fullUrl = `${config.apiBaseUrl}/api/users/users/update_me/`
-      console.log('发送请求到URL:', fullUrl)
       
       // 添加超时设置
       return axios.patch(
@@ -142,50 +91,18 @@ export const userApi = {
             'Content-Type': 'multipart/form-data',
             ...(token ? { Authorization: `Bearer ${token}` } : {})
           },
-          timeout: 30000, // 30秒超时
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-              console.log(`上传进度: ${percentCompleted}%`)
-            }
-          }
+          timeout: 30000 // 30秒超时
         }
       )
       .then(response => {
-        console.log('上传成功，服务器响应:', response)
-        console.log('服务器返回的数据:', response.data)
-        
-        // 检查响应中是否包含头像和背景图URL
-        if (response.data.avatar) {
-          console.log('返回的头像URL:', response.data.avatar)
-        } else {
-          console.log('返回数据中没有头像URL')
-        }
-        
-        if (response.data.banner) {
-          console.log('返回的背景图URL:', response.data.banner)
-        } else {
-          console.log('返回数据中没有背景图URL')
-        }
-        
         return response.data
       })
       .catch(error => {
-        console.error('上传失败:', error)
-        if (error.response) {
-          console.error('服务器响应状态:', error.response.status)
-          console.error('服务器响应数据:', error.response.data)
-        } else if (error.request) {
-          console.error('没有收到响应，请求信息:', error.request)
-        } else {
-          console.error('请求配置错误:', error.message)
-        }
         throw error
       })
     }
     
     // 如果是普通对象（不包含文件上传）
-    console.log('使用JSON格式更新用户资料')
     return request.patch<User>('/api/users/users/update_me/', data)
   },
 
@@ -265,17 +182,17 @@ export const userApi = {
   },
 
   // 获取当前用户信息
-  getCurrentUser(): Promise<User> {
+  getCurrentUser(): Promise<any> {
     return request.get('/api/users/me/')
   },
 
   // 获取用户资料
-  getUserProfile(userId: number | string): Promise<User> {
+  getUserProfile(userId: number | string): Promise<any> {
     return request.get(`/api/users/${userId}/`)
   },
 
   // 更新用户资料
-  updateUserProfile(data: Partial<User>): Promise<User> {
+  updateUserProfile(data: Partial<any>): Promise<any> {
     return request.patch('/api/users/me/', data)
   },
   

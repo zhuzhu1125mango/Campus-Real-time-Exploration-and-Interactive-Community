@@ -334,9 +334,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, reactive } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { userApi } from '../api/user'
-import type { User } from '../types/user'
 import { useToast } from '../composables/useToast'
 // @ts-ignore 忽略类型检查错误
 import VueCropper from 'vue-cropperjs'
@@ -351,13 +350,15 @@ const userStore = useUserStore()
 // 基本数据
 const loading = ref(false)
 const pwdLoading = ref(false)
-const isSubmitting = ref(false) // 添加提交状态变量
 const activeTab = ref('profile')
 const avatarPreview = ref('')
 const bannerPreview = ref('')
 const avatarFile = ref<File | null>(null) // 保存上传的头像文件引用
 const bannerFile = ref<File | null>(null) // 保存上传的背景图文件引用
 const { showToast } = useToast()
+
+// 获取API基础URL
+const apiBaseUrl = ref(import.meta.env.VITE_API_BASE_URL || '')
 
 // 图片裁剪相关
 const showCropper = ref(false)
@@ -596,25 +597,26 @@ const bannerStyle = computed(() => {
 const fetchProfile = async () => {
   try {
     const response = await userApi.getProfile()
-    console.log('获取到的用户资料:', response)
+    const userData = response.data
+    console.log('获取到的用户资料:', userData)
     
     // 只复制需要的字段，避免类型不匹配问题
     form.value = {
-      username: response.username || '',
-      email: response.email || '',
-      phone: response.phone || '',
-      bio: response.bio || '',
+      username: userData.username || '',
+      email: userData.email || '',
+      phone: userData.phone || '',
+      bio: userData.bio || '',
       avatar: null, // 不直接使用URL
       banner: null  // 不直接使用URL
     }
     
     // 设置用户头像预览 - 直接使用完整URL
-    if (response.avatar && typeof response.avatar === 'string') {
+    if (userData.avatar && typeof userData.avatar === 'string') {
       // 记录原始数据
-      console.log('原始头像URL:', response.avatar)
+      console.log('原始头像URL:', userData.avatar)
       
       // 确保URL是完整的
-      let avatarUrl = response.avatar
+      let avatarUrl = userData.avatar
       if (!avatarUrl.startsWith('http') && !avatarUrl.startsWith('/')) {
         // 如果是相对路径，添加API基础URL
         const baseMediaUrl = import.meta.env.VITE_UPLOAD_URL || 'http://localhost:8000/media'
@@ -633,11 +635,11 @@ const fetchProfile = async () => {
     }
     
     // 设置用户背景图预览 - 直接使用完整URL
-    if (response.banner && typeof response.banner === 'string') {
-      console.log('服务器返回的背景图URL:', response.banner)
+    if (userData.banner && typeof userData.banner === 'string') {
+      console.log('服务器返回的背景图URL:', userData.banner)
       
       // 处理Banner URL
-      let bannerUrl = response.banner
+      let bannerUrl = userData.banner
       
       // 确保是完整的URL
       if (typeof bannerUrl === 'string' && !bannerUrl.startsWith('http') && !bannerUrl.startsWith('/')) {
@@ -928,7 +930,7 @@ const handleUpdate = async () => {
     }
     
     // 发送更新请求
-    const response = await userApi.updateProfile(formData);
+    await userApi.updateProfile(formData);
     
     // 重新获取最新的用户数据
     await userStore.fetchUserProfile();
@@ -1201,134 +1203,8 @@ if (localStorage.getItem('tempBannerPreview')) {
   bannerPreview.value = localStorage.getItem('tempBannerPreview') || ''
 }
 
-// 添加调试状态
-const debugInfo = ref<string | null>(null);
+// 调试信息
 
-// 测试图片URL
-const testImageUrls = async () => {
-  debugInfo.value = '正在测试图片URL...';
-  
-  try {
-    // 测试用户头像URL
-    const avatarUrl = userStore.user?.avatar;
-    
-    // 组装不同形式的URL进行测试
-    const urls = [];
-    
-    if (avatarUrl) {
-      // 原始URL
-      urls.push({ name: '原始URL', url: avatarUrl });
-      
-      // 绝对URL
-      if (!avatarUrl.startsWith('http')) {
-        const absoluteUrl = `${import.meta.env.VITE_API_BASE_URL}${avatarUrl.startsWith('/') ? '' : '/'}${avatarUrl}`;
-        urls.push({ name: '绝对URL', url: absoluteUrl });
-      }
-      
-      // 带时间戳的URL
-      const timestamp = new Date().getTime();
-      const timestampUrl = avatarUrl.includes('?') 
-        ? `${avatarUrl.split('?')[0]}?_=${timestamp}` 
-        : `${avatarUrl}?_=${timestamp}`;
-      urls.push({ name: '带时间戳URL', url: timestampUrl });
-    }
-    
-    // 测试每个URL
-    const results = await Promise.all(
-      urls.map(async ({ name, url }) => {
-        try {
-          const response = await fetch(url, { method: 'HEAD' });
-          return { 
-            name, 
-            url, 
-            status: response.status,
-            ok: response.ok,
-            statusText: response.statusText
-          };
-        } catch (error: any) {
-          return { name, url, error: error.message };
-        }
-      })
-    );
-    
-    debugInfo.value = JSON.stringify(results, null, 2);
-  } catch (error: any) {
-    debugInfo.value = `测试出错: ${error.message}`;
-    console.error('测试图片URL出错:', error);
-  }
-};
-
-// 检查静态文件
-const checkStaticFiles = async () => {
-  debugInfo.value = '正在检查静态文件...';
-  
-  try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/test-static/`);
-    const data = await response.json();
-    debugInfo.value = JSON.stringify(data, null, 2);
-    
-    // 测试图片直接访问
-    if (data.test_image_url) {
-      const imgUrl = data.test_image_url.startsWith('/')
-        ? `${import.meta.env.VITE_API_BASE_URL}${data.test_image_url}`
-        : `${import.meta.env.VITE_API_BASE_URL}/${data.test_image_url}`;
-        
-      try {
-        const imgResponse = await fetch(imgUrl, { method: 'HEAD' });
-        debugInfo.value += `\n\n测试图片访问结果:\nURL: ${imgUrl}\n状态: ${imgResponse.status}\n成功: ${imgResponse.ok}`;
-      } catch (imgError: any) {
-        debugInfo.value += `\n\n测试图片访问出错:\nURL: ${imgUrl}\n错误: ${imgError.message}`;
-      }
-    }
-  } catch (error: any) {
-    debugInfo.value = `检查静态文件出错: ${error.message}`;
-    console.error('检查静态文件出错:', error);
-  }
-};
-
-// 列出所有头像文件
-const listAvatarFiles = async () => {
-  debugInfo.value = '正在获取所有头像文件...';
-  
-  try {
-    const response = await fetch(`${apiBaseUrl.value}/api/users/list-avatars/`);
-    const data = await response.json();
-    debugInfo.value = JSON.stringify(data, null, 2);
-  } catch (error: any) {
-    debugInfo.value = `获取头像文件列表出错: ${error.message}`;
-    console.error('获取头像文件列表出错:', error);
-  }
-};
-
-// 打开媒体测试页面
-const openMediaTestPage = () => {
-  // 添加可选的测试页面选项
-  debugInfo.value = '选择要打开的测试页面:';
-  
-  const djangoTestPage = `${import.meta.env.VITE_API_BASE_URL}/test-media/`;
-  const htmlTestPage = `${import.meta.env.VITE_API_BASE_URL}/api/users/test-html-media/`;
-  
-  // 创建按钮并添加到调试信息面板
-  const testPageButtons = `
-    <div style="margin-top: 10px;">
-      <button onclick="window.open('${djangoTestPage}', '_blank')" style="margin-right: 10px; padding: 5px 10px;">
-        打开Django模板测试页面
-      </button>
-      
-      <button onclick="window.open('${htmlTestPage}', '_blank')" style="padding: 5px 10px;">
-        打开HTML API测试页面
-      </button>
-    </div>
-  `;
-  
-  debugInfo.value += testPageButtons;
-};
-
-// 添加是否为开发环境的计算属性
-const isDevelopment = ref(import.meta.env.DEV);
-
-// 获取API基础URL
-const apiBaseUrl = ref(import.meta.env.VITE_API_BASE_URL || '');
 </script>
 
 <style scoped>

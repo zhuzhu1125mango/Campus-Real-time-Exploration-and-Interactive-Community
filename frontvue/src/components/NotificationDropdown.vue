@@ -75,8 +75,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
-import config from '../utils/config'
 import { useToast } from '../composables/useToast'
 import { userApi } from '../api/user'
 
@@ -139,7 +137,7 @@ const fetchNotifications = async () => {
   try {
     // 使用userApi获取通知
     const response = await userApi.getNotifications()
-    notifications.value = response
+    notifications.value = response.data
   } catch (error) {
     console.error('获取通知失败:', error)
     showToast('获取通知失败', 'error')
@@ -153,7 +151,7 @@ const fetchUnreadCount = async () => {
   try {
     // 使用userApi获取未读通知数
     const response = await userApi.getUnreadNotificationsCount()
-    unreadCount.value = response.unread_count
+    unreadCount.value = response.data.unread_count
   } catch (error) {
     console.error('获取未读数失败:', error)
   }
@@ -526,6 +524,7 @@ watch(activeTab, () => {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  line-clamp: 2;
   overflow: hidden;
 }
 

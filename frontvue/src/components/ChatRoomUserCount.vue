@@ -5,11 +5,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { useUserStore } from '@/stores/userStore'
+import { ref } from 'vue'
 
 const userCount = ref(0)
-const userStore = useUserStore()
 
 // 导出更新用户计数的方法供外部调用
 const updateUserCount = (count: number) => {

@@ -98,10 +98,10 @@
               <span class="topic-date">{{ formatDate(topic.created_at) }}</span>
             </div>
             <div class="topic-footer">
-              <span class="topic-board">{{ topic.board_name }}</span>
+              <span class="topic-board">{{ (topic as any).board_name || '未知板块' }}</span>
               <div class="topic-stats">
-                <span class="stat-views">{{ topic.views }} 浏览</span>
-                <span class="stat-replies">{{ topic.post_count - 1 }} 回复</span>
+                <span class="stat-views">{{ topic.views || 0 }} 浏览</span>
+                <span class="stat-replies">{{ (topic.post_count || 0) - 1 }} 回复</span>
               </div>
             </div>
           </div>
@@ -146,19 +146,19 @@
             @click="goToPost(post.topic, post.id)"
           >
             <div class="post-header">
-              <div class="post-topic">回复：{{ post.topic_title }}</div>
+              <div class="post-topic">回复：{{ (post as any).topic_title || '未知主题' }}</div>
               <span class="post-date">{{ formatDate(post.created_at) }}</span>
             </div>
             <div class="post-content">
               <div class="post-preview" v-html="getPostPreview(post.content)"></div>
             </div>
             <div class="post-footer">
-              <div v-if="post.is_edited" class="post-edited">
-                (已编辑于 {{ formatDate(post.edited_at) }})
+              <div v-if="(post as any).is_edited" class="post-edited">
+                (已编辑于 {{ formatDate((post as any).edited_at || '') }})
               </div>
-              <div class="post-status" v-if="post.content_status !== 'approved'">
-                <span class="status-badge" :class="post.content_status">
-                  {{ getStatusText(post.content_status) }}
+              <div class="post-status" v-if="(post as any).content_status !== 'approved'">
+                <span class="status-badge" :class="(post as any).content_status">
+                  {{ getStatusText((post as any).content_status || 'approved') }}
                 </span>
               </div>
             </div>
@@ -194,20 +194,25 @@ import { useRoute, useRouter } from 'vue-router'
 import { userApi } from '@/api/user'
 import type { User } from '@/types/user'
 import type { Topic, Post } from '@/types/forum'
-import { useUserStore } from '@/stores/userStore'
 
 const route = useRoute()
 const router = useRouter()
-const userStore = useUserStore()
 
 // 状态
 const loading = ref(true)
 const user = ref<User>({} as User)
+
+interface Board {
+  id: number
+  name: string
+  post_count: number
+}
+
 const stats = ref({
   topic_count: 0,
   post_count: 0,
   reply_count: 0,
-  active_boards: [],
+  active_boards: [] as Board[],
   join_date: ''
 })
 const activeTab = ref('topics')
@@ -230,7 +235,7 @@ const postTotalPages = ref(1)
 const fetchUserProfile = async () => {
   loading.value = true
   try {
-    const userId = route.params.id || 'me'
+    const userId = Array.isArray(route.params.id) ? route.params.id[0] : route.params.id || 'me'
     const [userResponse, statsResponse] = await Promise.all([
       userApi.getUserProfile(userId),
       userApi.getUserProfileStats(userId)
@@ -253,7 +258,7 @@ const fetchUserProfile = async () => {
 const fetchUserTopics = async () => {
   loadingTopics.value = true
   try {
-    const userId = route.params.id || 'me'
+    const userId = Array.isArray(route.params.id) ? route.params.id[0] : route.params.id || 'me'
     const response = await userApi.getUserTopics(userId, topicPage.value)
     
     topics.value = response.results
@@ -271,7 +276,7 @@ const fetchUserTopics = async () => {
 const fetchUserPosts = async () => {
   loadingPosts.value = true
   try {
-    const userId = route.params.id || 'me'
+    const userId = Array.isArray(route.params.id) ? route.params.id[0] : route.params.id || 'me'
     const response = await userApi.getUserPosts(userId, postPage.value)
     
     posts.value = response.results

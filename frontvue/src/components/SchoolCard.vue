@@ -46,7 +46,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/userStore'
 import type { School } from '../types/school'

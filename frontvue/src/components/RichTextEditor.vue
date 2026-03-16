@@ -1,21 +1,16 @@
 <template>
   <div class="rich-text-editor">
-    <QuillEditor
-      v-model:content="content"
-      :options="editorOptions"
-      contentType="html"
-      theme="snow"
-      toolbar="full"
-      @update:content="updateContent"
-      @textChange="onTextChange"
+    <Editor
+      v-model="content"
+      :init="editorOptions"
+      @editorChange="onEditorChange"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
-import { QuillEditor } from '@vueup/vue-quill'
-import '@vueup/vue-quill/dist/vue-quill.snow.css'
+import Editor from '@tinymce/tinymce-vue'
 
 // 定义组件的props
 const props = defineProps({
@@ -39,41 +34,31 @@ const content = ref(props.modelValue || '')
 const editorOptions = computed(() => {
   return {
     placeholder: props.placeholder,
-    modules: {
-      toolbar: [
-        ['bold', 'italic', 'underline', 'strike'],
-        ['blockquote', 'code-block'],
-        [{ 'header': 1 }, { 'header': 2 }],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        [{ 'indent': '-1' }, { 'indent': '+1' }],
-        [{ 'size': ['small', false, 'large', 'huge'] }],
-        [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-        [{ 'color': [] }, { 'background': [] }],
-        [{ 'align': [] }],
-        ['clean'],
-        ['link', 'image']
-      ],
-      imageUploader: {
-        upload: (file: File) => {
-          return new Promise((resolve, reject) => {
-            const formData = new FormData();
-            formData.append('file', file);
-            
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              if (e.target && e.target.result) {
-                resolve(e.target.result.toString());
-              } else {
-                reject(new Error('图片加载失败'));
-              }
-            };
-            reader.onerror = (e) => {
-              reject(new Error('图片加载失败'));
-            };
-            reader.readAsDataURL(file);
-          });
+    height: 300,
+    menubar: false,
+    plugins: [
+      'advlist autolink lists link image charmap print preview anchor',
+      'searchreplace visualblocks code fullscreen',
+      'insertdatetime media table paste code help wordcount'
+    ],
+    toolbar: 'undo redo | formatselect | bold italic backcolor | ' +
+             'alignleft aligncenter alignright alignjustify | ' +
+             'bullist numlist outdent indent | removeformat | help | ' +
+             'link image',
+    images_upload_handler: function (blobInfo: any, success: any, failure: any) {
+      // 图片上传处理，使用FileReader将图片转换为base64
+      const reader = new FileReader();
+      reader.onload = function () {
+        if (reader.result) {
+          success(reader.result as string);
+        } else {
+          failure('图片加载失败');
         }
-      }
+      };
+      reader.onerror = function () {
+        failure('图片加载失败');
+      };
+      reader.readAsDataURL(blobInfo.blob());
     }
   }
 })
@@ -85,17 +70,14 @@ watch(() => props.modelValue, (newVal) => {
   }
 }, { immediate: true })
 
-// 监听内部内容变化并向上传递
-const updateContent = (newContent: string) => {
-  emit('update:modelValue', newContent)
-}
-
-// 文本变化事件处理
-const onTextChange = () => {
+// 编辑器内容变化事件处理
+const onEditorChange = () => {
   if (content.value === '<p><br></p>') {
     // 清空内容时重置为空字符串
     content.value = ''
     emit('update:modelValue', '')
+  } else {
+    emit('update:modelValue', content.value)
   }
 }
 
@@ -114,21 +96,18 @@ onMounted(() => {
   border-radius: 4px;
 }
 
-.rich-text-editor :deep(.ql-toolbar) {
+.rich-text-editor :deep(.tox-tinymce) {
+  border-radius: 4px;
+}
+
+.rich-text-editor :deep(.tox-editor-container) {
+  border-bottom-left-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
+.rich-text-editor :deep(.tox-toolbar-overlord) {
   border-top-left-radius: 4px;
   border-top-right-radius: 4px;
   background-color: #f8f9fa;
 }
-
-.rich-text-editor :deep(.ql-container) {
-  border-bottom-left-radius: 4px;
-  border-bottom-right-radius: 4px;
-  min-height: 150px;
-}
-
-.rich-text-editor :deep(.ql-editor) {
-  min-height: 150px;
-  font-size: 16px;
-  line-height: 1.6;
-}
-</style> 
+</style>

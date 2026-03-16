@@ -1,6 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import type { RouteLocationNormalized, NavigationGuardNext } from 'vue-router'
-import config from '../utils/config'
 import Home from '@/views/Home.vue'
 import Login from '@/views/Login.vue'
 import Register from '@/views/Register.vue'
@@ -105,7 +103,7 @@ const router = createRouter({
 })
 
 // 路由守卫，检查登录状态
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const userStore = useUserStore()
   
   // 如果需要认证

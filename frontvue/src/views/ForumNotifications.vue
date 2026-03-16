@@ -81,9 +81,9 @@ const totalPages = computed(() => {
 const fetchNotifications = async () => {
   loading.value = true
   try {
-    const response = await forumApi.getNotifications(currentPage.value)
-    notifications.value = response.results
-    totalNotifications.value = response.count
+    const response = await forumApi.getNotifications()
+    notifications.value = response
+    totalNotifications.value = response.length
   } catch (error) {
     console.error('获取通知失败:', error)
   } finally {
@@ -96,8 +96,9 @@ const viewNotification = (notification: Notification) => {
   if (!notification.is_read) {
     markAsRead(notification.id)
   }
-  if (notification.link) {
-    router.push(notification.link)
+  // 通知类型处理逻辑
+  if (notification.notification_type === 'reply' && notification.post) {
+    router.push(`/forum/post/${notification.post}`)
   }
 }
 

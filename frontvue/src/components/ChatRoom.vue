@@ -78,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, nextTick, watch, defineEmits } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useUserStore } from '@/stores/userStore'
 import { formatDate } from '../utils/date'
 
@@ -93,7 +93,9 @@ const props = defineProps({
 const userStore = useUserStore()
 
 // 定义组件事件
-const emit = defineEmits(['online-users-update'])
+const emit = defineEmits<{
+  (e: 'online-users-update', count: number): void
+}>()
 
 // 从环境变量获取API和WebSocket URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -118,7 +120,6 @@ interface ChatMessage {
 const messages = ref<ChatMessage[]>([])
 const onlineUsers = ref<number>(0)
 const messageInput = ref('')
-const messagesContainer = ref<HTMLElement | null>(null)
 const ws = ref<WebSocket | null>(null)
 const connectionStatus = ref<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected')
 const reconnectAttempts = ref(0)
@@ -142,14 +143,6 @@ const connectionStatusText = computed(() => {
       return ''
   }
 })
-
-// 计算输入框是否禁用
-const isInputDisabled = computed(() => {
-  const loginStatus = userStore.isLoggedIn;
-  const connStatus = connectionStatus.value;
-  
-  return !loginStatus || connStatus !== 'connected';
-});
 
 // 获取历史消息
 const fetchHistoryMessages = async () => {
@@ -280,10 +273,17 @@ const connectWebSocket = () => {
       console.log('使用环境变量连接WebSocket:', wsUrl);
     }
     
+    // 添加认证token到WebSocket URL
+    wsUrl += `?token=${encodeURIComponent(token)}`;
+    console.log('添加token后的WebSocket URL:', wsUrl);
+    
+    // 添加错误处理，捕获WebSocket连接错误
+    console.log('准备连接WebSocket:', wsUrl);
+    
     ws.value = new WebSocket(wsUrl);
     
     // WebSocket事件处理
-    ws.value.onopen = (event) => {
+    ws.value.onopen = () => {
       console.log('WebSocket连接已打开')
       connectionStatus.value = 'connected'
       reconnectAttempts.value = 0

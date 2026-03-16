@@ -14,28 +14,14 @@
     </div>
 
     <div v-else class="bookmarks-list">
-      <div v-for="topic in bookmarks" :key="topic.id" class="bookmark-item" @click="goToTopicDetail(topic.id)">
+      <div v-for="bookmark in bookmarks" :key="bookmark.id" class="bookmark-item" @click="goToTopicDetail(bookmark.topic)">
         <div class="topic-info">
-          <h3 class="topic-title">{{ topic.title }}</h3>
+          <h3 class="topic-title">收藏主题 {{ bookmark.topic }}</h3>
           <div class="topic-meta">
-            <span class="board-name">{{ getBoardName(topic.board) }}</span>
-            <span class="topic-status" :class="getTopicStatusClass(topic)">
-              {{ getTopicStatusText(topic) }}
-            </span>
-            <span class="topic-date">{{ formatDate(topic.created_at) }}</span>
+            <span class="topic-date">{{ formatDate(bookmark.created_at) }}</span>
           </div>
         </div>
-        <div class="topic-stats">
-          <div class="stat-item">
-            <span class="icon-view"></span>
-            <span>{{ topic.views }}</span>
-          </div>
-          <div class="stat-item">
-            <span class="icon-reply"></span>
-            <span>{{ topic.posts_count - 1 }}</span>
-          </div>
-        </div>
-        <button class="btn-remove" @click.stop="removeBookmark(topic.id)">
+        <button class="btn-remove" @click.stop="removeBookmark(bookmark.id)">
           <span class="icon-remove"></span>
         </button>
       </div>
@@ -66,13 +52,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { forumApi } from '../api/forum'
-import type { Topic, Board } from '../types/forum'
+import type { Bookmark } from '../types/forum'
 
 const router = useRouter()
 
 // 状态
-const bookmarks = ref<Topic[]>([])
-const boards = ref<Board[]>([])
+const bookmarks = ref<Bookmark[]>([])
 const loading = ref(true)
 const currentPage = ref(1)
 const totalBookmarks = ref(0)
@@ -86,30 +71,14 @@ const totalPages = computed(() => {
 const fetchBookmarks = async () => {
   loading.value = true
   try {
-    const response = await forumApi.getBookmarks(currentPage.value)
-    bookmarks.value = response.results
-    totalBookmarks.value = response.count
+    const response = await forumApi.getBookmarks()
+    bookmarks.value = response
+    totalBookmarks.value = response.length
   } catch (error) {
     console.error('获取收藏失败:', error)
   } finally {
     loading.value = false
   }
-}
-
-// 获取所有版块列表（用于显示版块名称）
-const fetchBoards = async () => {
-  try {
-    const response = await forumApi.getBoards()
-    boards.value = response.results
-  } catch (error) {
-    console.error('获取版块列表失败:', error)
-  }
-}
-
-// 根据版块ID获取版块名称
-const getBoardName = (boardId: number) => {
-  const board = boards.value.find(b => b.id === boardId)
-  return board ? board.name : '未知版块'
 }
 
 // 移除收藏
@@ -134,21 +103,6 @@ const goToTopicDetail = (topicId: number) => {
   router.push(`/forum/topic/${topicId}`)
 }
 
-// 获取主题状态类
-const getTopicStatusClass = (topic: Topic) => {
-  if (topic.status === 'pinned') return 'status-pinned'
-  if (topic.status === 'closed') return 'status-closed'
-  return 'status-open'
-}
-
-// 获取主题状态文本
-const getTopicStatusText = (topic: Topic) => {
-  if (topic.status === 'pinned') return '置顶'
-  if (topic.status === 'closed') return '已关闭'
-  if (topic.status === 'archived') return '已归档'
-  return '进行中'
-}
-
 // 格式化日期
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '未知'
@@ -159,7 +113,7 @@ const formatDate = (dateStr: string) => {
 
 // 生命周期钩子
 onMounted(async () => {
-  await Promise.all([fetchBookmarks(), fetchBoards()])
+  await fetchBookmarks()
 })
 </script>
 

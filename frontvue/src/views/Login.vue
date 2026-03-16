@@ -242,8 +242,8 @@ const handlePasswordLogin = async () => {
       showToast(userStore.error || '登录失败，请检查用户名和密码', 'error')
     }
   } catch (error: any) {
-    console.error('登录失败:', error)
-    showToast('登录过程中发生错误', 'error')
+    const errorMessage = error.response?.data?.detail || error.message || '登录过程中发生错误'
+    showToast(errorMessage, 'error')
   } finally {
     loading.value = false
   }
@@ -273,11 +273,7 @@ const handlePhoneLogin = async () => {
     // 重定向到首页
     router.push('/')
   } catch (error: any) {
-    console.error('登录失败:', error)
-    let errorMsg = '登录失败，请检查手机号和验证码'
-    if (error.response?.data?.detail) {
-      errorMsg = error.response.data.detail
-    }
+    const errorMsg = error.response?.data?.detail || error.message || '登录失败，请检查手机号和验证码'
     showToast(errorMsg, 'error')
   } finally {
     loading.value = false
@@ -299,8 +295,8 @@ const handleEmailLogin = async () => {
     localStorage.setItem(config.jwt.accessTokenKey, tokenData.access)
     localStorage.setItem(config.jwt.refreshTokenKey, tokenData.refresh)
     
-    // 获取用户信息
-    await userApi.getProfile()
+    // 更新userStore中的状态
+    await userStore.fetchUserProfile()
     
     // 显示成功提示
     showToast('登录成功', 'success')
@@ -308,11 +304,7 @@ const handleEmailLogin = async () => {
     // 重定向到首页
     router.push('/')
   } catch (error: any) {
-    console.error('登录失败:', error)
-    let errorMsg = '登录失败，请检查邮箱和验证码'
-    if (error.response?.data?.detail) {
-      errorMsg = error.response.data.detail
-    }
+    const errorMsg = error.response?.data?.detail || error.message || '登录失败，请检查邮箱和验证码'
     showToast(errorMsg, 'error')
   } finally {
     loading.value = false
@@ -343,11 +335,7 @@ const sendPhoneCode = async () => {
     
     showToast('验证码已发送', 'success')
   } catch (error: any) {
-    console.error('发送验证码失败:', error)
-    let errorMsg = '发送验证码失败'
-    if (error.response?.data?.detail) {
-      errorMsg = error.response.data.detail
-    }
+    const errorMsg = error.response?.data?.detail || error.message || '发送验证码失败'
     showToast(errorMsg, 'error')
   }
 }
@@ -376,11 +364,7 @@ const sendEmailCode = async () => {
     
     showToast('验证码已发送', 'success')
   } catch (error: any) {
-    console.error('发送验证码失败:', error)
-    let errorMsg = '发送验证码失败'
-    if (error.response?.data?.detail) {
-      errorMsg = error.response.data.detail
-    }
+    const errorMsg = error.response?.data?.detail || error.message || '发送验证码失败'
     showToast(errorMsg, 'error')
   }
 }

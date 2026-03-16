@@ -2,19 +2,38 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { userApi } from './api/user'
-import config from './utils/config'
 import Toast from './components/Toast.vue'
 import NotificationDropdown from './components/NotificationDropdown.vue'
 import { useUserStore } from './stores/userStore'
+import config from './utils/config'
+import request from './utils/request'
 
 // 使用User Store
 const userStore = useUserStore()
 const router = useRouter()
 
+// 后端服务器状态
+const backendStatus = ref<'checking' | 'online' | 'offline'>('checking')
+
+// 检查后端服务器状态
+const checkBackendStatus = async () => {
+  try {
+    // 发送一个简单的GET请求到后端健康检查端点
+    await request.get('/health/')
+    backendStatus.value = 'online'
+  } catch (error) {
+    console.error('后端服务器不可用:', error)
+    backendStatus.value = 'offline'
+  }
+}
+
 // 检查登录状态
 onMounted(async () => {
-  // 如果本地存储中有token，尝试获取用户信息验证登录状态
-  if (localStorage.getItem(config.jwt.accessTokenKey)) {
+  // 首先检查后端服务器状态
+  await checkBackendStatus()
+  
+  // 如果后端服务器可用，再检查登录状态
+  if (backendStatus.value === 'online' && localStorage.getItem(config.jwt.accessTokenKey)) {
     try {
       await userStore.fetchUserProfile()
     } catch (error) {
@@ -30,49 +49,140 @@ const handleLogout = async () => {
   try {
     await userApi.logout()
   } catch (error) {
-    console.error('登出请求发送失败', error)
+    // 登出请求发送失败，继续执行登出操作
   } finally {
     // 无论API调用成功与否，都清除本地状态
     userStore.logout()
     router.push('/login')
   }
 }
+
+// 重新检查后端状态
+const retryBackendCheck = async () => {
+  backendStatus.value = 'checking'
+  await checkBackendStatus()
+}
 </script>
 
 <template>
   <div class="app">
-    <nav class="navbar">
-      <div class="nav-brand">
-        <router-link to="/">校园实时互动社区</router-link>
-      </div>
-      <div class="nav-links">
-        <router-link to="/schools">院校查询</router-link>
-        <router-link to="/forum">论坛</router-link>
-        <template v-if="userStore.isLoggedIn">
-          <router-link to="/my-favorite-schools">收藏院校</router-link>
-          <NotificationDropdown class="notification-container" />
-          <router-link to="/profile">个人中心</router-link>
-          <a href="#" @click.prevent="handleLogout">退出登录</a>
-        </template>
-        <template v-else>
-          <router-link to="/login">登录</router-link>
-          <router-link to="/register">注册</router-link>
-        </template>
-      </div>
-    </nav>
+    <!-- 后端服务器状态检查 -->
+    <div v-if="backendStatus === 'checking'" class="backend-checking">
+      <div class="checking-spinner"></div>
+      <p>正在连接后端服务器...</p>
+    </div>
+    
+    <!-- 后端服务器不可用 -->
+    <div v-else-if="backendStatus === 'offline'" class="backend-offline">
+      <div class="offline-icon">🔌</div>
+      <h2>后端服务器不可用</h2>
+      <p>无法连接到后端服务器，请确保后端服务已启动并运行。</p>
+      <button class="retry-button" @click="retryBackendCheck">重试连接</button>
+    </div>
+    
+    <!-- 后端服务器可用，显示主应用 -->
+    <template v-else-if="backendStatus === 'online'">
+      <nav class="navbar">
+        <div class="nav-brand">
+          <router-link to="/">校园实时互动社区</router-link>
+        </div>
+        <div class="nav-links">
+          <router-link to="/schools">院校查询</router-link>
+          <router-link to="/forum">论坛</router-link>
+          <template v-if="userStore.isLoggedIn">
+            <router-link to="/my-favorite-schools">收藏院校</router-link>
+            <NotificationDropdown class="notification-container" />
+            <router-link to="/profile">个人中心</router-link>
+            <a href="#" @click.prevent="handleLogout">退出登录</a>
+          </template>
+          <template v-else>
+            <router-link to="/login">登录</router-link>
+            <router-link to="/register">注册</router-link>
+          </template>
+        </div>
+      </nav>
 
-    <main class="main-content">
-      <router-view></router-view>
-    </main>
+      <main class="main-content">
+        <router-view></router-view>
+      </main>
 
-    <footer class="footer">
-      <p>&copy; 2024 校园实时互动社区. All rights reserved.</p>
-    </footer>
+      <footer class="footer">
+        <p>&copy; 2024 校园实时互动社区. All rights reserved.</p>
+      </footer>
+    </template>
     
     <!-- 全局Toast通知组件 -->
     <Toast />
   </div>
 </template>
+
+<style>
+/* 后端服务器检查样式 */
+.backend-checking,
+.backend-offline {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #f9fafc;
+  text-align: center;
+  padding: 2rem;
+}
+
+.checking-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(67, 97, 238, 0.3);
+  border-radius: 50%;
+  border-top-color: #4361ee;
+  animation: spin 1s ease-in-out infinite;
+  margin-bottom: 1.5rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.backend-checking p {
+  font-size: 1.2rem;
+  color: #666;
+}
+
+.backend-offline .offline-icon {
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+}
+
+.backend-offline h2 {
+  font-size: 2rem;
+  color: #e74c3c;
+  margin-bottom: 1rem;
+}
+
+.backend-offline p {
+  font-size: 1.1rem;
+  color: #666;
+  margin-bottom: 2rem;
+  max-width: 500px;
+}
+
+.retry-button {
+  padding: 0.8rem 1.5rem;
+  background-color: #4361ee;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.retry-button:hover {
+  background-color: #3a56d4;
+}
+</style>
 
 <style>
 .app {

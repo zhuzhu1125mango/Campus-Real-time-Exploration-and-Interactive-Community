@@ -3,6 +3,15 @@ import { ElMessage } from 'element-plus'
 import config from './config'
 import { useUserStore } from '@/stores/userStore'
 
+// 页面跳转函数
+const redirectToLogin = () => {
+  // 检查是否在浏览器环境中
+  if (typeof window !== 'undefined') {
+    // 使用window.location.href进行跳转，因为在工具文件中直接导入router可能会导致循环依赖
+    window.location.href = '/login'
+  }
+}
+
 // 是否正在刷新token
 let isRefreshing = false
 // 等待刷新token的请求队列
@@ -22,29 +31,15 @@ service.interceptors.request.use(
   (requestConfig: InternalAxiosRequestConfig) => {
     // 从 localStorage 获取 token
     const token = localStorage.getItem(config.jwt.accessTokenKey)
-    console.log('请求详情:', {
-      url: requestConfig.url,
-      method: requestConfig.method,
-      token: token ? '存在' : '不存在',
-      tokenKey: config.jwt.accessTokenKey,
-      headers: requestConfig.headers
-    })
     
     if (token) {
       // 根据后端要求设置认证头
       const authHeader = `${config.jwt.tokenType} ${token}`
       requestConfig.headers.set('Authorization', authHeader)
-      console.log('认证头设置:', {
-        authHeader,
-        fullHeaders: requestConfig.headers
-      })
-    } else {
-      console.log('未找到token，跳过认证')
     }
     return requestConfig
   },
   (error) => {
-    console.error('请求拦截器错误:', error)
     return Promise.reject(error)
   }
 )
@@ -52,21 +47,9 @@ service.interceptors.request.use(
 // 响应拦截器
 service.interceptors.response.use(
   (response: AxiosResponse) => {
-    console.log('响应成功:', {
-      url: response.config.url,
-      status: response.status,
-      data: response.data
-    })
     return response.data
   },
   async (error) => {
-    console.error('响应错误:', {
-      url: error.config?.url,
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message
-    })
-    
     // 获取原始请求配置
     const originalRequest = error.config
     
@@ -76,8 +59,6 @@ service.interceptors.response.use(
       
       // 处理token过期 (401错误)
       if (status === 401 && !originalRequest._retry) {
-        console.log('Token过期，尝试刷新Token')
-        
         if (isRefreshing) {
           // 如果已经在刷新token，将请求加入队列
           return new Promise(resolve => {
@@ -112,17 +93,15 @@ service.interceptors.response.use(
             return service(originalRequest)
           } else {
             // 刷新失败，清除token并跳转到登录页
-            console.log('刷新Token失败，跳转到登录页')
             localStorage.removeItem(config.jwt.accessTokenKey)
             localStorage.removeItem(config.jwt.refreshTokenKey)
-            window.location.href = '/login'
+            redirectToLogin()
             return Promise.reject(error)
           }
         } catch (refreshError) {
-          console.error('刷新Token失败:', refreshError)
           localStorage.removeItem(config.jwt.accessTokenKey)
           localStorage.removeItem(config.jwt.refreshTokenKey)
-          window.location.href = '/login'
+          redirectToLogin()
           return Promise.reject(error)
         } finally {
           isRefreshing = false
@@ -134,14 +113,12 @@ service.interceptors.response.use(
           ElMessage.error(data.message || '请求参数错误')
           break
         case 401:
-          console.log('认证失败，清除token并跳转登录页')
           ElMessage.error('请先登录')
           localStorage.removeItem(config.jwt.accessTokenKey)
           localStorage.removeItem(config.jwt.refreshTokenKey)
-          window.location.href = '/login'
+          redirectToLogin()
           break
         case 403:
-          console.log('权限不足:', data.message)
           ElMessage.error('没有权限访问')
           break
         case 404:
@@ -154,10 +131,8 @@ service.interceptors.response.use(
           ElMessage.error(data.message || '请求失败')
       }
     } else if (error.request) {
-      console.log('网络请求失败:', error.request)
       ElMessage.error('网络错误，请检查网络连接')
     } else {
-      console.log('请求配置错误:', error.message)
       ElMessage.error('请求配置错误')
     }
     

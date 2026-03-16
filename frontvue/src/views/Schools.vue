@@ -176,7 +176,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { schoolApi } from '../api/school'
-import type { School, SchoolListResponse, SchoolQueryParams, SchoolFilterData, ImportCsvResponse } from '../types/school'
+import type { School, SchoolQueryParams, ImportCsvResponse } from '../types/school'
 import SchoolCard from '../components/SchoolCard.vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores/userStore'
@@ -202,31 +202,7 @@ const totalPages = ref(1)
 const totalItems = ref(0)
 const perPage = 12
 
-// 计算分页显示的页码
-const displayedPages = computed(() => {
-  const pages = []
-  const maxVisiblePages = 5
-  
-  if (totalPages.value <= maxVisiblePages) {
-    for (let i = 1; i <= totalPages.value; i++) {
-      pages.push(i)
-    }
-  } else {
-    let startPage = Math.max(1, currentPage.value - Math.floor(maxVisiblePages / 2))
-    let endPage = startPage + maxVisiblePages - 1
-    
-    if (endPage > totalPages.value) {
-      endPage = totalPages.value
-      startPage = Math.max(1, endPage - maxVisiblePages + 1)
-    }
-    
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i)
-    }
-  }
-  
-  return pages
-})
+
 
 // 获取学校数据
 const fetchSchools = async () => {
@@ -286,19 +262,7 @@ const fetchFilterData = async () => {
   }
 }
 
-// 根据院校层次获取徽章样式
-const getBadgeClass = (level: string) => {
-  switch (level) {
-    case '985工程':
-      return 'badge-985'
-    case '211工程':
-      return 'badge-211'
-    case '双一流':
-      return 'badge-double'
-    default:
-      return 'badge-normal'
-  }
-}
+
 
 // 搜索防抖
 let searchTimeout: number | null = null
