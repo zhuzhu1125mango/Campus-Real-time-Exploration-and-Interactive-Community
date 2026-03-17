@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { userApi } from './api/user'
 import Toast from './components/Toast.vue'
@@ -14,17 +14,26 @@ const router = useRouter()
 
 // 后端服务器状态
 const backendStatus = ref<'checking' | 'online' | 'offline'>('checking')
+// 应用初始化状态
+const appInitialized = ref(false)
 
 // 检查后端服务器状态
 const checkBackendStatus = async () => {
+  console.log('开始检查后端服务器状态')
   try {
     // 发送一个简单的GET请求到后端健康检查端点
+    console.log('发送健康检查请求到:', config.apiBaseUrl + '/health/')
     await request.get('/health/')
+    console.log('后端服务器可用')
     backendStatus.value = 'online'
+    appInitialized.value = true
   } catch (error) {
     console.error('后端服务器不可用:', error)
     backendStatus.value = 'offline'
+    appInitialized.value = false
   }
+  console.log('后端服务器状态:', backendStatus.value)
+  console.log('应用初始化状态:', appInitialized.value)
 }
 
 // 检查登录状态
@@ -41,6 +50,15 @@ onMounted(async () => {
       // 如果获取用户信息失败，清除token
       userStore.logout()
     }
+  }
+})
+
+// 监听后端状态变化
+watch(backendStatus, (newStatus) => {
+  if (newStatus === 'online' && !appInitialized.value) {
+    appInitialized.value = true
+  } else if (newStatus === 'offline') {
+    appInitialized.value = false
   }
 })
 
@@ -81,7 +99,7 @@ const retryBackendCheck = async () => {
     </div>
     
     <!-- 后端服务器可用，显示主应用 -->
-    <template v-else-if="backendStatus === 'online'">
+    <template v-else>
       <nav class="navbar">
         <div class="nav-brand">
           <router-link to="/">校园实时互动社区</router-link>

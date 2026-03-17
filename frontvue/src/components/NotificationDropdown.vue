@@ -151,9 +151,14 @@ const fetchUnreadCount = async () => {
   try {
     // 使用userApi获取未读通知数
     const response = await userApi.getUnreadNotificationsCount()
-    unreadCount.value = response.data.unread_count
+    if (response && response.data && typeof response.data.unread_count !== 'undefined') {
+      unreadCount.value = response.data.unread_count
+    } else {
+      unreadCount.value = 0
+    }
   } catch (error) {
     console.error('获取未读数失败:', error)
+    unreadCount.value = 0
   }
 }
 

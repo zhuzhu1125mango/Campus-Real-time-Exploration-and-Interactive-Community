@@ -4,18 +4,15 @@
     
     <!-- 搜索和筛选 -->
     <div class="filters">
-      <el-input
+      <TheSearch
         v-model="searchQuery"
         placeholder="搜索学校名称"
         class="search-input"
-        @input="handleSearch"
-      >
-        <template #prefix>
-          <el-icon><Search /></el-icon>
-        </template>
-      </el-input>
+        @search="handleSearch"
+        @clear="handleSearch"
+      />
       
-      <el-select v-model="selectedProvince" placeholder="选择省份" @change="handleSearch">
+      <el-select v-model="selectedProvince" placeholder="选择省份" @change="handleProvinceChange">
         <el-option
           v-for="province in provinces"
           :key="province"
@@ -71,10 +68,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Location, School as SchoolIcon, InfoFilled } from '@element-plus/icons-vue'
+import { Location, School as SchoolIcon, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { schoolApi } from '@/api/school'
 import type { School } from '@/types/school'
+import TheSearch from '@/components/common/TheSearch.vue'
 
 const router = useRouter()
 const schools = ref<School[]>([])
@@ -111,14 +109,33 @@ const fetchProvinces = async () => {
   try {
     const response = await schoolApi.getProvinces()
     if (Array.isArray(response)) {
-      provinces.value = response as string[]
+      provinces.value = response
     }
   } catch (error) {
     ElMessage.error('获取省份列表失败')
   }
 }
 
+// 获取城市列表
+const fetchCities = async (province: string) => {
+  try {
+    const response = await schoolApi.getCities(province)
+    if (Array.isArray(response)) {
+      cities.value = response
+    }
+  } catch (error) {
+    ElMessage.error('获取城市列表失败')
+  }
+}
 
+
+
+// 处理省份改变
+const handleProvinceChange = (province: string) => {
+  selectedCity.value = ''
+  fetchCities(province)
+  handleSearch()
+}
 
 // 处理搜索
 const handleSearch = () => {

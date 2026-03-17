@@ -12,12 +12,8 @@ from django.http import HttpResponse
 from datetime import datetime
 from django.shortcuts import get_object_or_404
 
-from .models import UserProfile, VerificationCode
 from .serializers import (
-    UserSerializer, UserProfileSerializer, UserRegisterSerializer,
-    EmailVerificationSerializer, PhoneVerificationSerializer,
-    VerifyCodeSerializer, UserLoginSerializer, EmailCodeLoginSerializer,
-    PhoneCodeLoginSerializer, ResetPasswordSerializer
+    UserSerializer, UserRegisterSerializer, UserLoginSerializer, UserProfileSerializer
 )
 from schools.models import School
 from forum.models import Topic, Post
@@ -34,14 +30,10 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return UserRegisterSerializer
-        elif self.action == 'update' or self.action == 'partial_update':
-            return UserProfileSerializer
         return self.serializer_class
     
     def get_permissions(self):
-        if self.action in ['create', 'send_email_code', 'send_phone_code', 
-                           'verify_code', 'login', 'email_code_login', 
-                           'phone_code_login', 'reset_password']:
+        if self.action in ['create', 'login']:
             return [permissions.AllowAny()]
         elif self.action == 'retrieve':
             return [permissions.AllowAny()]
@@ -78,99 +70,12 @@ class UserViewSet(viewsets.ModelViewSet):
         })
     
     @action(detail=False, methods=['post'])
-    def email_code_login(self, request):
-        serializer = EmailCodeLoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        user = serializer.validated_data['user']
-        
-        # 更新最后登录时间
-        user.last_login = timezone.now()
-        user.save(update_fields=['last_login'])
-        
-        # 使用JWT生成令牌
-        from rest_framework_simplejwt.tokens import RefreshToken
-        refresh = RefreshToken.for_user(user)
-        
-        # 获取用户数据
-        user_serializer = UserSerializer(user)
-        
-        return Response({
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-            'user': user_serializer.data
-        })
-    
-    @action(detail=False, methods=['post'])
-    def phone_code_login(self, request):
-        serializer = PhoneCodeLoginSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        user = serializer.validated_data['user']
-        
-        # 更新最后登录时间
-        user.last_login = timezone.now()
-        user.save(update_fields=['last_login'])
-        
-        # 使用JWT生成令牌
-        from rest_framework_simplejwt.tokens import RefreshToken
-        refresh = RefreshToken.for_user(user)
-        
-        # 获取用户数据
-        user_serializer = UserSerializer(user)
-        
-        return Response({
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-            'user': user_serializer.data
-        })
-    
-    @action(detail=False, methods=['post'])
     def logout(self, request):
         # 删除Token
         if request.user.is_authenticated:
             Token.objects.filter(user=request.user).delete()
         
         return Response({"detail": "成功登出。"}, status=status.HTTP_200_OK)
-    
-    @action(detail=False, methods=['post'])
-    def send_email_code(self, request):
-        serializer = EmailVerificationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        
-        return Response({
-            "detail": "验证码已发送至您的邮箱。"
-        }, status=status.HTTP_200_OK)
-    
-    @action(detail=False, methods=['post'])
-    def send_phone_code(self, request):
-        serializer = PhoneVerificationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        
-        return Response({
-            "detail": "验证码已发送至您的手机。"
-        }, status=status.HTTP_200_OK)
-    
-    @action(detail=False, methods=['post'])
-    def verify_code(self, request):
-        serializer = VerifyCodeSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        return Response({
-            "detail": "验证码验证成功。"
-        }, status=status.HTTP_200_OK)
-    
-    @action(detail=False, methods=['post'])
-    def reset_password(self, request):
-        serializer = ResetPasswordSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        
-        return Response({
-            "detail": "密码重置成功，请使用新密码登录。"
-        }, status=status.HTTP_200_OK)
     
     @action(detail=False, methods=['get'])
     def me(self, request):
@@ -264,33 +169,6 @@ class UserViewSet(viewsets.ModelViewSet):
         }
         
         return Response(data)
-
-
-class UserProfileViewSet(viewsets.ModelViewSet):
-    queryset = UserProfile.objects.all()
-    serializer_class = UserProfileSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def get_queryset(self):
-        # 只允许用户访问自己的资料
-        return UserProfile.objects.filter(user=self.request.user)
-    
-    @action(detail=False, methods=['get'])
-    def my_profile(self, request):
-        """获取当前用户的详细资料"""
-        profile = UserProfile.objects.get(user=request.user)
-        serializer = UserProfileSerializer(profile)
-        return Response(serializer.data)
-    
-    @action(detail=False, methods=['patch'])
-    def update_my_profile(self, request):
-        """更新当前用户的详细资料"""
-        profile = UserProfile.objects.get(user=request.user)
-        serializer = UserProfileSerializer(profile, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        
-        return Response(serializer.data)
 
 # 添加调试视图，检查用户头像
 @api_view(['GET'])
@@ -431,8 +309,8 @@ def test_html_media(request):
             </div>
             
             <div>
-                <p>时间戳URL: {absolute_url}/media/avatars/avatar_1743088654593.jpg?_={timestamp}</p>
-                <img src="{absolute_url}/media/avatars/avatar_1743088654593.jpg?_={timestamp}" alt="时间戳URL">
+                <p>时间戳URL: {absolute_url}/media/avatars/avatar_1743088654593.jpg?_{timestamp}</p>
+                <img src="{absolute_url}/media/avatars/avatar_1743088654593.jpg?_{timestamp}" alt="时间戳URL">
             </div>
         </div>
 
@@ -457,3 +335,24 @@ def test_html_media(request):
     )
     
     return HttpResponse(html_content, content_type='text/html')
+
+
+class UserProfileViewSet(viewsets.ModelViewSet):
+    """用户资料视图集"""
+    from .models import UserProfile
+    queryset = UserProfile.objects.all()
+    serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_permissions(self):
+        if self.action == 'retrieve':
+            return [permissions.AllowAny()]
+        return super().get_permissions()
+    
+    def get_object(self):
+        pk = self.kwargs.get('pk')
+        if pk == 'me':
+            # 获取当前用户的资料，如果不存在则创建
+            profile, created = UserProfile.objects.get_or_create(user=self.request.user)
+            return profile
+        return super().get_object()

@@ -102,4 +102,42 @@ export interface ImportCsvResponse {
   error_count: number
   total: number
   errors?: string[]
-} 
+}
+
+export interface Event {
+  id: number
+  title: string
+  description: string
+  start_time: string
+  end_time: string
+  location: string
+  organizer: string
+  capacity: number
+  status: string
+  school: number
+  created_at: string
+  updated_at: string
+}
+
+export interface EventListResponse {
+  count: number
+  results: Event[]
+}
+
+export interface Post {
+  id: number
+  title: string
+  content: string
+  author: {
+    username: string
+  }
+  comments_count: number
+  likes_count: number
+  views: number
+  tags?: string[]
+}
+
+export interface RecommendationResponse {
+  recommendations: any[]
+  reasoning: string[]
+}

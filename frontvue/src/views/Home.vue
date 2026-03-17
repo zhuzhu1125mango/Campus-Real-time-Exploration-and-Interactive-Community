@@ -139,6 +139,10 @@
       </div>
     </div>
 
+    <div class="recommendation-section">
+      <RecommendationSection title="为你推荐" :limit="6" />
+    </div>
+
     <div class="social-proof">
       <div class="testimonial">
         <p class="quote">"这个平台帮我结识了许多志同道合的朋友，让校园生活更加丰富多彩！"</p>
@@ -153,6 +157,7 @@ import { ref } from 'vue'
 import { useUserStore } from '../stores/userStore'
 import ChatRoom from '../components/ChatRoom.vue'
 import ChatRoomUserCount from '../components/ChatRoomUserCount.vue'
+import RecommendationSection from '../components/RecommendationSection.vue'
 
 // 使用用户状态存储
 const userStore = useUserStore()
@@ -618,6 +623,10 @@ const updateUserCount = (count: number) => {
   .live-chat {
     height: 450px; /* 在移动设备上稍微降低高度 */
   }
+}
+
+.recommendation-section {
+  padding: 4rem 0;
 }
 
 .social-proof {

@@ -1,5 +1,4 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig, type AxiosResponse } from 'axios'
-import { ElMessage } from 'element-plus'
 import config from './config'
 import { useUserStore } from '@/stores/userStore'
 
@@ -64,7 +63,7 @@ service.interceptors.response.use(
           return new Promise(resolve => {
             requests.push((token: string) => {
               originalRequest.headers.Authorization = `${config.jwt.tokenType} ${token}`
-              resolve(service(originalRequest))
+              resolve(service.request(originalRequest))
             })
           })
         }
@@ -85,12 +84,12 @@ service.interceptors.response.use(
           
           if (newToken) {
             // 执行队列中的请求
-            requests.forEach(callback => callback(newToken))
-            requests = []
-            
-            // 更新当前请求的Authorization头
-            originalRequest.headers.Authorization = `${config.jwt.tokenType} ${newToken}`
-            return service(originalRequest)
+          requests.forEach(callback => callback(newToken))
+          requests = []
+          
+          // 更新当前请求的Authorization头
+          originalRequest.headers.Authorization = `${config.jwt.tokenType} ${newToken}`
+          return service.request(originalRequest)
           } else {
             // 刷新失败，清除token并跳转到登录页
             localStorage.removeItem(config.jwt.accessTokenKey)
@@ -110,34 +109,41 @@ service.interceptors.response.use(
       
       switch (status) {
         case 400:
-          ElMessage.error(data.message || '请求参数错误')
+          console.error(data.message || '请求参数错误')
           break
         case 401:
-          ElMessage.error('请先登录')
+          console.error('请先登录')
           localStorage.removeItem(config.jwt.accessTokenKey)
           localStorage.removeItem(config.jwt.refreshTokenKey)
           redirectToLogin()
           break
         case 403:
-          ElMessage.error('没有权限访问')
+          console.error('没有权限访问')
           break
         case 404:
-          ElMessage.error('请求的资源不存在')
+          console.error('请求的资源不存在')
           break
         case 500:
-          ElMessage.error('服务器错误，请稍后重试')
+          console.error('服务器错误，请稍后重试')
           break
         default:
-          ElMessage.error(data.message || '请求失败')
+          console.error(data.message || '请求失败')
       }
     } else if (error.request) {
-      ElMessage.error('网络错误，请检查网络连接')
+      console.error('网络错误，请检查网络连接')
     } else {
-      ElMessage.error('请求配置错误')
+      console.error('请求配置错误')
     }
     
     return Promise.reject(error)
   }
 )
 
-export default service 
+// 类型断言，确保TypeScript知道响应拦截器会返回响应数据
+export default service as unknown as Omit<AxiosInstance, 'get' | 'post' | 'put' | 'delete' | 'patch'> & {
+  get<T = any>(url: string, config?: any): Promise<T>
+  post<T = any>(url: string, data?: any, config?: any): Promise<T>
+  put<T = any>(url: string, data?: any, config?: any): Promise<T>
+  delete<T = any>(url: string, config?: any): Promise<T>
+  patch<T = any>(url: string, data?: any, config?: any): Promise<T>
+}

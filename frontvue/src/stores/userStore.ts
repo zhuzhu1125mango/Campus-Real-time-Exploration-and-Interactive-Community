@@ -46,6 +46,15 @@ export const useUserStore = defineStore('user', () => {
     const hasUser = !!user.value && !!user.value.id
     const isInitialLoad = loading.value
     
+    // 如果没有token，直接返回false
+    if (!hasToken) {
+      // 确保用户状态被重置
+      if (user.value) {
+        resetState()
+      }
+      return false
+    }
+    
     // 如果有token但没有用户信息且不在加载中，尝试获取用户信息
     if (hasToken && !hasUser && !isInitialLoad) {
       // 异步获取用户信息，不阻塞计算属性返回
@@ -116,6 +125,10 @@ export const useUserStore = defineStore('user', () => {
           banner: bannerUrl || undefined
         }
         
+        // 更新localStorage中的头像和背景图
+        localStorage.setItem('user_avatar', avatarUrl || '')
+        localStorage.setItem('user_banner', bannerUrl || '')
+        
         loading.value = false
         return user.value
       }
@@ -141,18 +154,8 @@ export const useUserStore = defineStore('user', () => {
       localStorage.setItem(accessTokenKey, response.access)
       localStorage.setItem(refreshTokenKey, response.refresh)
       
-      // 获取用户信息
-      if (response.user) {
-        // 处理avatar和banner字段可能为null的情况
-        const userData = {
-          ...response.user,
-          avatar: response.user.avatar || undefined,
-          banner: response.user.banner || undefined
-        }
-        user.value = userData
-      } else {
-        await fetchUserInfo()
-      }
+      // 无论是否返回user数据，都强制获取最新用户信息
+      await fetchUserInfo()
       
       return true
     } catch (err: any) {
@@ -205,14 +208,14 @@ export const useUserStore = defineStore('user', () => {
     
     try {
       const response = await userApi.refreshToken(refreshToken.value)
-      token.value = response.data.access
-      refreshToken.value = response.data.refresh
+      token.value = response.access
+      refreshToken.value = response.refresh
       
-      // 更新本地存储
-      localStorage.setItem(accessTokenKey, response.data.access)
-      localStorage.setItem(refreshTokenKey, response.data.refresh)
+      // 存储到本地存储
+      localStorage.setItem(accessTokenKey, response.access)
+      localStorage.setItem(refreshTokenKey, response.refresh)
       
-      return response.data.access
+      return response.access
     } catch (error) {
       logout()
       return null
@@ -257,8 +260,8 @@ export const useUserStore = defineStore('user', () => {
     const validAvatar = (savedAvatar && !savedAvatar.startsWith('blob:')) ? savedAvatar : ''
     const validBanner = (savedBanner && !savedBanner.startsWith('blob:')) ? savedBanner : ''
     
-    // 如果localStorage中有头像或背景图，先创建一个临时用户对象
-    if (validAvatar || validBanner) {
+    // 只有在有token的情况下才创建临时用户对象
+    if (token.value && (validAvatar || validBanner)) {
       user.value = {
         id: 0,
         username: '',

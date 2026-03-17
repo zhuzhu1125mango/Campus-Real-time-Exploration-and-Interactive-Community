@@ -1,32 +1,26 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Home from '@/views/Home.vue'
-import Login from '@/views/Login.vue'
-import Register from '@/views/Register.vue'
-import Profile from '@/views/Profile.vue'
-import Schools from '@/views/Schools.vue'
-import SchoolDetail from '@/views/SchoolDetail.vue'
 import { useUserStore } from '../stores/userStore'
 
 const routes = [
   {
     path: '/',
     name: 'Home',
-    component: Home
+    component: () => import('@/views/Home.vue')
   },
   {
     path: '/login',
     name: 'Login',
-    component: Login
+    component: () => import('@/views/Login.vue')
   },
   {
     path: '/register',
     name: 'Register',
-    component: Register
+    component: () => import('@/views/Register.vue')
   },
   {
     path: '/profile',
     name: 'Profile',
-    component: Profile,
+    component: () => import('@/views/Profile.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -43,12 +37,12 @@ const routes = [
   {
     path: '/schools',
     name: 'Schools',
-    component: Schools
+    component: () => import('@/views/Schools.vue')
   },
   {
     path: '/schools/:id',
     name: 'SchoolDetail',
-    component: SchoolDetail
+    component: () => import('@/views/SchoolDetail.vue')
   },
   {
     path: '/reset-password',
@@ -89,11 +83,20 @@ const routes = [
     component: () => import('../views/ForumNotifications.vue'),
     meta: { requiresAuth: true }
   },
-  {
-    path: '/my-favorite-schools',
+  {    path: '/my-favorite-schools',
     name: 'MyFavoriteSchools',
     component: () => import('../views/MyFavoriteSchools.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/events',
+    name: 'Events',
+    component: () => import('../views/Events.vue')
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: () => import('../views/Dashboard.vue')
   }
 ]
 

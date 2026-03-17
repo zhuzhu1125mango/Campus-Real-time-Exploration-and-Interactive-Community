@@ -94,7 +94,7 @@ const loadTopicAndPosts = async () => {
     
     // 获取主题的所有帖子
     const response = await forumApi.getTopicPosts(topicId, 1);
-    posts.value = response.data.results;
+    posts.value = response.results;
     
     // 设置首帖
     firstPost.value = posts.value.find(p => p.is_first_post) || null;

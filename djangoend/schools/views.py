@@ -3,18 +3,20 @@ from rest_framework.decorators import action, api_view, parser_classes, permissi
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
-from django.db.models import Q, Avg
+from django.db.models import Q, Avg, Count
+from django.utils import timezone
+from django.core.cache import cache
 import csv
 import io
 from .models import (
     Forum, Post, Comment, Tag, School, Major, SchoolMajor, 
-    SchoolRating, MajorRating, AdmissionScore
+    SchoolRating, MajorRating, AdmissionScore, Event, EventRegistration
 )
 from .serializers import (
     ForumSerializer, PostSerializer, CommentSerializer, 
     TagSerializer, SchoolSerializer, MajorSerializer,
     SchoolMajorSerializer, SchoolRatingSerializer,
-    MajorRatingSerializer, AdmissionScoreSerializer
+    MajorRatingSerializer, AdmissionScoreSerializer, EventSerializer, EventRegistrationSerializer
 )
 
 @api_view(['GET'])
@@ -35,6 +37,14 @@ class SchoolViewSet(viewsets.ModelViewSet):
     ordering = ['national_rank', 'name']
     
     def get_queryset(self):
+        # 构建缓存键
+        cache_key = f'schools_queryset_{self.request.query_params.urlencode()}'
+        
+        # 尝试从缓存获取
+        cached_queryset = cache.get(cache_key)
+        if cached_queryset:
+            return cached_queryset
+        
         queryset = super().get_queryset()
         
         # 筛选条件
@@ -65,6 +75,9 @@ class SchoolViewSet(viewsets.ModelViewSet):
             queryset = queryset.order_by('name')
         elif sort_by == 'founded_year':
             queryset = queryset.order_by('-founded_year', 'name')
+        
+        # 缓存查询结果，有效期5分钟
+        cache.set(cache_key, queryset, 300)
         
         return queryset
     
@@ -280,6 +293,109 @@ class SchoolViewSet(viewsets.ModelViewSet):
         
         user.favorite_schools.remove(school)
         return Response({"detail": "取消收藏成功"}, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['post'], permission_classes=[permissions.AllowAny])
+    def compare(self, request):
+        """院校对比功能"""
+        school_ids = request.data.get('school_ids', [])
+        comparison_fields = request.data.get('comparison_fields', [])
+        
+        if not school_ids or len(school_ids) < 2:
+            return Response({"detail": "至少需要选择2所院校进行对比"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if len(school_ids) > 4:
+            return Response({"detail": "最多只能对比4所院校"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 构建缓存键
+        cache_key = f'schools_compare_{"-".join(sorted(map(str, school_ids)))}'
+        
+        # 尝试从缓存获取
+        cached_result = cache.get(cache_key)
+        if cached_result:
+            return Response(cached_result, status=status.HTTP_200_OK)
+        
+        # 获取学校信息
+        schools = School.objects.filter(id__in=school_ids)
+        if len(schools) != len(school_ids):
+            return Response({"detail": "部分院校不存在"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 构建对比数据
+        compare_data = []
+        for school in schools:
+            school_data = {
+                'id': school.id,
+                'name': school.name,
+                'abbreviation': school.abbreviation,
+                'province': school.province,
+                'city': school.city,
+                'school_type': dict(School.SCHOOL_TYPES).get(school.school_type, school.school_type),
+                'school_level': dict(School.SCHOOL_LEVELS).get(school.school_level, school.school_level),
+                'founded_year': school.founded_year,
+                'national_rank': school.national_rank,
+                'student_count': school.student_count,
+                'faculty_count': school.faculty_count,
+                'campus_area': school.campus_area,
+                'website': school.website,
+                'description': school.description,
+                'majors': [],
+                'admission_scores': [],
+                'average_rating': 0
+            }
+            
+            # 获取学校专业
+            school_majors = SchoolMajor.objects.filter(school=school, is_active=True)[:10]  # 只取前10个专业
+            for sm in school_majors:
+                school_data['majors'].append({
+                    'id': sm.major.id,
+                    'name': sm.major.name,
+                    'code': sm.major.code,
+                    'degree_type': dict(Major.DEGREE_TYPES).get(sm.major.degree_type, sm.major.degree_type),
+                    'subject_category': dict(Major.SUBJECT_CATEGORIES).get(sm.major.subject_category, sm.major.subject_category)
+                })
+            
+            # 获取录取分数线
+            scores = AdmissionScore.objects.filter(school=school).order_by('-year')[:5]  # 只取近5年数据
+            for score in scores:
+                school_data['admission_scores'].append({
+                    'year': score.year,
+                    'province': score.province,
+                    'score_type': score.score_type,
+                    'min_score': score.min_score,
+                    'avg_score': score.avg_score,
+                    'ranking': score.ranking
+                })
+            
+            # 获取平均评分
+            avg_rating = SchoolRating.objects.filter(school=school).aggregate(Avg('rating'))['rating__avg']
+            school_data['average_rating'] = round(avg_rating, 1) if avg_rating else 0
+            
+            compare_data.append(school_data)
+        
+        # 定义对比字段
+        fields = [
+            {'key': 'name', 'label': '学校名称', 'type': 'text'},
+            {'key': 'abbreviation', 'label': '简称', 'type': 'text'},
+            {'key': 'province', 'label': '省份', 'type': 'text'},
+            {'key': 'city', 'label': '城市', 'type': 'text'},
+            {'key': 'school_type', 'label': '学校类型', 'type': 'text'},
+            {'key': 'school_level', 'label': '办学层次', 'type': 'text'},
+            {'key': 'founded_year', 'label': '建校时间', 'type': 'number'},
+            {'key': 'national_rank', 'label': '全国排名', 'type': 'number'},
+            {'key': 'student_count', 'label': '学生人数', 'type': 'number'},
+            {'key': 'faculty_count', 'label': '教职工人数', 'type': 'number'},
+            {'key': 'campus_area', 'label': '校园面积', 'type': 'number'},
+            {'key': 'average_rating', 'label': '平均评分', 'type': 'number'}
+        ]
+        
+        result = {
+            'schools': compare_data,
+            'fields': fields
+        }
+        
+        # 缓存结果，有效期10分钟
+        cache.set(cache_key, result, 600)
+        
+        return Response(result, status=status.HTTP_200_OK)
 
 # 添加专业视图集
 class MajorViewSet(viewsets.ModelViewSet):
@@ -412,9 +528,16 @@ class AdmissionScoreViewSet(viewsets.ModelViewSet):
 @api_view(['GET'])
 def get_provinces(request):
     """获取所有省份列表"""
-    # 从数据库中获取所有不重复的省份
-    provinces = School.objects.values_list('province', flat=True).distinct().order_by('province')
-    return Response(list(provinces))
+    # 使用缓存减少数据库查询
+    cache_key = 'provinces_list'
+    provinces = cache.get(cache_key)
+    if not provinces:
+        # 从数据库中获取所有不重复的省份
+        provinces = School.objects.values_list('province', flat=True).distinct().order_by('province')
+        provinces = list(provinces)
+        # 缓存1小时
+        cache.set(cache_key, provinces, 3600)
+    return Response(provinces)
 
 # 添加城市API视图
 @api_view(['GET'])
@@ -422,9 +545,16 @@ def get_cities(request):
     """根据省份获取城市列表"""
     province = request.query_params.get('province', None)
     if province:
-        # 获取指定省份的所有城市
-        cities = School.objects.filter(province=province).values_list('city', flat=True).distinct().order_by('city')
-        return Response(list(cities))
+        # 使用缓存减少数据库查询
+        cache_key = f'cities_list_{province}'
+        cities = cache.get(cache_key)
+        if not cities:
+            # 获取指定省份的所有城市
+            cities = School.objects.filter(province=province).values_list('city', flat=True).distinct().order_by('city')
+            cities = list(cities)
+            # 缓存1小时
+            cache.set(cache_key, cities, 3600)
+        return Response(cities)
     return Response([], status=status.HTTP_400_BAD_REQUEST)
 
 # 添加学校类型API视图
@@ -477,6 +607,156 @@ def get_favorite_schools(request):
     favorite_schools = user.favorite_schools.all()
     serializer = SchoolSerializer(favorite_schools, many=True)
     return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def log_user_activity(request):
+    """记录用户行为"""
+    user = request.user
+    activity_type = request.data.get('activity_type')
+    target_type = request.data.get('target_type')
+    target_id = request.data.get('target_id')
+    metadata = request.data.get('metadata', {})
+    
+    if not all([activity_type, target_type, target_id]):
+        return Response({"detail": "缺少必要参数"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # 验证activity_type和target_type是否合法
+    valid_activity_types = ['browse', 'search', 'favorite', 'compare', 'rate']
+    valid_target_types = ['school', 'major', 'post', 'topic']
+    
+    if activity_type not in valid_activity_types:
+        return Response({"detail": "无效的活动类型"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if target_type not in valid_target_types:
+        return Response({"detail": "无效的目标类型"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # 创建用户行为记录
+    try:
+        from users.models import UserActivity
+        UserActivity.objects.create(
+            user=user,
+            activity_type=activity_type,
+            target_type=target_type,
+            target_id=target_id,
+            metadata=metadata
+        )
+        return Response({"detail": "行为记录成功"}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response({"detail": f"记录失败: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+from .recommendation import RecommendationService
+from .stats import StatsService
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_recommendations(request):
+    """获取个性化推荐"""
+    user = request.user
+    recommendation_type = request.query_params.get('type', 'schools')
+    limit = int(request.query_params.get('limit', 10))
+    
+    try:
+        if request.user.is_authenticated:
+            # 初始化推荐服务
+            recommendation_service = RecommendationService(user)
+            
+            if recommendation_type == 'schools':
+                # 获取学校推荐
+                result = recommendation_service.get_school_recommendations(limit)
+                serializer = SchoolSerializer(result['schools'], many=True)
+                return Response({
+                    'recommendations': serializer.data,
+                    'reasoning': result['reasoning']
+                }, status=status.HTTP_200_OK)
+            elif recommendation_type == 'majors':
+                # 获取专业推荐
+                result = recommendation_service.get_major_recommendations(limit)
+                serializer = MajorSerializer(result['majors'], many=True)
+                return Response({
+                    'recommendations': serializer.data,
+                    'reasoning': result['reasoning']
+                }, status=status.HTTP_200_OK)
+            elif recommendation_type == 'posts':
+                # 获取帖子推荐
+                result = recommendation_service.get_post_recommendations(limit)
+                serializer = PostSerializer(result['posts'], many=True)
+                return Response({
+                    'recommendations': serializer.data,
+                    'reasoning': result['reasoning']
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {"detail": "无效的推荐类型"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            # 未登录用户返回默认推荐
+            if recommendation_type == 'schools':
+                default_recommendations = School.objects.filter(
+                    national_rank__isnull=False
+                ).order_by('national_rank')[:limit]
+                serializer = SchoolSerializer(default_recommendations, many=True)
+                return Response({
+                    'recommendations': serializer.data,
+                    'reasoning': ['基于全国排名推荐']
+                }, status=status.HTTP_200_OK)
+            elif recommendation_type == 'majors':
+                default_recommendations = Major.objects.annotate(
+                    rating_count=Count('ratings')
+                ).order_by('-rating_count')[:limit]
+                serializer = MajorSerializer(default_recommendations, many=True)
+                return Response({
+                    'recommendations': serializer.data,
+                    'reasoning': ['推荐热门专业']
+                }, status=status.HTTP_200_OK)
+            elif recommendation_type == 'posts':
+                default_recommendations = Post.objects.order_by(
+                    '-like_count', '-comment_count'
+                )[:limit]
+                serializer = PostSerializer(default_recommendations, many=True)
+                return Response({
+                    'recommendations': serializer.data,
+                    'reasoning': ['推荐热门帖子']
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {"detail": "无效的推荐类型"},
+                    status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        # 如果推荐失败，返回默认推荐
+        if recommendation_type == 'schools':
+            default_recommendations = School.objects.filter(
+                national_rank__isnull=False
+            ).order_by('national_rank')[:limit]
+            serializer = SchoolSerializer(default_recommendations, many=True)
+            return Response({
+                'recommendations': serializer.data,
+                'reasoning': ['基于全国排名推荐']
+            }, status=status.HTTP_200_OK)
+        elif recommendation_type == 'majors':
+            default_recommendations = Major.objects.annotate(
+                rating_count=Count('ratings')
+            ).order_by('-rating_count')[:limit]
+            serializer = MajorSerializer(default_recommendations, many=True)
+            return Response({
+                'recommendations': serializer.data,
+                'reasoning': ['推荐热门专业']
+            }, status=status.HTTP_200_OK)
+        elif recommendation_type == 'posts':
+            default_recommendations = Post.objects.order_by(
+                '-like_count', '-comment_count'
+            )[:limit]
+            serializer = PostSerializer(default_recommendations, many=True)
+            return Response({
+                'recommendations': serializer.data,
+                'reasoning': ['推荐热门帖子']
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response(
+                {"detail": "无效的推荐类型"},
+                status=status.HTTP_400_BAD_REQUEST)
+
 
 class ForumViewSet(viewsets.ModelViewSet):
     queryset = Forum.objects.all()
@@ -548,4 +828,163 @@ class TagViewSet(viewsets.ModelViewSet):
         tag = self.get_object()
         posts = tag.posts.all()
         serializer = PostSerializer(posts, many=True)
-        return Response(serializer.data) 
+        return Response(serializer.data)
+
+class EventViewSet(viewsets.ModelViewSet):
+    """校园活动视图集"""
+    queryset = Event.objects.all()
+    serializer_class = EventSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        
+        # 筛选条件
+        school_id = self.request.query_params.get('school_id')
+        if school_id:
+            queryset = queryset.filter(school_id=school_id)
+        
+        start_date = self.request.query_params.get('start_date')
+        if start_date:
+            queryset = queryset.filter(start_time__gte=start_date)
+        
+        end_date = self.request.query_params.get('end_date')
+        if end_date:
+            queryset = queryset.filter(end_time__lte=end_date)
+        
+        status = self.request.query_params.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+        
+        return queryset
+    
+    def get_serializer_context(self):
+        """添加请求到序列化器上下文"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+    
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def register(self, request, pk=None):
+        """报名活动"""
+        event = self.get_object()
+        user = request.user
+        
+        # 检查是否已经报名
+        if EventRegistration.objects.filter(event=event, user=user).exists():
+            return Response({"detail": "您已经报名过此活动"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 检查活动状态
+        if event.status in ['completed', 'cancelled']:
+            return Response({"detail": "活动已结束或已取消"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 检查报名截止时间
+        if event.registration_deadline and timezone.now() > event.registration_deadline:
+            return Response({"detail": "报名已截止"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 检查活动容量
+        if event.capacity and event.registrations.count() >= event.capacity:
+            return Response({"detail": "活动报名人数已达上限"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 创建报名记录
+        registration = EventRegistration.objects.create(
+            event=event,
+            user=user,
+            status='pending',
+            metadata=request.data.get('metadata', {})
+        )
+        
+        serializer = EventRegistrationSerializer(registration, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def cancel_registration(self, request, pk=None):
+        """取消报名"""
+        event = self.get_object()
+        user = request.user
+        
+        # 查找报名记录
+        try:
+            registration = EventRegistration.objects.get(event=event, user=user)
+        except EventRegistration.DoesNotExist:
+            return Response({"detail": "您未报名此活动"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 检查活动状态
+        if event.status in ['completed', 'cancelled']:
+            return Response({"detail": "活动已结束或已取消"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 取消报名
+        registration.status = 'cancelled'
+        registration.save()
+        
+        return Response({"detail": "报名已取消"}, status=status.HTTP_200_OK)
+
+class EventRegistrationViewSet(viewsets.ModelViewSet):
+    """活动报名视图集"""
+    queryset = EventRegistration.objects.all()
+    serializer_class = EventRegistrationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """只返回当前用户的报名记录"""
+        queryset = super().get_queryset()
+        return queryset.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        """自动设置用户为当前用户"""
+        serializer.save(user=self.request.user)
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_school_stats(request):
+    """获取学校统计数据"""
+    try:
+        stats_service = StatsService()
+        stats = stats_service.get_school_stats()
+        return Response(stats, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"detail": f"获取统计数据失败: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_forum_stats(request):
+    """获取论坛统计数据"""
+    try:
+        stats_service = StatsService()
+        stats = stats_service.get_forum_stats()
+        return Response(stats, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"detail": f"获取统计数据失败: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_event_stats(request):
+    """获取活动统计数据"""
+    try:
+        stats_service = StatsService()
+        stats = stats_service.get_event_stats()
+        return Response(stats, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"detail": f"获取统计数据失败: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_user_stats(request):
+    """获取用户统计数据"""
+    try:
+        stats_service = StatsService()
+        stats = stats_service.get_user_stats()
+        return Response(stats, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"detail": f"获取统计数据失败: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def get_dashboard_stats(request):
+    """获取仪表盘综合统计数据"""
+    try:
+        stats_service = StatsService()
+        stats = stats_service.get_dashboard_stats()
+        return Response(stats, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"detail": f"获取统计数据失败: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

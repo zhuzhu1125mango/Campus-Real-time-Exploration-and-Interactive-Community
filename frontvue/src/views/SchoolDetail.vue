@@ -351,7 +351,7 @@ const fetchSchoolDetail = async () => {
   
   try {
     const response = await schoolApi.getSchool(Number(id))
-    school.value = response.data
+    school.value = response
   } catch (err: any) {
     error.value = err.message || '获取学校信息失败，请稍后重试'
     console.error('获取学校详情失败:', err)
@@ -369,8 +369,8 @@ const fetchSchoolRatings = async () => {
       page: ratingPage.value
     })
     
-    ratings.value = response.data.results
-    totalRatingPages.value = Math.ceil(response.data.count / 10)
+    ratings.value = response.results
+    totalRatingPages.value = Math.ceil(response.count / 10)
   } catch (err) {
     console.error('获取学校评价失败:', err)
   }
@@ -384,7 +384,7 @@ const submitRating = async () => {
   
   try {
     await schoolApi.rateSchool(school.value.id, {
-      score: userRating.value,
+      rating: userRating.value,
       comment: userComment.value.trim()
     })
     

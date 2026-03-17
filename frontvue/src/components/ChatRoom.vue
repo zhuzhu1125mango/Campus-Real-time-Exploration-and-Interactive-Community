@@ -98,8 +98,8 @@ const emit = defineEmits<{
 }>()
 
 // 从环境变量获取API和WebSocket URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/';
+
 
 // 模拟服务器数据
 interface User {
@@ -259,19 +259,13 @@ const connectWebSocket = () => {
     }
     
     // 4. 创建新的WebSocket连接
-    // 优先使用Vite代理的相对路径
+    // 使用后端服务器的WebSocket URL
     let wsUrl;
     
-    // 尝试使用相对路径（适用于开发环境的Vite代理）
-    if (window.location.host.includes('localhost') || window.location.host.includes('127.0.0.1')) {
-      wsUrl = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + 
-             '//' + window.location.host + '/ws/chat/';
-      console.log('使用相对路径连接WebSocket:', wsUrl);
-    } else {
-      // 使用环境变量中的WebSocket URL（适用于生产环境）
-      wsUrl = `${WS_BASE_URL}/ws/chat/`;
-      console.log('使用环境变量连接WebSocket:', wsUrl);
-    }
+    // 直接使用后端服务器的WebSocket URL
+    wsUrl = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + 
+             '//' + window.location.hostname + ':8000/ws/chat/';
+    console.log('使用后端服务器WebSocket URL:', wsUrl);
     
     // 添加认证token到WebSocket URL
     wsUrl += `?token=${encodeURIComponent(token)}`;

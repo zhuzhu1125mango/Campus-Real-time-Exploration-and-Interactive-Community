@@ -597,10 +597,10 @@ const bannerStyle = computed(() => {
 const fetchProfile = async () => {
   try {
     const response = await userApi.getProfile()
-    const userData = response.data
+    const userData = response
     console.log('获取到的用户资料:', userData)
     
-    // 只复制需要的字段，避免类型不匹配问题
+    // 复制所有需要的字段
     form.value = {
       username: userData.username || '',
       email: userData.email || '',
@@ -676,11 +676,9 @@ const fetchProfile = async () => {
       }, 0)
     }
     
-    // 刷新userStore中的数据
-    if (!userStore.user || !userStore.user.avatar || !userStore.user.banner) {
-      console.log('从profile更新userStore数据')
-      await userStore.fetchUserProfile()
-    }
+    // 无论userStore中是否有数据，都强制刷新用户信息
+    console.log('从profile更新userStore数据')
+    await userStore.fetchUserProfile()
   } catch (error) {
     console.error('获取个人资料失败:', error)
     showToast('获取个人资料失败', 'error')
@@ -802,12 +800,13 @@ const confirmCrop = async () => {
     const blob = new Blob([new Uint8Array(array)], { type: 'image/jpeg' })
     console.log('生成的Blob对象:', blob.type, blob.size, '字节')
     
-    // 获取原始文件名作为参考
+    // 使用用户ID作为文件名的一部分，确保唯一性
+    const userId = userStore.user?.id || Math.floor(Math.random() * 10000)
     let fileName = ''
     if (cropperType.value === 'avatar') {
-      fileName = `avatar_${Date.now()}.jpg`
+      fileName = `avatar_${userId}_${Date.now()}.jpg`
     } else {
-      fileName = `banner_${Date.now()}.jpg`
+      fileName = `banner_${userId}_${Date.now()}.jpg`
     }
     
     // 创建File对象
@@ -836,10 +835,8 @@ const confirmCrop = async () => {
     // 关闭裁剪界面
     showCropper.value = false
     
-    // 自动保存更改
-    console.log('准备保存修改后的图片...')
-    await handleUpdate()
-    showToast('图片裁剪并保存成功', 'success')
+    // 不自动保存，让用户手动点击保存按钮
+    showToast('图片裁剪成功，请点击保存按钮保存更改', 'success')
   } catch (error) {
     console.error('裁剪过程出错:', error)
     showToast('裁剪过程出错，请重试', 'error')
@@ -883,7 +880,9 @@ const handleUpdate = async () => {
       // 如果是Data URL，转换为文件
       else if (typeof form.value.avatar === 'string' && form.value.avatar.startsWith('data:')) {
         console.log('头像是Data URL');
-        const avatarFile = dataURLtoFile(form.value.avatar, `avatar_${Date.now()}.jpg`);
+        // 使用用户ID作为文件名的一部分，确保唯一性
+        const userId = userStore.user?.id || Math.floor(Math.random() * 10000);
+        const avatarFile = dataURLtoFile(form.value.avatar, `avatar_${userId}_${Date.now()}.jpg`);
         formData.append('avatar', avatarFile);
       }
       // 如果是已有的URL
@@ -909,7 +908,9 @@ const handleUpdate = async () => {
       // 如果是Data URL，转换为文件
       else if (typeof form.value.banner === 'string' && form.value.banner.startsWith('data:')) {
         console.log('背景图是Data URL');
-        const bannerFile = dataURLtoFile(form.value.banner, `banner_${Date.now()}.jpg`);
+        // 使用用户ID作为文件名的一部分，确保唯一性
+        const userId = userStore.user?.id || Math.floor(Math.random() * 10000);
+        const bannerFile = dataURLtoFile(form.value.banner, `banner_${userId}_${Date.now()}.jpg`);
         formData.append('banner', bannerFile);
       }
       // 如果是已有的URL
@@ -934,6 +935,9 @@ const handleUpdate = async () => {
     
     // 重新获取最新的用户数据
     await userStore.fetchUserProfile();
+    
+    // 重新加载个人资料，确保所有数据都已更新
+    await fetchProfile();
     
     // 清除本地预览数据
     avatarPreview.value = '';

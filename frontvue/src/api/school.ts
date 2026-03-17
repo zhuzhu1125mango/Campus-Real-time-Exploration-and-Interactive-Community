@@ -1,5 +1,5 @@
 import request from '@/utils/request'
-import type { School, SchoolRating, SchoolQueryParams, SchoolListResponse, ImportCsvResponse } from '@/types/school'
+import type { School, SchoolRating, SchoolQueryParams, SchoolListResponse, ImportCsvResponse, EventListResponse } from '@/types/school'
 
 export interface SchoolFilterOptions {
   types: { [key: string]: string }
@@ -9,7 +9,14 @@ export interface SchoolFilterOptions {
 export const schoolApi = {
   // 获取学校列表
   getSchools(params: SchoolQueryParams) {
-    return request.get<SchoolListResponse>('/api/schools/', { params })
+    // 转换pageSize为page_size以匹配后端API
+    const transformedParams = {
+      ...params,
+      page_size: params.pageSize,
+    }
+    // 删除pageSize参数，避免重复
+    delete transformedParams.pageSize
+    return request.get<SchoolListResponse>('/api/schools/', { params: transformedParams })
   },
 
   // 获取学校详情
@@ -46,7 +53,7 @@ export const schoolApi = {
   },
 
   // 评分学校
-  rateSchool(schoolId: number, data: { score: number, comment: string }) {
+  rateSchool(schoolId: number, data: { rating: number, comment: string }) {
     return request.post(`/api/schools/${schoolId}/rate/`, data)
   },
   
@@ -60,5 +67,70 @@ export const schoolApi = {
         'Content-Type': 'multipart/form-data'
       }
     })
+  },
+
+  // 对比学校
+  compareSchools(data: { school_ids: number[], comparison_fields: string[] }) {
+    return request.post('/api/schools/compare/', data)
+  },
+
+  // 记录用户行为
+  logUserActivity(data: { activity_type: string, target_type: string, target_id: number, metadata?: any }) {
+    return request.post('/api/schools/log-activity/', data)
+  },
+
+  // 获取个性化推荐
+  getRecommendations(params?: { type?: string, limit?: number }) {
+    return request.get<any>('/api/schools/recommendations/', { params })
+  },
+
+  // 获取活动列表
+  getEvents(params?: { school_id?: number, start_date?: string, end_date?: string, status?: string, page?: number, pageSize?: number }) {
+    return request.get<EventListResponse>('/api/schools/events/', { params })
+  },
+
+  // 获取活动详情
+  getEvent(id: number) {
+    return request.get(`/api/schools/events/${id}/`)
+  },
+
+  // 报名活动
+  registerEvent(id: number, data?: { metadata?: any }) {
+    return request.post(`/api/schools/events/${id}/register/`, data)
+  },
+
+  // 取消报名
+  cancelEventRegistration(id: number) {
+    return request.post(`/api/schools/events/${id}/cancel_registration/`)
+  },
+
+  // 获取用户的活动报名记录
+  getEventRegistrations(params?: { page?: number, pageSize?: number }) {
+    return request.get('/api/schools/event-registrations/', { params })
+  },
+
+  // 获取学校统计数据
+  getSchoolStats() {
+    return request.get('/api/schools/stats/school/')
+  },
+
+  // 获取论坛统计数据
+  getForumStats() {
+    return request.get('/api/schools/stats/forum/')
+  },
+
+  // 获取活动统计数据
+  getEventStats() {
+    return request.get('/api/schools/stats/event/')
+  },
+
+  // 获取用户统计数据
+  getUserStats() {
+    return request.get('/api/schools/stats/user/')
+  },
+
+  // 获取仪表盘综合统计数据
+  getDashboardStats() {
+    return request.get('/api/schools/stats/dashboard/')
   }
 } 

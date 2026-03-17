@@ -13,13 +13,7 @@ import type {
 } from '../types/user'
 import type { Topic, Post } from '../types/forum'
 
-interface UserProfile {
-  username: string
-  email: string
-  phone?: string
-  bio?: string
-  avatar?: string | null
-}
+
 
 export const userApi = {
   // 用户名密码登录
@@ -108,12 +102,12 @@ export const userApi = {
 
   // 更改密码
   changePassword(data: { old_password: string; new_password: string }) {
-    return request.post('/api/users/change-password/', data)
+    return request.post('/api/users/users/change_password/', data)
   },
 
   // 找回密码
   forgotPassword(email: string) {
-    return request.post('/api/users/forgot-password/', { email })
+    return request.post('/api/users/users/forgot_password/', { email })
   },
 
   // 获取收藏的学校
@@ -171,11 +165,6 @@ export const userApi = {
     return request.post(`/api/users/notifications/${notificationId}/mark_read/`)
   },
 
-  // 检查登录状态
-  checkLogin() {
-    return request.get<{ is_logged_in: boolean, user?: UserProfile }>('/api/users/check-login/')
-  },
-
   // 退出登录
   logout() {
     return request.post('/api/users/users/logout/')
@@ -183,27 +172,27 @@ export const userApi = {
 
   // 获取当前用户信息
   getCurrentUser(): Promise<any> {
-    return request.get('/api/users/me/')
+    return request.get('/api/users/users/me/')
   },
 
   // 获取用户资料
   getUserProfile(userId: number | string): Promise<any> {
-    return request.get(`/api/users/${userId}/`)
+    return request.get(`/api/users/users/${userId}/`)
   },
 
   // 更新用户资料
   updateUserProfile(data: Partial<any>): Promise<any> {
-    return request.patch('/api/users/me/', data)
+    return request.patch('/api/users/users/me/', data)
   },
   
   // 获取用户创建的主题
   getUserTopics(userId: number | string, page = 1): Promise<{ count: number; next: string | null; previous: string | null; results: Topic[] }> {
-    return request.get(`/api/users/${userId}/topics/`, { params: { page } })
+    return request.get(`/api/users/users/${userId}/topics/`, { params: { page } })
   },
   
   // 获取用户的帖子和回复
   getUserPosts(userId: number | string, page = 1, includeFirst = false): Promise<{ count: number; next: string | null; previous: string | null; results: Post[] }> {
-    return request.get(`/api/users/${userId}/posts/`, { 
+    return request.get(`/api/users/users/${userId}/posts/`, { 
       params: { 
         page,
         include_first: includeFirst 
@@ -219,6 +208,6 @@ export const userApi = {
     active_boards: Array<{ id: number; name: string; post_count: number }>;
     join_date: string;
   }> {
-    return request.get(`/api/users/${userId}/profile_stats/`)
+    return request.get(`/api/users/users/${userId}/profile_stats/`)
   }
 } 

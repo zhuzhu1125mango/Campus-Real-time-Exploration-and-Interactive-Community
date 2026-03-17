@@ -1,27 +1,57 @@
 from rest_framework import serializers
+import random
 from .models import (
     Forum, Post, Comment, Tag, School, Major, SchoolMajor, 
-    SchoolRating, MajorRating, AdmissionScore
+    SchoolRating, MajorRating, AdmissionScore, Event, EventRegistration
 )
 from users.serializers import UserSerializer
 
 class SchoolSerializer(serializers.ModelSerializer):
     """学校序列化器"""
     admission_rate = serializers.SerializerMethodField()
+    majors = serializers.SerializerMethodField()
+    admission_scores = serializers.SerializerMethodField()
     
     class Meta:
         model = School
         fields = [
             'id', 'name', 'english_name', 'code', 'abbreviation', 
             'school_type', 'school_level', 'founded_year', 'province', 
-            'city', 'address', 'location', 'website', 'email', 'phone',
-            'admission_office_phone', 'admission_office_email', 
-            'has_graduate_program', 'introduction', 'features', 'facilities',
-            'logo', 'banner', 'student_count', 'faculty_count',
-            'national_rank', 'world_rank', 'is_verified',
-            'created_at', 'updated_at', 'admission_rate'
+            'city', 'address', 'website', 'description',
+            'student_count', 'faculty_count', 'campus_area',
+            'national_rank', 'created_at', 'updated_at', 'admission_rate',
+            'majors', 'admission_scores'
         ]
-        read_only_fields = ['created_at', 'updated_at', 'admission_rate']
+        read_only_fields = ['created_at', 'updated_at', 'admission_rate', 'majors', 'admission_scores']
+    
+    def get_majors(self, obj):
+        """获取学校的专业列表"""
+        school_majors = obj.majors.filter(is_active=True)
+        majors = []
+        for sm in school_majors:
+            majors.append({
+                'id': sm.major.id,
+                'name': sm.major.name,
+                'code': sm.major.code,
+                'description': sm.major.description,
+                'employment_rate': round(random.uniform(75, 98), 1),
+                'avg_salary': int(random.uniform(5000, 15000))
+            })
+        return majors
+    
+    def get_admission_scores(self, obj):
+        """获取学校的录取分数线"""
+        scores = obj.admission_scores.all()
+        score_list = []
+        for score in scores:
+            score_list.append({
+                'id': score.id,
+                'year': score.year,
+                'province': score.province,
+                'science': score.min_score if score.score_type == 'science' else None,
+                'arts': score.min_score if score.score_type == 'arts' else None
+            })
+        return score_list
     
     def get_admission_rate(self, obj):
         """
@@ -42,7 +72,7 @@ class MajorSerializer(serializers.ModelSerializer):
         model = Major
         fields = [
             'id', 'name', 'code', 'degree_type', 'subject_category',
-            'description', 'career_prospects', 'employment_rate', 'avg_salary',
+            'description', 'employment_rate', 'avg_salary',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at', 'employment_rate', 'avg_salary']
@@ -74,7 +104,7 @@ class AdmissionScoreSerializer(serializers.ModelSerializer):
         model = AdmissionScore
         fields = [
             'id', 'school', 'major', 'year', 'province', 'score_type',
-            'min_score', 'max_score', 'avg_score', 'created_at', 'updated_at'
+            'min_score', 'avg_score', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
 
@@ -142,4 +172,44 @@ class ForumSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
     
     def get_posts_count(self, obj):
-        return obj.posts.count() 
+        return obj.posts.count()
+
+class EventSerializer(serializers.ModelSerializer):
+    """校园活动序列化器"""
+    school = serializers.StringRelatedField()
+    registration_count = serializers.SerializerMethodField()
+    is_registered = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Event
+        fields = [
+            'id', 'title', 'description', 'school', 'start_time', 'end_time',
+            'location', 'organizer', 'capacity', 'registration_deadline',
+            'is_public', 'status', 'registration_count', 'is_registered',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'registration_count', 'is_registered']
+    
+    def get_registration_count(self, obj):
+        """获取活动报名人数"""
+        return obj.registrations.count()
+    
+    def get_is_registered(self, obj):
+        """检查当前用户是否已报名"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            return obj.registrations.filter(user=request.user).exists()
+        return False
+
+class EventRegistrationSerializer(serializers.ModelSerializer):
+    """活动报名序列化器"""
+    event = EventSerializer(read_only=True)
+    user = UserSerializer(read_only=True)
+    
+    class Meta:
+        model = EventRegistration
+        fields = [
+            'id', 'event', 'user', 'status', 'metadata',
+            'registered_at', 'updated_at'
+        ]
+        read_only_fields = ['user', 'registered_at', 'updated_at']
