@@ -1,5 +1,4 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig, type AxiosResponse } from 'axios'
-import { ElMessage } from 'element-plus'
 import config from './config'
 import { useUserStore } from '@/stores/userStore'
 
@@ -110,30 +109,30 @@ service.interceptors.response.use(
       
       switch (status) {
         case 400:
-          ElMessage.error(data.message || '请求参数错误')
+          console.error(data.message || '请求参数错误')
           break
         case 401:
-          ElMessage.error('请先登录')
+          console.error('请先登录')
           localStorage.removeItem(config.jwt.accessTokenKey)
           localStorage.removeItem(config.jwt.refreshTokenKey)
           redirectToLogin()
           break
         case 403:
-          ElMessage.error('没有权限访问')
+          console.error('没有权限访问')
           break
         case 404:
-          ElMessage.error('请求的资源不存在')
+          console.error('请求的资源不存在')
           break
         case 500:
-          ElMessage.error('服务器错误，请稍后重试')
+          console.error('服务器错误，请稍后重试')
           break
         default:
-          ElMessage.error(data.message || '请求失败')
+          console.error(data.message || '请求失败')
       }
     } else if (error.request) {
-      ElMessage.error('网络错误，请检查网络连接')
+      console.error('网络错误，请检查网络连接')
     } else {
-      ElMessage.error('请求配置错误')
+      console.error('请求配置错误')
     }
     
     return Promise.reject(error)

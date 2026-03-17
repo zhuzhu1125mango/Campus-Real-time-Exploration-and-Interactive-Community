@@ -16,3 +16,5 @@ sqlparse==0.5.5
 tzdata==2025.3
 aliyun-python-sdk-core==2.16.0
 mysqlclient==2.2.8
+gunicorn==25.1.0
+uvicorn==0.42.0

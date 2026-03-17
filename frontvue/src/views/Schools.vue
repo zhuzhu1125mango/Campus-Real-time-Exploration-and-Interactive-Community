@@ -328,31 +328,31 @@ const handleFileChange = (file: any) => {
 }
 
 // 处理导入提交
-const handleImportSubmit = async () => {
-  if (!selectedFile.value) {
-    ElMessage.warning('请先选择CSV文件')
-    return
-  }
-  
-  importing.value = true
-  importResult.value = null
-  
-  try {
-    const response = await schoolApi.importSchoolsCsv(selectedFile.value)
-    importResult.value = response.data
-    ElMessage.success(`成功导入${response.data.success_count}条学校数据`)
-    
-    // 导入成功后刷新学校列表
-    if (response.data.success_count > 0) {
-      await fetchSchools()
+  const handleImportSubmit = async () => {
+    if (!selectedFile.value) {
+      ElMessage.warning('请先选择CSV文件')
+      return
     }
-  } catch (err) {
-    console.error('导入学校数据失败:', err)
-    ElMessage.error('导入学校数据失败')
-  } finally {
-    importing.value = false
+    
+    importing.value = true
+    importResult.value = null
+    
+    try {
+      const response = await schoolApi.importSchoolsCsv(selectedFile.value)
+      importResult.value = response.data
+      ElMessage.success(`成功导入${response.data.success_count}条学校数据`)
+      
+      // 导入成功后刷新学校列表
+      if (response.data.success_count > 0) {
+        await fetchSchools()
+      }
+    } catch (err) {
+      console.error('导入学校数据失败:', err)
+      ElMessage.error('导入学校数据失败')
+    } finally {
+      importing.value = false
+    }
   }
-}
 </script>
 
 <style scoped>
