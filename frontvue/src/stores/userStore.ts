@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { userApi } from '../api/user'
-import axios from 'axios'
 
 export interface User {
   id: number
@@ -55,6 +54,12 @@ export const useUserStore = defineStore('user', () => {
       return false
     }
     
+    // 如果token存在但加载失败，清除无效token
+    if (hasToken && !hasUser && failedToLoad.value) {
+      resetState()
+      return false
+    }
+    
     // 如果有token但没有用户信息且不在加载中，尝试获取用户信息
     if (hasToken && !hasUser && !isInitialLoad) {
       // 异步获取用户信息，不阻塞计算属性返回
@@ -62,12 +67,6 @@ export const useUserStore = defineStore('user', () => {
         console.error('获取用户信息失败:', err)
         failedToLoad.value = true
       })
-    }
-    
-    // 如果token存在但加载失败，清除无效token
-    if (hasToken && !hasUser && failedToLoad.value) {
-      resetState()
-      return false
     }
     
     return hasToken && hasUser
@@ -82,60 +81,64 @@ export const useUserStore = defineStore('user', () => {
     error.value = null
     
     try {
-      const response = await axios.get('/api/users/users/me/', {
-        headers: {
-          'Authorization': `Bearer ${token.value}`
-        }
-      })
+      // 使用userApi.getProfile()来获取用户信息，这样会使用我们的request工具，自动添加认证头
+      const userData = await userApi.getProfile()
+      console.log('获取到的用户信息:', userData)
       
-      if (response.status === 200) {
-        // 更新用户信息
-        const userData = response.data
-        
-        // 处理头像URL
-        let avatarUrl = userData.avatar || ''
-        
-        // 如果头像URL不是绝对URL且不为空，添加基础URL
-        if (avatarUrl && !avatarUrl.startsWith('http') && !avatarUrl.startsWith('data:')) {
-          // 确保URL格式正确
-          if (avatarUrl.startsWith('/')) {
-            avatarUrl = `${import.meta.env.VITE_API_BASE_URL}${avatarUrl}`
-          } else {
-            avatarUrl = `${import.meta.env.VITE_API_BASE_URL}/${avatarUrl}`
-          }
+      // 处理头像URL
+      let avatarUrl = userData.avatar || ''
+      
+      // 如果头像URL不是绝对URL且不为空，添加基础URL
+      if (avatarUrl && !avatarUrl.startsWith('http') && !avatarUrl.startsWith('data:')) {
+        // 媒体文件直接使用后端根路径，不需要/api前缀
+        if (avatarUrl.startsWith('/')) {
+          avatarUrl = `http://localhost:8000${avatarUrl}`
+        } else {
+          avatarUrl = `http://localhost:8000/${avatarUrl}`
         }
-        
-        // 处理背景图URL
-        let bannerUrl = userData.banner || ''
-        
-        // 如果背景图URL不是绝对URL且不为空，添加基础URL
-        if (bannerUrl && !bannerUrl.startsWith('http') && !bannerUrl.startsWith('data:')) {
-          // 确保URL格式正确
-          if (bannerUrl.startsWith('/')) {
-            bannerUrl = `${import.meta.env.VITE_API_BASE_URL}${bannerUrl}`
-          } else {
-            bannerUrl = `${import.meta.env.VITE_API_BASE_URL}/${bannerUrl}`
-          }
-        }
-        
-        // 更新用户对象
-        user.value = {
-          ...userData,
-          avatar: avatarUrl || undefined,
-          banner: bannerUrl || undefined
-        }
-        
-        // 更新localStorage中的头像和背景图
-        localStorage.setItem('user_avatar', avatarUrl || '')
-        localStorage.setItem('user_banner', bannerUrl || '')
-        
-        loading.value = false
-        return user.value
       }
+      
+      // 处理背景图URL
+      let bannerUrl = userData.banner || ''
+      
+      // 如果背景图URL不是绝对URL且不为空，添加基础URL
+      if (bannerUrl && !bannerUrl.startsWith('http') && !bannerUrl.startsWith('data:')) {
+        // 媒体文件直接使用后端根路径，不需要/api前缀
+        if (bannerUrl.startsWith('/')) {
+          bannerUrl = `http://localhost:8000${bannerUrl}`
+        } else {
+          bannerUrl = `http://localhost:8000/${bannerUrl}`
+        }
+      }
+      
+      // 更新用户对象，确保所有字段都被正确设置
+      user.value = {
+        id: userData.id,
+        username: userData.username,
+        email: userData.email,
+        avatar: avatarUrl || undefined,
+        banner: bannerUrl || undefined,
+        phone: userData.phone || undefined,
+        bio: userData.bio || undefined,
+        favorite_schools: userData.favorite_schools || [],
+        is_staff: userData.is_staff || false,
+        is_superuser: userData.is_superuser || false,
+        created_at: userData.created_at || undefined,
+        updated_at: userData.updated_at || undefined
+      }
+      
+      // 更新localStorage中的头像和背景图
+      localStorage.setItem('user_avatar', avatarUrl || '')
+      localStorage.setItem('user_banner', bannerUrl || '')
+      
+      loading.value = false
+      console.log('更新后的用户信息:', user.value)
+      return user.value
     } catch (err: any) {
       loading.value = false
       failedToLoad.value = true
       error.value = err.response?.data?.detail || '获取用户信息失败'
+      console.error('获取用户信息失败:', err)
       return null
     }
   }

@@ -33,7 +33,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return self.serializer_class
     
     def get_permissions(self):
-        if self.action in ['create', 'login']:
+        if self.action in ['create', 'login', 'me']:
             return [permissions.AllowAny()]
         elif self.action == 'retrieve':
             return [permissions.AllowAny()]
@@ -42,7 +42,11 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_object(self):
         pk = self.kwargs.get('pk')
         if pk == 'me':
-            return self.request.user
+            if self.request.user.is_authenticated:
+                return self.request.user
+            else:
+                from rest_framework.exceptions import AuthenticationFailed
+                raise AuthenticationFailed('用户未登录')
         return super().get_object()
     
     @action(detail=False, methods=['post'])
@@ -80,8 +84,12 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def me(self, request):
         """获取当前用户信息"""
-        serializer = UserSerializer(request.user)
-        return Response(serializer.data)
+        if request.user.is_authenticated:
+            serializer = UserSerializer(request.user)
+            return Response(serializer.data)
+        else:
+            from rest_framework.exceptions import AuthenticationFailed
+            raise AuthenticationFailed('用户未登录')
     
     @action(detail=False, methods=['patch'])
     def update_me(self, request):

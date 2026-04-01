@@ -265,16 +265,25 @@ const handlePhoneLogin = async () => {
     localStorage.setItem(config.jwt.refreshTokenKey, tokenData.refresh)
     
     // 更新userStore中的状态
-    await userStore.fetchUserProfile()
+    const userInfo = await userStore.fetchUserProfile()
     
-    // 显示成功提示
-    showToast('登录成功', 'success')
-    
-    // 重定向到首页
-    router.push('/')
+    if (userInfo) {
+      // 显示成功提示
+      showToast('登录成功', 'success')
+      
+      // 重定向到首页
+      router.push('/')
+    } else {
+      // 获取用户信息失败
+      showToast('登录成功但获取用户信息失败', 'error')
+      // 清除token
+      userStore.logout()
+    }
   } catch (error: any) {
     const errorMsg = error.response?.data?.detail || error.message || '登录失败，请检查手机号和验证码'
     showToast(errorMsg, 'error')
+    // 清除token
+    userStore.logout()
   } finally {
     loading.value = false
   }
@@ -296,16 +305,25 @@ const handleEmailLogin = async () => {
     localStorage.setItem(config.jwt.refreshTokenKey, tokenData.refresh)
     
     // 更新userStore中的状态
-    await userStore.fetchUserProfile()
+    const userInfo = await userStore.fetchUserProfile()
     
-    // 显示成功提示
-    showToast('登录成功', 'success')
-    
-    // 重定向到首页
-    router.push('/')
+    if (userInfo) {
+      // 显示成功提示
+      showToast('登录成功', 'success')
+      
+      // 重定向到首页
+      router.push('/')
+    } else {
+      // 获取用户信息失败
+      showToast('登录成功但获取用户信息失败', 'error')
+      // 清除token
+      userStore.logout()
+    }
   } catch (error: any) {
     const errorMsg = error.response?.data?.detail || error.message || '登录失败，请检查邮箱和验证码'
     showToast(errorMsg, 'error')
+    // 清除token
+    userStore.logout()
   } finally {
     loading.value = false
   }

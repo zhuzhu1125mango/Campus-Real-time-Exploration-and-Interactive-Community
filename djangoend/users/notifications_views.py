@@ -5,6 +5,7 @@ from django.db.models import Q
 
 from .notifications import Notification
 from .notifications_serializers import NotificationSerializer, NotificationCreateSerializer
+from .notification_sender import send_notification
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
@@ -22,7 +23,9 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return self.serializer_class
     
     def perform_create(self, serializer):
-        serializer.save(sender=self.request.user)
+        notification = serializer.save(sender=self.request.user)
+        # 发送实时通知
+        send_notification(notification)
     
     @action(detail=False, methods=['get'])
     def unread(self, request):
@@ -76,6 +79,9 @@ class NotificationViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         notification = serializer.save()
         
+        # 发送实时通知
+        send_notification(notification)
+        
         return Response({
             'id': notification.id,
             'message': '通知发送成功'
@@ -88,3 +94,18 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response({
             'message': f'已删除{count}条已读通知'
         }, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'])
+    def type_counts(self, request):
+        """按类型获取通知数量"""
+        from django.db.models import Count
+        
+        # 按类型分组统计通知数量
+        type_counts = self.get_queryset().values('notification_type').annotate(count=Count('id'))
+        
+        # 转换为字典格式
+        result = {}
+        for item in type_counts:
+            result[item['notification_type']] = item['count']
+        
+        return Response(result)

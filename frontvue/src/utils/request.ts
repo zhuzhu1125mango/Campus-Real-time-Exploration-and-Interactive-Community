@@ -31,7 +31,14 @@ service.interceptors.request.use(
     // 从 localStorage 获取 token
     const token = localStorage.getItem(config.jwt.accessTokenKey)
     
-    if (token) {
+    // 登录请求和刷新token请求不设置Authorization头
+    const loginPaths = ['/users/users/login/', '/users/users/email_code_login/', '/users/users/phone_code_login/']
+    const refreshPath = '/token/refresh/'
+    
+    const url = requestConfig.url || ''
+    const shouldSetAuth = !loginPaths.some(path => url.includes(path)) && url !== refreshPath
+    
+    if (token && shouldSetAuth) {
       // 根据后端要求设置认证头
       const authHeader = `${config.jwt.tokenType} ${token}`
       requestConfig.headers.set('Authorization', authHeader)
@@ -58,6 +65,16 @@ service.interceptors.response.use(
       
       // 处理token过期 (401错误)
       if (status === 401 && !originalRequest._retry) {
+        // 检查是否是登录请求或刷新token请求
+        const url = originalRequest.url || ''
+        const isLoginRequest = ['/users/users/login/', '/users/users/email_code_login/', '/users/users/phone_code_login/'].some(path => url.includes(path))
+        const isRefreshRequest = url === '/token/refresh/'
+        
+        // 登录请求和刷新token请求的401错误直接返回，不尝试刷新token
+        if (isLoginRequest || isRefreshRequest) {
+          return Promise.reject(error)
+        }
+        
         if (isRefreshing) {
           // 如果已经在刷新token，将请求加入队列
           return new Promise(resolve => {
@@ -84,12 +101,12 @@ service.interceptors.response.use(
           
           if (newToken) {
             // 执行队列中的请求
-          requests.forEach(callback => callback(newToken))
-          requests = []
-          
-          // 更新当前请求的Authorization头
-          originalRequest.headers.Authorization = `${config.jwt.tokenType} ${newToken}`
-          return service.request(originalRequest)
+            requests.forEach(callback => callback(newToken))
+            requests = []
+            
+            // 更新当前请求的Authorization头
+            originalRequest.headers.Authorization = `${config.jwt.tokenType} ${newToken}`
+            return service.request(originalRequest)
           } else {
             // 刷新失败，清除token并跳转到登录页
             localStorage.removeItem(config.jwt.accessTokenKey)
@@ -112,10 +129,15 @@ service.interceptors.response.use(
           console.error(data.message || '请求参数错误')
           break
         case 401:
-          console.error('请先登录')
-          localStorage.removeItem(config.jwt.accessTokenKey)
-          localStorage.removeItem(config.jwt.refreshTokenKey)
-          redirectToLogin()
+          // 只有非登录和非刷新token请求的401错误才清除token并跳转到登录页
+          const url = originalRequest.url || ''
+          const isLoginOrRefresh = ['/users/users/login/', '/users/users/email_code_login/', '/users/users/phone_code_login/', '/token/refresh/'].some(path => url.includes(path))
+          if (!isLoginOrRefresh) {
+            console.error('请先登录')
+            localStorage.removeItem(config.jwt.accessTokenKey)
+            localStorage.removeItem(config.jwt.refreshTokenKey)
+            redirectToLogin()
+          }
           break
         case 403:
           console.error('没有权限访问')

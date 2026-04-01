@@ -104,7 +104,7 @@ cd frontvue
 npm run dev
 ```
 
-默认启动在 `http://localhost:5174`
+默认启动在 `http://localhost:5173`
 
 ### 4.3 构建生产版本
 ```bash
@@ -139,5 +139,5 @@ npm run build
 ## 7. 服务状态检查
 
 - 后端 API 健康检查：`GET http://localhost:8000/api/schools/test-connection/`
-- 前端服务：`http://localhost:5174`
+- 前端服务：`http://localhost:5173`
 - 后端服务：`http://localhost:8000`

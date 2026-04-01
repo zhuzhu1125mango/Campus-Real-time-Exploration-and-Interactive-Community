@@ -20,21 +20,21 @@
     <div class="features-section">
       <h2 class="section-title">探索我们的功能</h2>
       <div class="features-grid">
-        <div class="feature-card">
+        <router-link to="/events" class="feature-card">
           <div class="feature-icon news-icon"></div>
           <h3>校园动态</h3>
           <p>了解最新校园活动和公告信息</p>
-        </div>
-        <div class="feature-card">
+        </router-link>
+        <router-link to="/forum" class="feature-card">
           <div class="feature-icon community-icon"></div>
           <h3>互动交流</h3>
           <p>与校友分享经验，建立人脉关系</p>
-        </div>
-        <div class="feature-card">
+        </router-link>
+        <router-link to="/forum" class="feature-card">
           <div class="feature-icon resources-icon"></div>
           <h3>资源共享</h3>
           <p>获取学习资料，分享实用技巧</p>
-        </div>
+        </router-link>
       </div>
     </div>
 
@@ -45,84 +45,47 @@
           <div class="feed-header">
             <h3>最新动态</h3>
             <div class="filter-tabs">
-              <button class="tab active">全部</button>
-              <button class="tab">问答</button>
-              <button class="tab">分享</button>
+              <button class="tab active" @click="activeFilter = 'all'">全部</button>
+              <button class="tab" @click="activeFilter = 'qa'">问答</button>
+              <button class="tab" @click="activeFilter = 'share'">分享</button>
             </div>
           </div>
           
           <div class="feed-items">
-            <div class="feed-item">
-              <div class="feed-avatar">
-                <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="用户头像">
-              </div>
-              <div class="feed-content">
-                <div class="feed-header">
-                  <span class="feed-author">李小明</span>
-                  <span class="feed-time">刚刚</span>
-                </div>
-                <p class="feed-text">有谁知道明天的编程比赛具体在哪个教室举行吗？</p>
-                <div class="feed-actions">
-                  <button class="action-btn like-btn">
-                    <span class="action-icon">♡</span>
-                    <span>12</span>
-                  </button>
-                  <button class="action-btn comment-btn">
-                    <span class="action-icon">💬</span>
-                    <span>8</span>
-                  </button>
-                </div>
-              </div>
+            <div v-if="loading" class="loading-state">
+              <div class="loading-spinner"></div>
+              <p>加载中...</p>
             </div>
-            
-            <div class="feed-item">
-              <div class="feed-avatar">
-                <img src="https://randomuser.me/api/portraits/men/32.jpg" alt="用户头像">
-              </div>
-              <div class="feed-content">
-                <div class="feed-header">
-                  <span class="feed-author">王教授</span>
-                  <span class="feed-time">10分钟前</span>
-                </div>
-                <p class="feed-text">刚分享了一份关于云计算最新技术的资料，感兴趣的同学可以在资源区查看。</p>
-                <div class="feed-actions">
-                  <button class="action-btn like-btn">
-                    <span class="action-icon">♡</span>
-                    <span>32</span>
-                  </button>
-                  <button class="action-btn comment-btn">
-                    <span class="action-icon">💬</span>
-                    <span>14</span>
-                  </button>
-                </div>
-              </div>
+            <div v-else-if="activities.length === 0" class="no-activities">
+              <p>暂无动态，快来发布第一条动态吧！</p>
             </div>
-            
-            <div class="feed-item">
+            <div v-else v-for="activity in activities" :key="activity.id" class="feed-item">
               <div class="feed-avatar">
-                <img src="https://randomuser.me/api/portraits/women/68.jpg" alt="用户头像">
+                <img :src="activity.user?.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'" :alt="activity.user?.username">
               </div>
               <div class="feed-content">
                 <div class="feed-header">
-                  <span class="feed-author">张同学</span>
-                  <span class="feed-time">30分钟前</span>
+                  <span class="feed-author">{{ activity.user?.username }}</span>
+                  <span class="feed-time">{{ formatTime(activity.created_at) }}</span>
                 </div>
-                <p class="feed-text">我整理了一份考研复习资料，希望对大家有所帮助！</p>
+                <p class="feed-text">{{ activity.content }}</p>
                 <div class="feed-actions">
-                  <button class="action-btn like-btn">
-                    <span class="action-icon">♡</span>
-                    <span>56</span>
+                  <button class="action-btn like-btn" @click="toggleLike(activity.id)">
+                    <span class="action-icon" :class="{ 'liked': activity.is_liked }">{{ activity.is_liked ? '♥' : '♡' }}</span>
+                    <span>{{ activity.likes_count }}</span>
                   </button>
                   <button class="action-btn comment-btn">
                     <span class="action-icon">💬</span>
-                    <span>23</span>
+                    <span>{{ activity.comments_count }}</span>
                   </button>
                 </div>
               </div>
             </div>
           </div>
           
-          <button class="load-more-btn">加载更多</button>
+          <button class="load-more-btn" @click="loadMore" :disabled="loading || !hasMore">
+            {{ loading ? '加载中...' : hasMore ? '加载更多' : '没有更多了' }}
+          </button>
         </div>
         
         <div class="live-chat">
@@ -153,17 +116,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useUserStore } from '../stores/userStore'
 import ChatRoom from '../components/ChatRoom.vue'
 import ChatRoomUserCount from '../components/ChatRoomUserCount.vue'
 import RecommendationSection from '../components/RecommendationSection.vue'
+import { userApi } from '../api/user'
+import { formatDate } from '../utils/date'
 
 // 使用用户状态存储
 const userStore = useUserStore()
 
 // 引用在线用户计数组件
 const userCountRef = ref<InstanceType<typeof ChatRoomUserCount> | null>(null)
+
+// 活动数据
+const activities = ref<any[]>([])
+const loading = ref(false)
+const hasMore = ref(true)
+const page = ref(1)
+const activeFilter = ref('all')
 
 // 更新在线用户计数
 const updateUserCount = (count: number) => {
@@ -172,8 +144,122 @@ const updateUserCount = (count: number) => {
   }
 }
 
-// 不再需要模拟数据
+// 格式化时间
+const formatTime = (timeString: string) => {
+  return formatDate(timeString)
+}
+
+// 加载活动数据
+const loadActivities = async (reset = false) => {
+  if (loading.value) return
+  
+  if (reset) {
+    page.value = 1
+    activities.value = []
+    hasMore.value = true
+  }
+  
+  loading.value = true
+  try {
+    const response = await userApi.getActivities({
+      page: page.value,
+      page_size: 10,
+      type: activeFilter.value === 'all' ? undefined : activeFilter.value
+    })
+    
+    if (reset) {
+      activities.value = response.results
+    } else {
+      activities.value = [...activities.value, ...response.results]
+    }
+    
+    hasMore.value = response.results.length === 10
+    page.value++
+  } catch (error) {
+    console.error('加载活动失败:', error)
+    // 处理未登录的情况，显示友好的提示信息
+    if (error instanceof Error && 'response' in error && error.response && (error.response as any).status === 401) {
+      console.log('用户未登录，显示默认活动数据')
+      // 可以在这里添加一些默认的活动数据，或者显示提示信息
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+// 加载更多
+const loadMore = () => {
+  if (!loading.value && hasMore.value) {
+    loadActivities()
+  }
+}
+
+// 切换点赞
+const toggleLike = async (activityId: number) => {
+  try {
+    const activity = activities.value.find(a => a.id === activityId)
+    if (!activity) return
+    
+    if (activity.is_liked) {
+      await userApi.unlikeActivity(activityId)
+    } else {
+      await userApi.likeActivity(activityId)
+    }
+    
+    // 更新本地状态
+    activity.is_liked = !activity.is_liked
+    activity.likes_count += activity.is_liked ? 1 : -1
+  } catch (error) {
+    console.error('切换点赞失败:', error)
+  }
+}
+
+// 组件挂载时加载数据
+onMounted(() => {
+  loadActivities(true)
+})
 </script>
+
+<style scoped>
+/* 现有样式 */
+
+/* 新增样式 */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem;
+  color: #666;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(67, 97, 238, 0.3);
+  border-radius: 50%;
+  border-top-color: #4361ee;
+  animation: spin 1s ease-in-out infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.no-activities {
+  text-align: center;
+  padding: 3rem;
+  color: #999;
+}
+
+.action-btn.liked {
+  color: #4361ee;
+}
+
+.action-btn.liked .action-icon {
+  color: #4361ee;
+}
+</style>
 
 <style scoped>
 .home-container {

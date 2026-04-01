@@ -22,11 +22,17 @@ const checkBackendStatus = async () => {
   console.log('开始检查后端服务器状态')
   try {
     // 发送一个简单的GET请求到后端健康检查端点
-    console.log('发送健康检查请求到:', config.apiBaseUrl + '/health/')
-    await request.get('/health/')
-    console.log('后端服务器可用')
-    backendStatus.value = 'online'
-    appInitialized.value = true
+    // 健康检查端点在根路径下，没有/api前缀
+    const healthUrl = 'http://localhost:8000/health/'
+    console.log('发送健康检查请求到:', healthUrl)
+    const response = await fetch(healthUrl)
+    if (response.ok) {
+      console.log('后端服务器可用')
+      backendStatus.value = 'online'
+      appInitialized.value = true
+    } else {
+      throw new Error('健康检查失败')
+    }
   } catch (error) {
     console.error('后端服务器不可用:', error)
     backendStatus.value = 'offline'

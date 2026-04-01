@@ -23,6 +23,7 @@ export interface School {
   facilities?: string
   logo?: string
   banner?: string
+  image?: string
   student_count?: number
   faculty_count?: number
   national_rank?: number

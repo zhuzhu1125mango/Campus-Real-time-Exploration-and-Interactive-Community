@@ -596,89 +596,155 @@ const bannerStyle = computed(() => {
 // 获取用户资料
 const fetchProfile = async () => {
   try {
-    const response = await userApi.getProfile()
-    const userData = response
-    console.log('获取到的用户资料:', userData)
+    // 首先从userStore获取用户信息
+    await userStore.fetchUserInfo()
     
-    // 复制所有需要的字段
-    form.value = {
-      username: userData.username || '',
-      email: userData.email || '',
-      phone: userData.phone || '',
-      bio: userData.bio || '',
-      avatar: null, // 不直接使用URL
-      banner: null  // 不直接使用URL
-    }
+    // 从userStore获取最新的用户数据
+    const userData = userStore.user
+    console.log('从userStore获取的用户资料:', userData)
     
-    // 设置用户头像预览 - 直接使用完整URL
-    if (userData.avatar && typeof userData.avatar === 'string') {
-      // 记录原始数据
-      console.log('原始头像URL:', userData.avatar)
+    if (!userData) {
+      // 如果userStore中没有数据，直接从API获取
+      const response = await userApi.getProfile()
+      const apiUserData = response
+      console.log('从API获取的用户资料:', apiUserData)
       
-      // 确保URL是完整的
-      let avatarUrl = userData.avatar
-      if (!avatarUrl.startsWith('http') && !avatarUrl.startsWith('/')) {
-        // 如果是相对路径，添加API基础URL
-        const baseMediaUrl = import.meta.env.VITE_UPLOAD_URL || 'http://localhost:8000/media'
-        avatarUrl = `${baseMediaUrl}/${avatarUrl}`
-        console.log('添加基础URL后:', avatarUrl)
+      // 复制所有需要的字段
+      form.value = {
+        username: apiUserData.username || '',
+        email: apiUserData.email || '',
+        phone: apiUserData.phone || '',
+        bio: apiUserData.bio || '',
+        avatar: null, // 不直接使用URL
+        banner: null  // 不直接使用URL
       }
       
-      // 添加时间戳参数防止缓存
-      const timestamp = new Date().getTime()
-      const newAvatarUrl = avatarUrl.includes('?') 
-        ? `${avatarUrl}&_=${timestamp}` 
-        : `${avatarUrl}?_=${timestamp}`
-      
-      console.log('最终头像URL:', newAvatarUrl)
-      avatarPreview.value = newAvatarUrl
-    }
-    
-    // 设置用户背景图预览 - 直接使用完整URL
-    if (userData.banner && typeof userData.banner === 'string') {
-      console.log('服务器返回的背景图URL:', userData.banner)
-      
-      // 处理Banner URL
-      let bannerUrl = userData.banner
-      
-      // 确保是完整的URL
-      if (typeof bannerUrl === 'string' && !bannerUrl.startsWith('http') && !bannerUrl.startsWith('/')) {
-        // 相对路径，添加媒体URL前缀
-        const baseMediaUrl = import.meta.env.VITE_UPLOAD_URL || 'http://localhost:8000/media'
-        bannerUrl = `${baseMediaUrl}/${bannerUrl}`
+      // 设置用户头像预览 - 直接使用完整URL
+      if (apiUserData.avatar && typeof apiUserData.avatar === 'string') {
+        // 记录原始数据
+        console.log('原始头像URL:', apiUserData.avatar)
+        
+        // 确保URL是完整的
+        let avatarUrl = apiUserData.avatar
+        if (!avatarUrl.startsWith('http') && !avatarUrl.startsWith('/')) {
+          // 如果是相对路径，添加API基础URL
+          const baseMediaUrl = import.meta.env.VITE_UPLOAD_URL || 'http://localhost:8000/media'
+          avatarUrl = `${baseMediaUrl}/${avatarUrl}`
+          console.log('添加基础URL后:', avatarUrl)
+        }
+        
+        // 添加时间戳参数防止缓存
+        const timestamp = new Date().getTime()
+        const newAvatarUrl = avatarUrl.includes('?') 
+          ? `${avatarUrl}&_=${timestamp}` 
+          : `${avatarUrl}?_=${timestamp}`
+        
+        console.log('最终头像URL:', newAvatarUrl)
+        avatarPreview.value = newAvatarUrl
       }
+      
+      // 设置用户背景图预览 - 直接使用完整URL
+      if (apiUserData.banner && typeof apiUserData.banner === 'string') {
+        console.log('服务器返回的背景图URL:', apiUserData.banner)
+        
+        // 处理Banner URL
+        let bannerUrl = apiUserData.banner
+        
+        // 确保是完整的URL
+        if (typeof bannerUrl === 'string' && !bannerUrl.startsWith('http') && !bannerUrl.startsWith('/')) {
+          // 相对路径，添加媒体URL前缀
+          const baseMediaUrl = import.meta.env.VITE_UPLOAD_URL || 'http://localhost:8000/media'
+          bannerUrl = `${baseMediaUrl}/${bannerUrl}`
+        }
 
-      // 添加时间戳参数防止缓存
-      const timestamp = new Date().getTime()
-      const finalBannerUrl = bannerUrl.includes('?') 
-        ? `${bannerUrl.split('?')[0]}?_=${timestamp}` 
-        : `${bannerUrl}?_=${timestamp}`
+        // 添加时间戳参数防止缓存
+        const timestamp = new Date().getTime()
+        const finalBannerUrl = bannerUrl.includes('?') 
+          ? `${bannerUrl.split('?')[0]}?_=${timestamp}` 
+          : `${bannerUrl}?_=${timestamp}`
+        
+        console.log('处理后的背景图URL:', finalBannerUrl)
       
-      console.log('处理后的背景图URL:', finalBannerUrl)
-    
-      // 清除旧的Blob URL
-      if (bannerPreview.value && bannerPreview.value.startsWith('blob:')) {
-        URL.revokeObjectURL(bannerPreview.value)
+        // 清除旧的Blob URL
+        if (bannerPreview.value && bannerPreview.value.startsWith('blob:')) {
+          URL.revokeObjectURL(bannerPreview.value)
+        }
+        
+        // 立即更新背景图预览
+        bannerPreview.value = finalBannerUrl
+        console.log('更新背景图预览为最新URL:', bannerPreview.value)
+      
+        // 强制触发渲染
+        setTimeout(() => {
+          const tempUrl = bannerPreview.value
+          bannerPreview.value = ''
+          setTimeout(() => {
+            bannerPreview.value = tempUrl
+            console.log('刷新背景图预览完成')
+          }, 50)
+        }, 0)
+      }
+    } else {
+      // 使用userStore中的数据
+      form.value = {
+        username: userData.username || '',
+        email: userData.email || '',
+        phone: userData.phone || '',
+        bio: userData.bio || '',
+        avatar: null, // 不直接使用URL
+        banner: null  // 不直接使用URL
       }
       
-      // 立即更新背景图预览
-      bannerPreview.value = finalBannerUrl
-      console.log('更新背景图预览为最新URL:', bannerPreview.value)
-    
-      // 强制触发渲染
-      setTimeout(() => {
-        const tempUrl = bannerPreview.value
-        bannerPreview.value = ''
+      // 设置用户头像预览 - 直接使用完整URL
+      if (userData.avatar && typeof userData.avatar === 'string') {
+        // 记录原始数据
+        console.log('userStore中的头像URL:', userData.avatar)
+        
+        // 添加时间戳参数防止缓存
+        const timestamp = new Date().getTime()
+        const newAvatarUrl = userData.avatar.includes('?') 
+          ? `${userData.avatar.split('?')[0]}?_=${timestamp}` 
+          : `${userData.avatar}?_=${timestamp}`
+        
+        console.log('最终头像URL:', newAvatarUrl)
+        avatarPreview.value = newAvatarUrl
+      }
+      
+      // 设置用户背景图预览 - 直接使用完整URL
+      if (userData.banner && typeof userData.banner === 'string') {
+        console.log('userStore中的背景图URL:', userData.banner)
+        
+        // 添加时间戳参数防止缓存
+        const timestamp = new Date().getTime()
+        const finalBannerUrl = userData.banner.includes('?') 
+          ? `${userData.banner.split('?')[0]}?_=${timestamp}` 
+          : `${userData.banner}?_=${timestamp}`
+        
+        console.log('处理后的背景图URL:', finalBannerUrl)
+      
+        // 清除旧的Blob URL
+        if (bannerPreview.value && bannerPreview.value.startsWith('blob:')) {
+          URL.revokeObjectURL(bannerPreview.value)
+        }
+        
+        // 立即更新背景图预览
+        bannerPreview.value = finalBannerUrl
+        console.log('更新背景图预览为最新URL:', bannerPreview.value)
+      
+        // 强制触发渲染
         setTimeout(() => {
-          bannerPreview.value = tempUrl
-          console.log('刷新背景图预览完成')
-        }, 50)
-      }, 0)
+          const tempUrl = bannerPreview.value
+          bannerPreview.value = ''
+          setTimeout(() => {
+            bannerPreview.value = tempUrl
+            console.log('刷新背景图预览完成')
+          }, 50)
+        }, 0)
+      }
     }
     
-    // 无论userStore中是否有数据，都强制刷新用户信息
     console.log('从profile更新userStore数据')
-    await userStore.fetchUserProfile()
+    await userStore.fetchUserInfo()
   } catch (error) {
     console.error('获取个人资料失败:', error)
     showToast('获取个人资料失败', 'error')

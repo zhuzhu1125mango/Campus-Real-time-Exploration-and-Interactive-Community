@@ -39,6 +39,8 @@ class School(models.Model):
     address = models.CharField(max_length=200, blank=True, verbose_name='详细地址')
     website = models.URLField(blank=True, verbose_name='学校官网')
     description = models.TextField(blank=True, verbose_name='学校描述')
+    # 学校照片
+    image = models.ImageField(upload_to='school_images/', blank=True, null=True, verbose_name='学校照片')
     
     # 学校规模
     student_count = models.IntegerField(null=True, blank=True, verbose_name='学生人数')

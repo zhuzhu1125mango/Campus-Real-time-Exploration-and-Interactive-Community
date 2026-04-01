@@ -15,6 +15,7 @@ export interface User {
   last_login?: string
   is_active?: boolean
   is_staff?: boolean
+  is_superuser?: boolean
   favorite_schools?: number[]
 }
 

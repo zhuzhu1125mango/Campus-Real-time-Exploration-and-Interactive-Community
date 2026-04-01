@@ -28,7 +28,7 @@ interface Config {
 }
 
 const config: Config = {
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || '/',
+  apiBaseUrl: '/api',
   cors: {
     allowedOrigins: ['http://localhost:5173'],
     allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

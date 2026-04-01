@@ -97,6 +97,23 @@ const routes = [
     path: '/dashboard',
     name: 'Dashboard',
     component: () => import('../views/Dashboard.vue')
+  },
+  {
+    path: '/friends',
+    name: 'Friends',
+    component: () => import('../views/Friends.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/learning',
+    name: 'Learning',
+    component: () => import('../views/Learning.vue')
+  },
+  {
+    path: '/activity',
+    name: 'Activity',
+    component: () => import('../views/Activity.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 

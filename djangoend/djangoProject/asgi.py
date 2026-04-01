@@ -12,10 +12,12 @@ import django
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
-import chat.routing
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'djangoProject.settings')
 django.setup()
+
+# 导入聊天路由（必须在django.setup()之后）
+import chat.routing
 
 # 初始化Django ASGI应用
 django_asgi_app = get_asgi_application()

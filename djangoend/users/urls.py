@@ -7,12 +7,21 @@ from .views import (
 )
 from .favorites_views import FavoriteViewSet
 from .notifications_views import NotificationViewSet
+from .friendship_views import FriendRequestViewSet, FriendViewSet
+from .messages_views import MessageViewSet
+from .activities_views import ActivityViewSet, ActivityLikeViewSet, ActivityCommentViewSet
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'profiles', UserProfileViewSet, basename='profile')
 router.register(r'favorites', FavoriteViewSet, basename='favorite')
 router.register(r'notifications', NotificationViewSet, basename='notification')
+router.register(r'friend-requests', FriendRequestViewSet, basename='friend-request')
+router.register(r'friends', FriendViewSet, basename='friend')
+router.register(r'messages', MessageViewSet, basename='message')
+router.register(r'activities', ActivityViewSet, basename='activity')
+router.register(r'activity-likes', ActivityLikeViewSet, basename='activity-like')
+router.register(r'activity-comments', ActivityCommentViewSet, basename='activity-comment')
 
 urlpatterns = [
     path('', include(router.urls)),

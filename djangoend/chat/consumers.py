@@ -4,7 +4,10 @@ import logging
 from .views import online_users
 from asgiref.sync import sync_to_async
 from datetime import datetime
+from users.notifications import Notification
+from django.contrib.auth import get_user_model
 
+User = get_user_model()
 logger = logging.getLogger(__name__)
 
 # 改进版ChatConsumer
@@ -23,6 +26,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
         
+        # 如果用户已认证，添加到用户特定的通知组
+        if self.user.is_authenticated:
+            self.user_group_name = f"user_{self.user.id}"
+            await self.channel_layer.group_add(
+                self.user_group_name,
+                self.channel_name
+            )
+            logger.info(f"用户 {self.user.username} (ID: {self.user.id}) 已添加到通知组 {self.user_group_name}")
+        
         # 接受连接，但记录更明确的认证状态
         await self.accept()
         
@@ -38,6 +50,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     'id': self.user.id,
                     'username': self.user.username
                 }
+            }))
+            # 发送未读通知数量
+            unread_count = await sync_to_async(Notification.get_unread_count)(self.user)
+            await self.send(text_data=json.dumps({
+                'type': 'unread_notifications',
+                'count': unread_count
             }))
         else:
             logger.info(f"未认证用户已连接: {self.channel_name}")
@@ -76,6 +94,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if hasattr(self, 'user') and self.user.is_authenticated:
             await sync_to_async(online_users.discard)(self.user.id)
             logger.info(f"用户 {self.user.username} (ID: {self.user.id}) 已从在线列表移除")
+            # 从用户特定的通知组中移除
+            if hasattr(self, 'user_group_name'):
+                await self.channel_layer.group_discard(
+                    self.user_group_name,
+                    self.channel_name
+                )
+                logger.info(f"用户 {self.user.username} (ID: {self.user.id}) 已从通知组中移除")
         
         # 从群组中移除
         await self.channel_layer.group_discard(
@@ -168,6 +193,54 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 }))
                 return
             
+            # 处理通知相关消息
+            if message_type == 'mark_notification_read':
+                if not self.user.is_authenticated:
+                    await self.send(text_data=json.dumps({
+                        'type': 'error',
+                        'message': '请先登录'
+                    }))
+                    return
+                
+                notification_id = data.get('notification_id')
+                if not notification_id:
+                    await self.send(text_data=json.dumps({
+                        'type': 'error',
+                        'message': '通知ID不能为空'
+                    }))
+                    return
+                
+                try:
+                    notification = await sync_to_async(Notification.objects.get)(
+                        id=notification_id,
+                        recipient=self.user
+                    )
+                    await sync_to_async(notification.mark_as_read)()
+                    await self.send(text_data=json.dumps({
+                        'type': 'notification_marked_read',
+                        'notification_id': notification_id
+                    }))
+                except Notification.DoesNotExist:
+                    await self.send(text_data=json.dumps({
+                        'type': 'error',
+                        'message': '通知不存在'
+                    }))
+                return
+            
+            if message_type == 'mark_all_notifications_read':
+                if not self.user.is_authenticated:
+                    await self.send(text_data=json.dumps({
+                        'type': 'error',
+                        'message': '请先登录'
+                    }))
+                    return
+                
+                await sync_to_async(Notification.mark_all_as_read)(self.user)
+                await self.send(text_data=json.dumps({
+                    'type': 'all_notifications_marked_read'
+                }))
+                return
+            
             # 其他类型的消息
             await self.send(text_data=json.dumps({
                 'type': 'message_received',
@@ -205,6 +278,22 @@ class ChatConsumer(AsyncWebsocketConsumer):
         """当在线用户数量变化时，发送给WebSocket客户端"""
         await self.send(text_data=json.dumps({
             'type': 'online_users',
+            'count': event['count'],
+            'time': datetime.now().isoformat()
+        }))
+        
+    async def notification(self, event):
+        """当收到通知时，发送给WebSocket客户端"""
+        await self.send(text_data=json.dumps({
+            'type': 'notification',
+            'notification': event['notification'],
+            'time': event.get('time', datetime.now().isoformat())
+        }))
+        
+    async def unread_notifications_update(self, event):
+        """当未读通知数量变化时，发送给WebSocket客户端"""
+        await self.send(text_data=json.dumps({
+            'type': 'unread_notifications',
             'count': event['count'],
             'time': datetime.now().isoformat()
         })) 

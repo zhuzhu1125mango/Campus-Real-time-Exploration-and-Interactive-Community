@@ -2,7 +2,7 @@
   <div class="school-card" @click="goToDetail">
     <div class="school-header">
       <div class="school-logo">
-        <img v-if="school.logo" :src="school.logo" :alt="school.name" />
+        <img v-if="school.image" :src="school.image" :alt="school.name" />
         <div v-else class="logo-placeholder">{{ getInitials(school.name) }}</div>
       </div>
       <div class="school-basic-info">

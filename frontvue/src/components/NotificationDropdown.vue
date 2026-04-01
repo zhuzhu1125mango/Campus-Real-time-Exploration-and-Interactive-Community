@@ -77,9 +77,11 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from '../composables/useToast'
 import { userApi } from '../api/user'
+import { useUserStore } from '../stores/userStore'
 
 const { showToast } = useToast()
 const router = useRouter()
+const userStore = useUserStore()
 
 // 状态数据
 const isOpen = ref(false)
@@ -88,6 +90,7 @@ const unreadCount = ref(0)
 const notifications = ref<any[]>([])
 const activeTab = ref('all')
 const dropdownContent = ref<HTMLElement | null>(null)
+const ws = ref<WebSocket | null>(null)
 
 // 通知类型选项卡
 const tabs = [
@@ -105,6 +108,9 @@ const getActiveTabName = () => {
 
 // 过滤后的通知列表
 const filteredNotifications = computed(() => {
+  if (!notifications.value) {
+    return []
+  }
   if (activeTab.value === 'all') {
     return notifications.value
   }
@@ -125,7 +131,7 @@ const handleClickOutside = (event: MouseEvent) => {
     isOpen.value && 
     dropdownContent.value && 
     !dropdownContent.value.contains(event.target as Node) &&
-    !(event.target as Element).closest('.notification-icon')
+    !(event.target instanceof Element && (event.target.closest('.notification-icon') || event.target.closest('.notification-dropdown')))
   ) {
     isOpen.value = false
   }
@@ -187,6 +193,9 @@ const markAllAsRead = async () => {
 
 // 点击通知项
 const handleNotificationClick = async (notification: any) => {
+  // 关闭下拉菜单
+  isOpen.value = false
+  
   // 如果未读，标记为已读
   if (!notification.is_read) {
     try {
@@ -209,7 +218,6 @@ const handleNotificationClick = async (notification: any) => {
   
   // 处理跳转
   if (notification.url) {
-    isOpen.value = false
     router.push(notification.url)
   }
 }
@@ -245,6 +253,89 @@ const formatTime = (dateString: string) => {
   }
 }
 
+// 初始化WebSocket连接
+const initWebSocket = () => {
+  // 关闭现有连接
+  if (ws.value) {
+    ws.value.close()
+  }
+  
+  // 创建新连接
+  // 从API_BASE_URL获取基础URL，确保与后端服务器端口一致
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/';
+  const baseUrl = new URL(API_BASE_URL);
+  let wsUrl = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + 
+             '//' + baseUrl.host + '/ws/chat/';
+  
+  // 添加认证token到WebSocket URL（如果用户已登录且有token）
+  if (userStore.isLoggedIn && userStore.token) {
+    wsUrl += `?token=${encodeURIComponent(userStore.token)}`;
+  }
+  
+  console.log('通知系统WebSocket URL:', wsUrl);
+  ws.value = new WebSocket(wsUrl)
+  
+  ws.value.onopen = () => {
+    console.log('WebSocket连接已建立')
+  }
+  
+  ws.value.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      
+      // 处理通知消息
+      if (data.type === 'notification') {
+        // 添加新通知到列表顶部
+        notifications.value.unshift(data.notification)
+        // 更新未读通知数
+        if (!data.notification.is_read) {
+          unreadCount.value++
+        }
+        // 显示通知提示
+        showToast(data.notification.title, 'info')
+      }
+      
+      // 处理未读通知数更新
+      if (data.type === 'unread_notifications') {
+        unreadCount.value = data.count
+      }
+      
+      // 处理通知标记已读
+      if (data.type === 'notification_marked_read') {
+        notifications.value = notifications.value.map(n => 
+          n.id === data.notification_id ? { ...n, is_read: true } : n
+        )
+        if (unreadCount.value > 0) {
+          unreadCount.value--
+        }
+      }
+      
+      // 处理所有通知标记已读
+      if (data.type === 'all_notifications_marked_read') {
+        notifications.value = notifications.value.map(n => ({
+          ...n,
+          is_read: true
+        }))
+        unreadCount.value = 0
+      }
+    } catch (error) {
+      console.error('处理WebSocket消息失败:', error)
+    }
+  }
+  
+  ws.value.onclose = () => {
+    console.log('WebSocket连接已关闭')
+    // 尝试重连
+    setTimeout(initWebSocket, 5000)
+  }
+  
+  ws.value.onerror = (error) => {
+    console.error('WebSocket错误:', error)
+  }
+}
+
+
+
 // 定期刷新未读通知数
 let intervalId: number
 
@@ -252,14 +343,29 @@ let intervalId: number
 onMounted(() => {
   document.addEventListener('mousedown', handleClickOutside)
   fetchUnreadCount()
+  initWebSocket()
   
   // 定期检查未读通知数（每分钟）
   intervalId = window.setInterval(fetchUnreadCount, 60000)
+  
+  // 监听登录状态变化
+  watch(() => userStore.isLoggedIn, (newValue) => {
+    initWebSocket()
+    if (newValue) {
+      fetchUnreadCount()
+    } else {
+      unreadCount.value = 0
+      notifications.value = []
+    }
+  })
 })
 
 onUnmounted(() => {
   document.removeEventListener('mousedown', handleClickOutside)
   clearInterval(intervalId)
+  if (ws.value) {
+    ws.value.close()
+  }
 })
 
 // 监听activeTab变化，切换时重新获取通知

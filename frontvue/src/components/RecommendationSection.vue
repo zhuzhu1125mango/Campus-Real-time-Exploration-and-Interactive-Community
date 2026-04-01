@@ -24,7 +24,7 @@
         type="error"
         show-icon
         :closable="false"
-      />
+      ></el-alert>
       <el-button type="primary" @click="fetchRecommendations">重新加载</el-button>
     </div>
     
@@ -45,8 +45,14 @@
             <el-card class="recommendation-card" @click="goToSchoolDetail(school.id)">
               <template #header>
                 <div class="school-header">
-                  <h3>{{ school.name }}</h3>
-                  <el-tag size="small">{{ school.school_type }}</el-tag>
+                  <div class="school-image">
+                    <img v-if="school.image" :src="school.image" :alt="school.name" />
+                    <div v-else class="image-placeholder">{{ getInitials(school.name) }}</div>
+                  </div>
+                  <div class="school-header-info">
+                    <h3>{{ school.name }}</h3>
+                    <el-tag size="small">{{ school.school_type }}</el-tag>
+                  </div>
                 </div>
               </template>
               <div class="school-info">
@@ -172,12 +178,10 @@ const goToSchoolDetail = (schoolId: number) => {
 }
 
 const goToMajorDetail = (majorId: number) => {
-  // 假设专业详情页路由为 /majors/:id
   router.push(`/majors/${majorId}`)
 }
 
 const goToPostDetail = (postId: number) => {
-  // 假设帖子详情页路由为 /forum/posts/:id
   router.push(`/forum/posts/${postId}`)
 }
 
@@ -186,6 +190,11 @@ const truncateContent = (content: string, maxLength: number) => {
     return content
   }
   return content.substring(0, maxLength) + '...'
+}
+
+const getInitials = (name: string) => {
+  if (!name) return '?'
+  return name.substring(0, 2)
 }
 
 onMounted(() => {
@@ -264,8 +273,48 @@ onMounted(() => {
 .major-header,
 .post-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+.school-header {
+  flex-direction: row;
+}
+
+.school-image {
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f0f3ff;
+}
+
+.school-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-placeholder {
+  width: 100%;
+  height: 100%;
+  background-color: #4361ee;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.school-header-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .school-header h3,
@@ -274,6 +323,11 @@ onMounted(() => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
+}
+
+.major-header,
+.post-header {
+  justify-content: space-between;
 }
 
 .school-info,
@@ -308,6 +362,7 @@ onMounted(() => {
   text-overflow: ellipsis;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
 }
 

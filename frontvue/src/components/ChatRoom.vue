@@ -81,6 +81,7 @@
 import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useUserStore } from '@/stores/userStore'
 import { formatDate } from '../utils/date'
+import config from '../utils/config'
 
 // 接收属性
 const props = defineProps({
@@ -97,8 +98,8 @@ const emit = defineEmits<{
   (e: 'online-users-update', count: number): void
 }>()
 
-// 从环境变量获取API和WebSocket URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/';
+// 从config获取API和WebSocket URL
+const API_BASE_URL = config.apiBaseUrl;
 
 
 // 模拟服务器数据
@@ -158,7 +159,8 @@ const fetchHistoryMessages = async () => {
     
     // 从API获取最近的聊天消息
     if (userStore.isLoggedIn) {
-      const response = await fetch(`${API_BASE_URL}/api/chat/messages/recent_messages/`, {
+      const apiUrl = `${API_BASE_URL}/chat/messages/recent_messages/`;
+      const response = await fetch(apiUrl, {
         headers: {
           'Authorization': `Bearer ${userStore.token}`
         }
@@ -226,7 +228,8 @@ const updateOnlineUsers = (count: number) => {
 // 获取在线用户数量
 const fetchOnlineUsers = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/chat/messages/online_users/`);
+    const apiUrl = `${API_BASE_URL}/chat/messages/online_users/`;
+    const response = await fetch(apiUrl);
     if (response.ok) {
       const data = await response.json();
       updateOnlineUsers(data.count);
@@ -240,19 +243,10 @@ const fetchOnlineUsers = async () => {
 
 // WebSocket连接逻辑
 const connectWebSocket = () => {
-  // 1. 检查用户是否已登录
-  if (!userStore.isLoggedIn) {
-    connectionStatus.value = 'disconnected'
-    return
-  }
-  
   // 重置连接状态
   connectionStatus.value = 'connecting'
   
   try {
-    // 2. 获取认证token
-    const token = userStore.token
-    
     // 3. 如果存在之前的连接，关闭它
     if (ws.value && ws.value.readyState < 2) {  // 0=CONNECTING, 1=OPEN
       ws.value.close()
@@ -264,12 +258,14 @@ const connectWebSocket = () => {
     
     // 直接使用后端服务器的WebSocket URL
     wsUrl = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + 
-             '//' + window.location.hostname + ':8000/ws/chat/';
+             '//localhost:8000/ws/chat/';
     console.log('使用后端服务器WebSocket URL:', wsUrl);
     
-    // 添加认证token到WebSocket URL
-    wsUrl += `?token=${encodeURIComponent(token)}`;
-    console.log('添加token后的WebSocket URL:', wsUrl);
+    // 添加认证token到WebSocket URL（如果用户已登录且有token）
+    if (userStore.isLoggedIn && userStore.token) {
+      wsUrl += `?token=${encodeURIComponent(userStore.token)}`;
+      console.log('添加token后的WebSocket URL:', wsUrl);
+    }
     
     // 添加错误处理，捕获WebSocket连接错误
     console.log('准备连接WebSocket:', wsUrl);
@@ -450,23 +446,6 @@ const sendMessage = async () => {
       sending.value = false;
       return;
     }
-    
-    // 预览消息（乐观UI更新）
-    const previewMessage: ChatMessage = {
-      id: Date.now(),
-      content: messageContent,
-      type: 'chat',
-      user: {
-        id: userStore.user?.id || 0,
-        username: userStore.user?.username || '未知用户',
-        avatar: userStore.user?.avatar || undefined
-      },
-      time: new Date().toISOString()
-    };
-    
-    // 立即添加到消息列表中
-    messages.value.push(previewMessage);
-    scrollToBottom();
     
     // 清空输入框
     messageInput.value = '';
