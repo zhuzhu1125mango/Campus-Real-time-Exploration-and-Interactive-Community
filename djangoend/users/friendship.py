@@ -58,9 +58,8 @@ class FriendRequest(models.Model):
         if self.status == 'pending':
             self.status = 'accepted'
             self.save()
-            # 创建双向好友关系
+            # 创建单向好友关系，get_friends方法会从两个方向查询
             Friend.objects.get_or_create(user1=self.sender, user2=self.receiver)
-            Friend.objects.get_or_create(user1=self.receiver, user2=self.sender)
             return True
         return False
     

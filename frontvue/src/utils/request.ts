@@ -1,6 +1,5 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig, type AxiosResponse } from 'axios'
 import config from './config'
-import { useUserStore } from '@/stores/userStore'
 
 // 页面跳转函数
 const redirectToLogin = () => {
@@ -25,6 +24,16 @@ const service: AxiosInstance = axios.create({
   }
 })
 
+// 从cookie中获取CSRF token
+const getCSRFToken = () => {
+  if (typeof document === 'undefined') return ''
+  const cookieValue = document.cookie
+    .split('; ') 
+    .find(row => row.startsWith('csrftoken=')) 
+    ?.split('=')[1]
+  return cookieValue || ''
+}
+
 // 请求拦截器
 service.interceptors.request.use(
   (requestConfig: InternalAxiosRequestConfig) => {
@@ -43,6 +52,13 @@ service.interceptors.request.use(
       const authHeader = `${config.jwt.tokenType} ${token}`
       requestConfig.headers.set('Authorization', authHeader)
     }
+    
+    // 添加CSRF token
+    const csrfToken = getCSRFToken()
+    if (csrfToken) {
+      requestConfig.headers.set('X-CSRFToken', csrfToken)
+    }
+    
     return requestConfig
   },
   (error) => {
@@ -95,11 +111,14 @@ service.interceptors.response.use(
             throw new Error('没有刷新token')
           }
           
-          // 使用userStore中的方法刷新token
-          const userStore = useUserStore()
-          const newToken = await userStore.refreshAuthToken()
+          // 直接调用axios发送请求，避免类型断言问题
+          const refreshResponse = await axios.post<{ access: string }>('http://localhost:8000/token/refresh/', { refresh: refreshToken })
+          const newToken = refreshResponse.data.access
           
           if (newToken) {
+            // 保存新token到localStorage
+            localStorage.setItem(config.jwt.accessTokenKey, newToken)
+            
             // 执行队列中的请求
             requests.forEach(callback => callback(newToken))
             requests = []

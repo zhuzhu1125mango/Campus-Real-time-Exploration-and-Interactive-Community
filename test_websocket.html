@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Test</h1>
+    <div id="messages"></div>
+    <button onclick="connectWebSocket()">Connect</button>
+    <button onclick="sendMessage()">Send Message</button>
+    <button onclick="disconnectWebSocket()">Disconnect</button>
+
+    <script>
+        let ws = null;
+        const messages = document.getElementById('messages');
+
+        function log(message) {
+            messages.innerHTML += `<p>${new Date().toLocaleTimeString()}: ${message}</p>`;
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function connectWebSocket() {
+            try {
+                log('Attempting to connect to WebSocket...');
+                ws = new WebSocket('ws://localhost:8000/ws/chat/');
+
+                ws.onopen = function() {
+                    log('WebSocket connected!');
+                };
+
+                ws.onmessage = function(event) {
+                    log('Received message: ' + event.data);
+                };
+
+                ws.onerror = function(error) {
+                    log('WebSocket error: ' + error);
+                    console.error('WebSocket error:', error);
+                };
+
+                ws.onclose = function(event) {
+                    log('WebSocket closed: ' + event.code + ' - ' + event.reason);
+                };
+            } catch (error) {
+                log('Error creating WebSocket: ' + error);
+                console.error('Error creating WebSocket:', error);
+            }
+        }
+
+        function sendMessage() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'chat_message', message: 'Test message' }));
+                log('Sent test message');
+            } else {
+                log('WebSocket not connected');
+            }
+        }
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                log('Disconnected WebSocket');
+            }
+        }
+
+        // Auto-connect when page loads
+        window.onload = function() {
+            connectWebSocket();
+        };
+    </script>
+</body>
+</html>

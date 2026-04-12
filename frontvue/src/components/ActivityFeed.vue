@@ -115,7 +115,7 @@
     </div>
     
     <div v-if="activities.length === 0" class="no-activities">
-      暂无动态
+      暂无动态，快来发布第一条动态吧！
     </div>
   </div>
 </template>
@@ -188,9 +188,20 @@ const loadActivities = async () => {
     } else {
       response = await userApi.getActivities()
     }
-    activities.value = response.results
+    // 检查response是否存在且包含results属性
+    if (response && response.results) {
+      activities.value = response.results
+    } else {
+      // 如果response格式不正确，使用空数组
+      activities.value = []
+      console.error('加载动态失败: 响应格式不正确', response)
+    }
   } catch (error) {
     console.error('加载动态失败:', error)
+    // 发生错误时，确保activities.value是一个空数组
+    activities.value = []
+    // 可以在这里添加用户提示，例如使用Toast组件
+    // showToast('加载动态失败，请稍后重试', 'error')
   }
 }
 
@@ -266,6 +277,8 @@ onMounted(() => {
 <style scoped>
 .activity-feed {
   padding: 20px;
+  max-height: 600px;
+  overflow-y: auto;
 }
 
 .feed-header {

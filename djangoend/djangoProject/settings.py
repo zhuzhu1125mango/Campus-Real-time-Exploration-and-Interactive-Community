@@ -113,6 +113,25 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+# CORS 允许的源
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+]
+
+# 允许携带凭证（如cookie）
+CORS_ALLOW_CREDENTIALS = True
+
+# CSRF 配置
+CSRF_COOKIE_SECURE = False  # 开发环境设置为False，生产环境设置为True
+CSRF_COOKIE_HTTPONLY = False  # 允许前端JavaScript访问CSRF cookie
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+]
+
 ROOT_URLCONF = 'djangoProject.urls'
 
 TEMPLATES = [
@@ -209,7 +228,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=7),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": False,
     "BLACKLIST_AFTER_ROTATION": False,

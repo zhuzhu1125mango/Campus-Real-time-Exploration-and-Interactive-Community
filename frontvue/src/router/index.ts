@@ -88,6 +88,11 @@ const routes = [
     component: () => import('../views/MyFavoriteSchools.vue'),
     meta: { requiresAuth: true }
   },
+  {    path: '/chat/:id',
+    name: 'ChatDetail',
+    component: () => import('../components/ChatDetail.vue'),
+    meta: { requiresAuth: true }
+  },
   {
     path: '/events',
     name: 'Events',
@@ -128,27 +133,20 @@ router.beforeEach(async (to, _from, next) => {
   
   // 如果需要认证
   if (to.meta.requiresAuth) {
-    // 检查是否已登录
-    if (userStore.isLoggedIn) {
+    // 检查是否有token
+    if (userStore.token) {
+      // 有token就允许访问，同时后台加载用户信息
+      // 如果还没有用户信息，触发获取
+      if (!userStore.user) {
+        userStore.fetchUserInfo().catch(err => {
+          console.error('获取用户信息失败:', err)
+        })
+      }
       next()
       return
     }
     
-    // 如果有token但没有用户信息，尝试获取用户信息
-    if (userStore.token && !userStore.user) {
-      try {
-        await userStore.fetchUserProfile()
-        // 再次检查是否已登录
-        if (userStore.isLoggedIn) {
-          next()
-          return
-        }
-      } catch (error) {
-        console.error('获取用户信息失败:', error)
-      }
-    }
-    
-    // 如果以上条件都不满足，重定向到登录页
+    // 如果没有token，重定向到登录页
     next('/login')
   } else {
     next()

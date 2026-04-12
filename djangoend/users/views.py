@@ -11,6 +11,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse
 from datetime import datetime
 from django.shortcuts import get_object_or_404
+from django.db.models import Q
 
 from .serializers import (
     UserSerializer, UserRegisterSerializer, UserLoginSerializer, UserProfileSerializer
@@ -177,6 +178,31 @@ class UserViewSet(viewsets.ModelViewSet):
         }
         
         return Response(data)
+    
+    @action(detail=False, methods=['get'])
+    def search(self, request):
+        """搜索用户
+        通过用户名、邮箱或手机号搜索用户
+        """
+        query = request.query_params.get('q', '')
+        if not query:
+            return Response({'error': '搜索关键词不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 搜索用户
+        users = User.objects.filter(
+            Q(username__icontains=query) |
+            Q(email__icontains=query) |
+            Q(phone__icontains=query)
+        ).exclude(id=request.user.id)  # 排除当前用户
+        
+        # 分页
+        page = self.paginate_queryset(users)
+        if page is not None:
+            serializer = UserSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = UserSerializer(users, many=True, context={'request': request})
+        return Response(serializer.data)
 
 # 添加调试视图，检查用户头像
 @api_view(['GET'])

@@ -11,23 +11,23 @@ import os
 import django
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
-from channels.auth import AuthMiddlewareStack
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'djangoProject.settings')
 django.setup()
 
-# 导入聊天路由（必须在django.setup()之后）
+# 导入聊天路由和中间件（必须在django.setup()之后）
 import chat.routing
+from chat.middleware import TokenAuthMiddleware
 
 # 初始化Django ASGI应用
 django_asgi_app = get_asgi_application()
 
-# 配置协议路由 - 简化认证流程
+# 配置协议路由 - 使用自定义的TokenAuthMiddleware
 application = ProtocolTypeRouter({
     # HTTP请求由Django处理
     "http": django_asgi_app,
-    # WebSocket请求由Channels处理，添加认证中间件但降低安全要求
-    "websocket": AuthMiddlewareStack(
+    # WebSocket请求由Channels处理，使用自定义的TokenAuthMiddleware
+    "websocket": TokenAuthMiddleware(
         URLRouter(
             chat.routing.websocket_urlpatterns
         )

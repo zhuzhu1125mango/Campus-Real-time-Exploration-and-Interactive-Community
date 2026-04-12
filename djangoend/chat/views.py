@@ -68,21 +68,16 @@ def send_message(request):
             except Exception:
                 avatar = None
                 
-        # 创建消息记录
-        message = ChatMessage.objects.create(
-            user=user,
-            content=content
-        )
+        # 禁用消息记录保存
+        # 不再创建ChatMessage对象
     else:
         # 匿名用户消息
         user_id = 0
         username = "游客"
         avatar = None
         
-        # 创建消息记录
-        message = ChatMessage.objects.create(
-            content=content
-        )
+        # 禁用消息记录保存
+        # 不再创建ChatMessage对象
     
     # 广播给所有WebSocket客户端
     from channels.layers import get_channel_layer

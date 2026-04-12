@@ -31,6 +31,8 @@ class FriendRequestCreateSerializer(serializers.ModelSerializer):
     """
     创建好友请求的序列化器
     """
+    receiver = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    
     class Meta:
         model = FriendRequest
         fields = ['receiver']

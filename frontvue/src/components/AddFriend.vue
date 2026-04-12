@@ -90,26 +90,9 @@ const handleSearch = async () => {
   
   loading.value = true
   try {
-    // 这里需要实现用户搜索API
-    // 暂时使用模拟数据
-    // const response = await userApi.searchUsers(searchQuery.value)
-    // searchResults.value = response
-    
-    // 模拟搜索结果
-    searchResults.value = [
-      {
-        id: 1,
-        username: 'user1',
-        email: 'user1@example.com',
-        avatar: null
-      },
-      {
-        id: 2,
-        username: 'user2',
-        email: 'user2@example.com',
-        avatar: null
-      }
-    ]
+    // 使用真实的搜索API
+    const response = await userApi.searchUsers(searchQuery.value)
+    searchResults.value = response
   } catch (error) {
     console.error('搜索用户失败:', error)
     showToast('搜索用户失败', 'error')

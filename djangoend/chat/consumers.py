@@ -173,6 +173,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 current_time = datetime.now().isoformat()
                 
                 # 广播消息给所有连接的客户端
+                logger.info(f"广播消息给所有连接的客户端: {content}")
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
@@ -181,9 +182,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         'username': username,
                         'user_id': user_id,
                         'avatar': avatar,
-                        'time': current_time
+                        'time': current_time,
+                        'client_id': data.get('client_id')
                     }
                 )
+                logger.info("消息广播完成")
                 
                 # 确认消息已收到
                 await self.send(text_data=json.dumps({
@@ -265,6 +268,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def chat_message(self, event):
         """当收到群组消息时，发送给WebSocket客户端"""
+        logger.info(f"发送消息给客户端: {event['message']}")
         await self.send(text_data=json.dumps({
             'type': 'chat_message',
             'message': event['message'],
@@ -273,6 +277,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'avatar': event.get('avatar'),
             'time': event.get('time', datetime.now().isoformat())
         }))
+        logger.info("消息发送完成")
 
     async def online_users_update(self, event):
         """当在线用户数量变化时，发送给WebSocket客户端"""

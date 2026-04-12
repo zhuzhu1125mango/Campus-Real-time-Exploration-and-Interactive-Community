@@ -50,55 +50,57 @@
             {{ error }}
           </div>
           <div v-else class="forum-categories">
-            <div v-for="category in categories" :key="category.id" class="category-section">
-              <div class="category-header">
-                <h2 class="category-title">
-                  <i :class="category.icon || 'el-icon-folder'" class="category-icon"></i>
-                  {{ category.name }}
-                </h2>
-                <p v-if="category.description" class="category-description">{{ category.description }}</p>
-              </div>
-              
-              <template v-if="getBoardsByCategory(category.id).length > 0">
-                <div class="board-grid">
-                  <div 
-                    v-for="board in getBoardsByCategory(category.id)" 
-                    :key="board.id"
-                    class="board-card"
-                    @click="navigateToBoard(board.id)"
-                  >
-                    <div class="board-header">
-                      <i :class="board.icon || 'el-icon-menu'" class="board-icon"></i>
-                      <h3 class="board-title">{{ board.name }}</h3>
-                    </div>
-                    <p v-if="board.description" class="board-description">{{ board.description }}</p>
-                    <div class="board-stats">
-                      <span class="stat-item">
-                        <i class="el-icon-chat-dot-square"></i>
-                        {{ board.topic_count || 0 }} 主题
-                      </span>
-                      <span class="stat-item">
-                        <i class="el-icon-document"></i>
-                        {{ board.post_count || 0 }} 帖子
-                      </span>
-                    </div>
-                    <div v-if="board.last_post" class="board-last-post">
-                      <span class="last-post-label">最新:</span>
-                      <span class="last-post-info">
-                        {{ truncateText(board.last_post.title || '', 20) }}
-                        <template v-if="board.last_post.author">
-                          by {{ board.last_post.author.username }}
-                        </template>
-                        {{ formatDate(board.last_post.created_at) }}
-                      </span>
+            <template v-for="category in categories" :key="category?.id">
+              <div v-if="category && category.id" class="category-section">
+                <div class="category-header">
+                  <h2 class="category-title">
+                    <i :class="category.icon || 'el-icon-folder'" class="category-icon"></i>
+                    {{ category.name }}
+                  </h2>
+                  <p v-if="category.description" class="category-description">{{ category.description }}</p>
+                </div>
+                
+                <template v-if="getBoardsByCategory(category.id).length > 0">
+                  <div class="board-grid">
+                    <div 
+                      v-for="board in getBoardsByCategory(category.id)" 
+                      :key="board.id"
+                      class="board-card"
+                      @click="navigateToBoard(board.id)"
+                    >
+                      <div class="board-header">
+                        <i :class="board.icon || 'el-icon-menu'" class="board-icon"></i>
+                        <h3 class="board-title">{{ board.name }}</h3>
+                      </div>
+                      <p v-if="board.description" class="board-description">{{ board.description }}</p>
+                      <div class="board-stats">
+                        <span class="stat-item">
+                          <i class="el-icon-chat-dot-square"></i>
+                          {{ board.topic_count || 0 }} 主题
+                        </span>
+                        <span class="stat-item">
+                          <i class="el-icon-document"></i>
+                          {{ board.post_count || 0 }} 帖子
+                        </span>
+                      </div>
+                      <div v-if="board.last_post" class="board-last-post">
+                        <span class="last-post-label">最新:</span>
+                        <span class="last-post-info">
+                          {{ truncateText(board.last_post.title || '', 20) }}
+                          <template v-if="board.last_post.author">
+                            by {{ board.last_post.author.username || '未知用户' }}
+                          </template>
+                          {{ formatDate(board.last_post.created_at || new Date().toISOString()) }}
+                        </span>
+                      </div>
                     </div>
                   </div>
+                </template>
+                <div v-else class="no-boards-message">
+                  暂无板块
                 </div>
-              </template>
-              <div v-else class="no-boards-message">
-                暂无板块
               </div>
-            </div>
+            </template>
           </div>
         </div>
       </div>
@@ -176,7 +178,14 @@ const fetchCategories = async () => {
   
   try {
     const response = await forumApi.getCategories()
-    categories.value = response
+    // 确保response是数组并过滤掉无效元素
+    if (Array.isArray(response)) {
+      categories.value = response.filter(category => 
+        category && typeof category === 'object' && 'id' in category
+      )
+    } else {
+      categories.value = []
+    }
     console.log('获取分类成功:', categories.value)
   } catch (err) {
     console.error('获取分类列表失败:', err)
@@ -272,7 +281,7 @@ const fetchForumStats = async () => {
 
 // 获取分类下的版块
 const getBoardsByCategory = (categoryId: number) => {
-  return boards.value.filter(board => board.category === categoryId)
+  return boards.value.filter(board => board && typeof board === 'object' && 'id' in board && board.category === categoryId)
 }
 
 // 导航到板块详情页

@@ -680,8 +680,12 @@ onMounted(() => {
   height: 100%;
 }
 
-.chat-container :deep(.chat-header) {
-  display: none; /* 隐藏ChatRoom组件自带的标题栏 */
+.chat-container :deep(.chat-header h3) {
+  display: none; /* 只隐藏标题文字，保留放大按钮 */
+}
+
+.chat-container :deep(.chat-header .online-users) {
+  display: none; /* 隐藏在线人数显示，避免重复 */
 }
 
 .chat-container :deep(.chat-input button) {

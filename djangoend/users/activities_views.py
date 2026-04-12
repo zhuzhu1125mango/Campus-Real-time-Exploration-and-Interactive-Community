@@ -78,14 +78,14 @@ class ActivityViewSet(viewsets.ModelViewSet):
         # 获取动态
         activities = Activity.objects.filter(user__id__in=following_ids, is_public=True).order_by('-created_at')
         serializer = ActivitySerializer(activities, many=True, context={'request': request})
-        return Response(serializer.data)
+        return Response({'results': serializer.data})
     
     @action(detail=False, methods=['get'])
     def my_activities(self, request):
         # 获取当前用户的动态
         activities = Activity.objects.filter(user=request.user).order_by('-created_at')
         serializer = ActivitySerializer(activities, many=True, context={'request': request})
-        return Response(serializer.data)
+        return Response({'results': serializer.data})
 
 
 class ActivityLikeViewSet(viewsets.ModelViewSet):

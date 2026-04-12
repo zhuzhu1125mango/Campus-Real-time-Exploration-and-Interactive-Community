@@ -32,15 +32,24 @@ class MessageViewSet(viewsets.ModelViewSet):
         return self.serializer_class
     
     def perform_create(self, serializer):
-        message = serializer.save()
+        # 禁用消息记录保存
+        # 不再调用serializer.save()
+        # 构建响应数据
+        data = serializer.validated_data
+        receiver = data.get('receiver')
+        sender = self.request.user
+        
         # 发送私信通知
         send_notification_to_user(
-            message.receiver,
+            receiver,
             '新私信',
-            f'{message.sender.username} 给您发送了一条私信',
+            f'{sender.username} 给您发送了一条私信',
             'message',
-            f'/chat/{message.sender.id}'
+            f'/chat/{sender.id}'
         )
+        
+        # 直接返回，不保存消息
+        return
     
     @action(detail=False, methods=['get'])
     def conversations(self, request):

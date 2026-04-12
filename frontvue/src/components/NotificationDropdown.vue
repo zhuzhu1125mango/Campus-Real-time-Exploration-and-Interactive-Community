@@ -108,13 +108,17 @@ const getActiveTabName = () => {
 
 // 过滤后的通知列表
 const filteredNotifications = computed(() => {
-  if (!notifications.value) {
+  if (!notifications.value || !Array.isArray(notifications.value)) {
     return []
   }
+  let filtered = []
   if (activeTab.value === 'all') {
-    return notifications.value
+    filtered = notifications.value
+  } else {
+    filtered = notifications.value.filter(item => item.notification_type === activeTab.value)
   }
-  return notifications.value.filter(item => item.notification_type === activeTab.value)
+  // 最多显示三条通知
+  return filtered.slice(0, 3)
 })
 
 // 切换下拉菜单
@@ -143,7 +147,38 @@ const fetchNotifications = async () => {
   try {
     // 使用userApi获取通知
     const response = await userApi.getNotifications()
-    notifications.value = response.data
+    // 确保正确获取通知数据
+    let fetchedNotifications = []
+    if (response && response.data) {
+      fetchedNotifications = response.data
+    } else {
+      fetchedNotifications = response
+    }
+    
+    // 合并本地通知和服务器通知，避免覆盖WebSocket收到的新通知
+    if (Array.isArray(fetchedNotifications)) {
+      // 创建一个Map来存储所有通知，使用id作为键
+      const notificationMap = new Map()
+      
+      // 先添加本地通知（包括WebSocket收到的）
+      notifications.value.forEach(notification => {
+        if (notification.id) {
+          notificationMap.set(notification.id, notification)
+        }
+      })
+      
+      // 再添加服务器通知，覆盖旧通知
+      fetchedNotifications.forEach(notification => {
+        if (notification.id) {
+          notificationMap.set(notification.id, notification)
+        }
+      })
+      
+      // 转换回数组并按创建时间排序
+      notifications.value = Array.from(notificationMap.values()).sort((a, b) => {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      })
+    }
   } catch (error) {
     console.error('获取通知失败:', error)
     showToast('获取通知失败', 'error')
@@ -170,6 +205,12 @@ const fetchUnreadCount = async () => {
 
 // 标记所有通知为已读
 const markAllAsRead = async () => {
+  // 弹出确认对话框
+  const confirmed = confirm('是否将所有通知标记为已读？')
+  if (!confirmed) {
+    return // 用户取消操作
+  }
+  
   try {
     loading.value = true
     // 使用userApi标记所有为已读
@@ -261,11 +302,9 @@ const initWebSocket = () => {
   }
   
   // 创建新连接
-  // 从API_BASE_URL获取基础URL，确保与后端服务器端口一致
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/';
-  const baseUrl = new URL(API_BASE_URL);
+  // 使用相对路径，利用Vite的代理配置
   let wsUrl = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + 
-             '//' + baseUrl.host + '/ws/chat/';
+             '//' + window.location.host + '/ws/chat';
   
   // 添加认证token到WebSocket URL（如果用户已登录且有token）
   if (userStore.isLoggedIn && userStore.token) {
@@ -329,7 +368,7 @@ const initWebSocket = () => {
     setTimeout(initWebSocket, 5000)
   }
   
-  ws.value.onerror = (error) => {
+  ws.value.onerror = (error: Event) => {
     console.error('WebSocket错误:', error)
   }
 }

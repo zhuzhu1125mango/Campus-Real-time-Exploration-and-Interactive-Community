@@ -28,7 +28,7 @@ interface Config {
 }
 
 const config: Config = {
-  apiBaseUrl: '/api',
+  apiBaseUrl: 'http://localhost:8000/api',
   cors: {
     allowedOrigins: ['http://localhost:5173'],
     allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

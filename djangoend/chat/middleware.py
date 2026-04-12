@@ -31,7 +31,7 @@ class TokenAuthMiddleware:
             try:
                 access_token = AccessToken(token)
                 user_id = access_token['user_id']
-                user = await self.get_user(user_id)
+                user = await TokenAuthMiddleware.get_user(user_id)
                 
                 if user:
                     logger.info(f"WebSocket认证中间件: 认证成功，用户: {user.username} (ID: {user.id})")

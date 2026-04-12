@@ -6,7 +6,6 @@ import Toast from './components/Toast.vue'
 import NotificationDropdown from './components/NotificationDropdown.vue'
 import { useUserStore } from './stores/userStore'
 import config from './utils/config'
-import request from './utils/request'
 
 // 使用User Store
 const userStore = useUserStore()
@@ -131,7 +130,7 @@ const retryBackendCheck = async () => {
       </main>
 
       <footer class="footer">
-        <p>&copy; 2024 校园实时互动社区. All rights reserved.</p>
+        <p>&copy; 2025 校园实时互动社区. All rights reserved.</p>
       </footer>
     </template>
     

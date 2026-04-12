@@ -253,6 +253,11 @@ export const userApi = {
     return request.get(`/users/friends/check/?user_id=${userId}`)
   },
   
+  // 搜索用户
+  searchUsers(query: string): Promise<any[]> {
+    return request.get(`/users/users/search/?q=${encodeURIComponent(query)}`)
+  },
+  
   // 私信系统相关API
   
   // 获取所有对话

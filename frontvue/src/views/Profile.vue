@@ -32,6 +32,14 @@
       <h1 class="profile-name">{{ form.username }}</h1>
       <p class="profile-bio">{{ form.bio || '这个人很懒，还没有填写个人简介' }}</p>
     </div>
+    
+    <!-- 聊天弹窗 -->
+    <ChatModal 
+      v-if="chatModalVisible" 
+      :visible="chatModalVisible" 
+      :friend="selectedFriend" 
+      @close="closeChatModal" 
+    />
 
     <div class="profile-tabs">
       <button 
@@ -47,6 +55,13 @@
         @click="activeTab = 'activity'"
       >
         我的动态
+      </button>
+      <button 
+        class="tab-button" 
+        :class="{ active: activeTab === 'friends' }" 
+        @click="activeTab = 'friends'"
+      >
+        我的好友
       </button>
       <button 
         class="tab-button" 
@@ -134,14 +149,19 @@
 
       <div v-if="activeTab === 'activity'" class="activity-section">
         <div class="profile-card">
-          <h2 class="section-title">我的动态</h2>
+          <div class="section-header">
+            <h2 class="section-title">我的动态</h2>
+            <button v-if="activities.length > 0" @click="clearAllActivities" class="btn-danger clear-activities-btn">
+              清除所有动态
+            </button>
+          </div>
           
           <div class="activity-list">
             <div class="empty-activity" v-if="activities.length === 0">
               <div class="empty-icon"></div>
-              <p class="empty-text">您还没有发布任何动态</p>
-              <div class="mt-4">
-                <button class="btn-primary">发布第一条动态</button>
+              <p class="empty-text">未发表任何动态</p>
+              <div class="mt-6">
+                <button class="btn-primary publish-first-activity" @click="navigateToPublishActivity">发布第一条动态</button>
               </div>
             </div>
             
@@ -188,6 +208,88 @@
                   <button @click="removeFavorite(school.id)" class="btn-unfavorite">
                     <span class="unfavorite-icon"></span>
                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="activeTab === 'friends'" class="friends-section">
+        <div class="profile-card">
+          <h2 class="section-title">我的好友</h2>
+          
+          <!-- 好友搜索 -->
+          <div class="friend-search">
+            <div class="input-wrapper">
+              <input
+                type="text"
+                v-model="searchQuery"
+                placeholder="搜索好友..."
+                class="search-input"
+              />
+              <button @click="searchUsers" class="btn-search">搜索</button>
+            </div>
+          </div>
+          
+          <!-- 搜索结果 -->
+          <div v-if="searchResults.length > 0" class="search-results">
+            <h3>搜索结果</h3>
+            <div class="user-list">
+              <div v-for="user in searchResults" :key="user.id" class="user-item">
+                <div class="user-avatar">
+                  <img :src="user.avatar || 'http://localhost:8000/media/avatars1/默认头像.png'" :alt="user.username">
+                </div>
+                <div class="user-info">
+                  <div class="user-name">{{ user.username }}</div>
+                  <div class="user-email">{{ user.email }}</div>
+                </div>
+                <button @click="sendFriendRequest(user.id, user.username)" class="btn-add-friend">
+                  添加好友
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 好友请求 -->
+          <div v-if="friendRequests.length > 0" class="friend-requests">
+            <h3>好友请求</h3>
+            <div class="request-list">
+              <div v-for="request in friendRequests" :key="request.id" class="request-item">
+                <div class="user-avatar">
+                  <img :src="request.sender.avatar || 'http://localhost:8000/media/avatars1/默认头像.png'" :alt="request.sender.username">
+                </div>
+                <div class="user-info">
+                  <div class="user-name">{{ request.sender.username }}</div>
+                  <div class="request-time">{{ formatTime(request.created_at) }}</div>
+                </div>
+                <div class="request-actions">
+                  <button @click="acceptFriendRequest(request.id)" class="btn-accept">接受</button>
+                  <button @click="rejectFriendRequest(request.id)" class="btn-reject">拒绝</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 好友列表 -->
+          <div class="friends-list">
+            <h3>好友列表</h3>
+            <div v-if="friends.length === 0" class="empty-friends">
+              <div class="empty-icon friend-icon"></div>
+              <p class="empty-text">您还没有好友，开始添加好友吧！</p>
+            </div>
+            <div v-else class="friend-grid">
+              <div v-for="friend in friends" :key="friend.id" class="friend-card">
+                <div class="friend-avatar">
+                  <img :src="friend.avatar || 'http://localhost:8000/media/avatars1/默认头像.png'" :alt="friend.username">
+                </div>
+                <div class="friend-info">
+                  <h4 class="friend-name">{{ friend.username }}</h4>
+                  <p class="friend-email">{{ friend.email }}</p>
+                </div>
+                <div class="friend-actions">
+                  <button @click="startChat(friend)" class="btn-chat">聊天</button>
+                  <button @click="removeFriend(friend.id)" class="btn-remove">删除好友</button>
                 </div>
               </div>
             </div>
@@ -335,6 +437,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { userApi } from '../api/user'
 import { useToast } from '../composables/useToast'
 // @ts-ignore 忽略类型检查错误
@@ -343,9 +446,13 @@ import VueCropper from 'vue-cropperjs'
 import '../assets/cropper.css'
 import { useUserStore } from '../stores/userStore'
 import { ElMessage } from 'element-plus'
+import ChatModal from '../components/ChatModal.vue'
 
 // 获取用户Store
 const userStore = useUserStore()
+
+// 获取路由器实例
+const router = useRouter()
 
 // 基本数据
 const loading = ref(false)
@@ -434,30 +541,60 @@ interface School {
 const favoriteSchools = ref<School[]>([])
 const defaultSchoolImage = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/></svg>'
 
-// 模拟活动数据
-const activities = ref([
-  {
-    type: '发布了帖子',
-    content: '有谁知道如何解决Vue3中的类型问题？我遇到了一些困难...',
-    time: '昨天 14:30',
-    likes: 5,
-    comments: 3
-  },
-  {
-    type: '分享了资源',
-    content: '整理了一份前端面试题集合，希望对准备实习的同学有所帮助！',
-    time: '3天前',
-    likes: 24,
-    comments: 12
-  },
-  {
-    type: '回复了问题',
-    content: '这个问题我遇到过，可以通过调整webpack配置来解决...',
-    time: '上周',
-    likes: 8,
-    comments: 1
+// 活动数据类型定义
+interface Activity {
+  type: string
+  content: string
+  time: string
+  likes: number
+  comments: number
+}
+
+// 活动数据 - 初始为空，确保新用户显示未发表动态状态
+const activities = ref<Activity[]>([])
+
+// 清除所有动态
+const clearAllActivities = () => {
+  if (confirm('确定要清除所有动态记录吗？此操作不可恢复。')) {
+    activities.value = []
+    showToast('所有动态记录已清除', 'success')
   }
-])
+}
+
+// 导航到动态发布页面
+const navigateToPublishActivity = () => {
+  // 跳转到活动页面，默认显示我的动态标签
+  router.push('/activity?tab=my')
+}
+
+// 好友相关数据
+interface User {
+  id: number
+  username: string
+  email: string
+  avatar?: string
+}
+
+interface FriendRequest {
+  id: number
+  sender: User
+  created_at: string
+}
+
+const searchQuery = ref('')
+const searchResults = ref<User[]>([])
+const friends = ref<User[]>([])
+const friendRequests = ref<FriendRequest[]>([])
+const friendsLoading = ref(false)
+
+// 聊天弹窗相关
+const chatModalVisible = ref(false)
+const selectedFriend = ref<User>({
+  id: 0,
+  username: '',
+  email: '',
+  avatar: ''
+})
 
 // 计算属性：头像样式
 const avatarStyle = computed(() => {
@@ -523,7 +660,7 @@ const avatarStyle = computed(() => {
   
   // 无头像时使用默认头像
   console.log('无头像，使用默认头像')
-  return { backgroundImage: 'url(/imgs/default-avatar.png)' }
+  return { backgroundImage: 'url(http://localhost:8000/media/avatars1/默认头像.png)' }
 })
 
 // 计算属性：背景图样式
@@ -588,9 +725,9 @@ const bannerStyle = computed(() => {
     return { backgroundImage: `url(${url})` }
   }
   
-  // 无背景图时使用默认渐变色
-  console.log('无背景图，使用默认渐变色')
-  return { background: 'linear-gradient(135deg, #4361ee, #3a56d4)' }
+  // 无背景图时使用默认背景图
+  console.log('无背景图，使用默认背景图')
+  return { backgroundImage: 'url(http://localhost:8000/media/banners1/默认背景图.png)' }
 })
 
 // 获取用户资料
@@ -1142,6 +1279,148 @@ const deactivateAccount = () => {
   }
 }
 
+// 好友相关方法
+// 搜索用户
+const searchUsers = async () => {
+  if (!searchQuery.value.trim()) {
+    showToast('请输入搜索关键词', 'error')
+    return
+  }
+  
+  try {
+    const response = await userApi.searchUsers(searchQuery.value)
+    searchResults.value = response
+  } catch (error) {
+    console.error('搜索用户失败:', error)
+    showToast('搜索用户失败', 'error')
+  }
+}
+
+// 发送好友请求
+const sendFriendRequest = async (userId: number, username: string) => {
+  try {
+    await userApi.sendFriendRequest(userId)
+    showToast(`已向 ${username} 发送好友请求`, 'success')
+    // 清空搜索结果
+    searchResults.value = []
+    searchQuery.value = ''
+  } catch (error) {
+    console.error('发送好友请求失败:', error)
+    showToast('发送好友请求失败', 'error')
+  }
+}
+
+// 获取好友列表
+const fetchFriends = async () => {
+  try {
+    friendsLoading.value = true
+    const response = await userApi.getFriends()
+    friends.value = response.friends || []
+  } catch (error) {
+    console.error('获取好友列表失败:', error)
+    showToast('获取好友列表失败', 'error')
+  } finally {
+    friendsLoading.value = false
+  }
+}
+
+// 获取好友请求
+const fetchFriendRequests = async () => {
+  try {
+    const response = await userApi.getReceivedFriendRequests()
+    friendRequests.value = response
+  } catch (error) {
+    console.error('获取好友请求失败:', error)
+    showToast('获取好友请求失败', 'error')
+  }
+}
+
+// 接受好友请求
+const acceptFriendRequest = async (requestId: number) => {
+  try {
+    await userApi.acceptFriendRequest(requestId)
+    showToast('已接受好友请求', 'success')
+    // 重新获取好友列表和请求
+    await fetchFriends()
+    await fetchFriendRequests()
+  } catch (error) {
+    console.error('接受好友请求失败:', error)
+    showToast('接受好友请求失败', 'error')
+  }
+}
+
+// 拒绝好友请求
+const rejectFriendRequest = async (requestId: number) => {
+  try {
+    await userApi.rejectFriendRequest(requestId)
+    showToast('已拒绝好友请求', 'success')
+    // 重新获取好友请求
+    await fetchFriendRequests()
+  } catch (error) {
+    console.error('拒绝好友请求失败:', error)
+    showToast('拒绝好友请求失败', 'error')
+  }
+}
+
+// 删除好友
+const removeFriend = async (userId: number) => {
+  if (confirm('确定要删除这个好友吗？')) {
+    try {
+      await userApi.removeFriend(userId)
+      showToast('已删除好友', 'success')
+      // 重新获取好友列表
+      await fetchFriends()
+    } catch (error) {
+      console.error('删除好友失败:', error)
+      showToast('删除好友失败', 'error')
+    }
+  }
+}
+
+// 开始聊天
+const startChat = async (friend: User) => {
+  try {
+    // 检查是否已有对话
+    await userApi.getConversation(friend.id)
+    // 打开聊天弹窗
+    selectedFriend.value = friend
+    chatModalVisible.value = true
+  } catch (error) {
+    console.error('开始聊天失败:', error)
+    showToast('开始聊天失败', 'error')
+  }
+}
+
+// 关闭聊天弹窗
+const closeChatModal = () => {
+  chatModalVisible.value = false
+  // 重置选中的好友
+  selectedFriend.value = {
+    id: 0,
+    username: '',
+    email: '',
+    avatar: ''
+  }
+}
+
+// 格式化时间
+const formatTime = (timeString: string) => {
+  const date = new Date(timeString)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes}分钟前`
+  if (hours < 24) return `${hours}小时前`
+  if (days < 7) return `${days}天前`
+  
+  return date.toLocaleDateString('zh-CN')
+}
+
 // 添加裁剪控制方法
 // 放大
 const zoomIn = () => {
@@ -1242,6 +1521,8 @@ const onCropperCreated = () => {
 onMounted(() => {
   fetchProfile()
   fetchFavoriteSchools()
+  fetchFriends()
+  fetchFriendRequests()
   
   // 页面加载时恢复之前的预览
   if (localStorage.getItem('tempAvatarPreview')) {
@@ -1279,9 +1560,31 @@ if (localStorage.getItem('tempBannerPreview')) {
 
 <style scoped>
 .profile-container {
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: 20px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.clear-activities-btn {
+  padding: 8px 16px;
+  font-size: 14px;
+  border: none;
+  border-radius: 4px;
+  background-color: #dc3545;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.clear-activities-btn:hover {
+  background-color: #c82333;
 }
 
 .mt-4 {
@@ -1595,16 +1898,20 @@ input:focus, textarea:focus {
 
 .empty-activity {
   text-align: center;
-  padding: 3rem 0;
+  padding: 4rem 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: 1.5rem;
+  min-height: 350px;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  margin: 20px 0;
 }
 
 .empty-icon {
-  width: 100px;
-  height: 100px;
+  width: 120px;
+  height: 120px;
   margin: 0 auto 1.5rem;
   opacity: 0.3;
   background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>');
@@ -1617,6 +1924,32 @@ input:focus, textarea:focus {
   max-width: 80%;
   text-align: center;
   color: #666;
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.publish-first-activity {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.publish-first-activity:hover {
+  background-color: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.publish-first-activity:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
 }
 
 .btn-primary {
@@ -1642,6 +1975,234 @@ input:focus, textarea:focus {
 .btn-primary:active {
   transform: scale(0.98);
   background-color: #3550c8;
+}
+
+/* 好友相关样式 */
+.friend-search {
+  margin-bottom: 2rem;
+}
+
+.search-input {
+  flex: 1;
+  padding: 0.8rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px 0 0 8px;
+  font-size: 1rem;
+}
+
+.btn-search {
+  padding: 0.8rem 1.5rem;
+  background-color: #4361ee;
+  color: white;
+  border: none;
+  border-radius: 0 8px 8px 0;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-search:hover {
+  background-color: #3a56d4;
+}
+
+.search-results,
+.friend-requests {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.search-results h3,
+.friend-requests h3,
+.friends-list h3 {
+  margin-bottom: 1rem;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.user-list,
+.request-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.user-item,
+.request-item {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  transition: all 0.3s;
+}
+
+.user-item:hover,
+.request-item:hover {
+  background-color: #f0f4ff;
+}
+
+.user-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-right: 1rem;
+  flex-shrink: 0;
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-info {
+  flex: 1;
+}
+
+.user-name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.2rem;
+}
+
+.user-email {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.request-time {
+  font-size: 0.8rem;
+  color: #999;
+}
+
+.request-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-add-friend,
+.btn-accept,
+.btn-reject,
+.btn-remove {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s;
+}
+
+.btn-add-friend {
+  background-color: #4361ee;
+  color: white;
+}
+
+.btn-add-friend:hover {
+  background-color: #3a56d4;
+}
+
+.btn-accept {
+  background-color: #4caf50;
+  color: white;
+}
+
+.btn-accept:hover {
+  background-color: #45a049;
+}
+
+.btn-reject {
+  background-color: #f44336;
+  color: white;
+}
+
+.btn-reject:hover {
+  background-color: #d32f2f;
+}
+
+.btn-chat {
+  background-color: #4361ee;
+  color: white;
+  margin-right: 0.5rem;
+}
+
+.btn-chat:hover {
+  background-color: #3a56d4;
+}
+
+.btn-remove {
+  background-color: #f44336;
+  color: white;
+}
+
+.btn-remove:hover {
+  background-color: #d32f2f;
+}
+
+.empty-friends {
+  text-align: center;
+  padding: 3rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.friend-icon {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>');
+}
+
+.friend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.friend-card {
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 1.5rem;
+  transition: all 0.3s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.friend-card:hover {
+  background-color: #f0f4ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.friend-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.friend-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.friend-name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.friend-email {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 1rem;
+}
+
+.friend-actions {
+  width: 100%;
 }
 
 .activity-item {
