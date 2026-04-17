@@ -112,7 +112,7 @@ service.interceptors.response.use(
           }
           
           // 直接调用axios发送请求，避免类型断言问题
-          const refreshResponse = await axios.post<{ access: string }>('http://localhost:8000/token/refresh/', { refresh: refreshToken })
+          const refreshResponse = await axios.post<{ access: string }>('/api/token/refresh/', { refresh: refreshToken })
           const newToken = refreshResponse.data.access
           
           if (newToken) {
@@ -131,13 +131,13 @@ service.interceptors.response.use(
             localStorage.removeItem(config.jwt.accessTokenKey)
             localStorage.removeItem(config.jwt.refreshTokenKey)
             redirectToLogin()
-            return Promise.reject(error)
+            return Promise.reject(new Error('Token刷新失败'))
           }
         } catch (refreshError) {
           localStorage.removeItem(config.jwt.accessTokenKey)
           localStorage.removeItem(config.jwt.refreshTokenKey)
           redirectToLogin()
-          return Promise.reject(error)
+          return Promise.reject(refreshError)
         } finally {
           isRefreshing = false
         }

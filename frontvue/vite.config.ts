@@ -25,6 +25,14 @@ export default defineConfig({
         ws: true,
         changeOrigin: true,
       },
+      '/health': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/health/': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
       '/media': {
         target: 'http://localhost:8000',
         changeOrigin: true,

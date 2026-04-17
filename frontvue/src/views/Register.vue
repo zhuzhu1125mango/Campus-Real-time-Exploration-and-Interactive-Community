@@ -295,6 +295,18 @@ const isValidPhone = computed(() => {
 
 // 邮箱注册
 const handleEmailRegister = async () => {
+  // 验证用户名
+  if (!emailForm.value.username.trim()) {
+    showToast('请输入用户名', 'error')
+    return
+  }
+  
+  // 验证邮箱
+  if (!isValidEmail.value) {
+    showToast('请输入正确的邮箱地址', 'error')
+    return
+  }
+  
   // 验证密码
   if (emailForm.value.password !== emailForm.value.password_confirm) {
     showToast('两次输入的密码不一致', 'error')
@@ -303,11 +315,6 @@ const handleEmailRegister = async () => {
   
   if (emailForm.value.password.length < 8) {
     showToast('密码长度不能少于8位', 'error')
-    return
-  }
-  
-  if (!isValidEmail.value) {
-    showToast('请输入正确的邮箱地址', 'error')
     return
   }
   
@@ -356,6 +363,18 @@ const handleEmailRegister = async () => {
 
 // 手机号注册
 const handlePhoneRegister = async () => {
+  // 验证用户名
+  if (!phoneForm.value.username.trim()) {
+    showToast('请输入用户名', 'error')
+    return
+  }
+  
+  // 验证手机号
+  if (!isValidPhone.value) {
+    showToast('请输入正确的手机号', 'error')
+    return
+  }
+  
   // 验证密码
   if (phoneForm.value.password !== phoneForm.value.password_confirm) {
     showToast('两次输入的密码不一致', 'error')
@@ -364,11 +383,6 @@ const handlePhoneRegister = async () => {
   
   if (phoneForm.value.password.length < 8) {
     showToast('密码长度不能少于8位', 'error')
-    return
-  }
-  
-  if (!isValidPhone.value) {
-    showToast('请输入正确的手机号', 'error')
     return
   }
   

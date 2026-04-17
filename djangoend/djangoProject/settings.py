@@ -114,10 +114,14 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # CORS 允许的源
+# 允许所有本地开发端口
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5175',
+    'http://localhost:3000',
+    'http://localhost:8080',
+    'http://localhost:8081',
 ]
 
 # 允许携带凭证（如cookie）
@@ -130,6 +134,9 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:5175',
+    'http://localhost:3000',
+    'http://localhost:8080',
+    'http://localhost:8081',
 ]
 
 ROOT_URLCONF = 'djangoProject.urls'

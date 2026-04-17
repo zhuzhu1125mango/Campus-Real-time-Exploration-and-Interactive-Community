@@ -33,7 +33,7 @@ export const userApi = {
 
   // 发送邮箱验证码
   sendEmailCode(data: SendCodeForm) {
-    return request.post('/users/users/send_email_code/', {
+    return request.post('/users/email-code/', {
       email: data.email,
       purpose: data.purpose
     })
@@ -41,7 +41,7 @@ export const userApi = {
 
   // 发送手机验证码
   sendPhoneCode(data: SendCodeForm) {
-    return request.post('/users/users/send_phone_code/', {
+    return request.post('/users/phone-code/', {
       phone: data.phone,
       purpose: data.purpose
     })
@@ -74,7 +74,7 @@ export const userApi = {
       // 获取本地存储的token
       const token = localStorage.getItem(config.jwt.accessTokenKey)
       
-      const fullUrl = `http://localhost:8000/api/users/users/update_me/`
+      const fullUrl = `/api/users/users/update_me/`
       
       // 添加超时设置
       return axios.patch(

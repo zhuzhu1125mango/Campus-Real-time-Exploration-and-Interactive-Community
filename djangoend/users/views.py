@@ -34,7 +34,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return self.serializer_class
     
     def get_permissions(self):
-        if self.action in ['create', 'login', 'me']:
+        if self.action in ['create', 'login', 'me', 'send_email_code', 'send_phone_code']:
             return [permissions.AllowAny()]
         elif self.action == 'retrieve':
             return [permissions.AllowAny()]
@@ -203,6 +203,68 @@ class UserViewSet(viewsets.ModelViewSet):
         
         serializer = UserSerializer(users, many=True, context={'request': request})
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['post'])
+    def send_email_code(self, request):
+        """发送邮箱验证码"""
+        email = request.data.get('email')
+        purpose = request.data.get('purpose', 'register')
+        
+        if not email:
+            return Response({'error': '邮箱不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 生成6位数验证码
+        import random
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import VerificationCode
+        
+        code = str(random.randint(100000, 999999))
+        
+        # 保存验证码到数据库
+        verification = VerificationCode.objects.create(
+            code=code,
+            email=email,
+            code_type='email',
+            expires_at=timezone.now() + timedelta(minutes=10)  # 10分钟有效期
+        )
+        
+        # 打印验证码到后端日志终端
+        print(f"邮箱验证码已生成: {code}，邮箱: {email}，用途: {purpose}")
+        
+        # 由于SMS_ENABLED为False，我们返回一个模拟的成功响应
+        return Response({'message': '验证码已发送'}, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['post'])
+    def send_phone_code(self, request):
+        """发送手机验证码"""
+        phone = request.data.get('phone')
+        purpose = request.data.get('purpose', 'register')
+        
+        if not phone:
+            return Response({'error': '手机号不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 生成6位数验证码
+        import random
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import VerificationCode
+        
+        code = str(random.randint(100000, 999999))
+        
+        # 保存验证码到数据库
+        verification = VerificationCode.objects.create(
+            code=code,
+            phone=phone,
+            code_type='phone',
+            expires_at=timezone.now() + timedelta(minutes=10)  # 10分钟有效期
+        )
+        
+        # 打印验证码到后端日志终端
+        print(f"手机验证码已生成: {code}，手机号: {phone}，用途: {purpose}")
+        
+        # 由于SMS_ENABLED为False，我们返回一个模拟的成功响应
+        return Response({'message': '验证码已发送'}, status=status.HTTP_200_OK)
 
 # 添加调试视图，检查用户头像
 @api_view(['GET'])
