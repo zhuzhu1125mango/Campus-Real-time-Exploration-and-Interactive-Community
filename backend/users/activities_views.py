@@ -72,9 +72,9 @@ class ActivityViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def feed(self, request):
         # 获取关注用户的动态
-        following_users = request.user.following.all()
-        following_ids = [user.id for user in following_users]
-        following_ids.append(request.user.id)
+        # 当前 User 模型未实现 following 关系，先返回当前用户自己的动态，避免 AttributeError
+        following_ids = [request.user.id]
+        # TODO: 实现用户关注关系后，替换为 request.user.following.values_list('id', flat=True)
         # 获取动态
         activities = Activity.objects.filter(user__id__in=following_ids, is_public=True).order_by('-created_at')
         serializer = ActivitySerializer(activities, many=True, context={'request': request})

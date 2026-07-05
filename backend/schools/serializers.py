@@ -1,5 +1,4 @@
 from rest_framework import serializers
-import random
 from .models import (
     School, Major, SchoolMajor,
     SchoolRating, MajorRating, AdmissionScore, Event, EventRegistration
@@ -36,8 +35,8 @@ class SchoolSerializer(serializers.ModelSerializer):
                 'name': sm.major.name,
                 'code': sm.major.code,
                 'description': sm.major.description,
-                'employment_rate': round(random.uniform(75, 98), 1),
-                'avg_salary': int(random.uniform(5000, 15000))
+                'employment_rate': None,
+                'avg_salary': None
             })
         return majors
     
@@ -58,12 +57,9 @@ class SchoolSerializer(serializers.ModelSerializer):
     def get_admission_rate(self, obj):
         """
         计算学校的录取率（如果有相关信息）
-        暂时返回随机值作为示例
+        当前模型暂无该字段，返回 None 而非随机值
         """
-        import random
-        # 在实际应用中，应该根据实际数据计算
-        # 例如：成功录取人数 / 申请总人数
-        return round(random.uniform(5, 40), 1)  # 返回5%到40%之间的随机值
+        return None
     
     def get_is_favorited(self, obj):
         """检查当前用户是否已收藏该校"""
@@ -105,15 +101,13 @@ class MajorSerializer(serializers.ModelSerializer):
     
     def get_employment_rate(self, obj):
         """获取专业就业率"""
-        import random
-        # 实际应用中应从数据统计计算
-        return round(random.uniform(75, 98), 1)  # 返回75%-98%之间的随机值
-    
+        # 当前模型暂无该字段，返回 None 而非随机值
+        return None
+
     def get_avg_salary(self, obj):
         """获取专业平均薪资"""
-        import random
-        # 实际应用中应从数据统计计算
-        return int(random.uniform(5000, 15000))  # 返回5000-15000之间的随机值
+        # 当前模型暂无该字段，返回 None 而非随机值
+        return None
 
 class SchoolMajorSerializer(serializers.ModelSerializer):
     """学校专业关联序列化器"""

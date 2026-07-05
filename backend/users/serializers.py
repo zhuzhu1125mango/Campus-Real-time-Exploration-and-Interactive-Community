@@ -68,19 +68,20 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         # 验证密码
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError({"password": "两次密码不匹配。"})
-        
+
         # 验证邮箱或手机至少提供一个
         if not attrs.get('email') and not attrs.get('phone'):
             raise serializers.ValidationError({"error": "邮箱和手机号必须至少提供一个。"})
-        
+
         # 验证手机号格式
         if attrs.get('phone') and not re.match(r'^1[3-9]\d{9}$', attrs['phone']):
             raise serializers.ValidationError({"phone": "请输入有效的手机号。"})
-        
+
         # 验证验证码
+        self.context['code_verified'] = False
         if 'code' in attrs and attrs['code']:
             code = attrs['code']
-            
+
             if attrs.get('email'):
                 email = attrs['email']
                 try:
@@ -92,13 +93,14 @@ class UserRegisterSerializer(serializers.ModelSerializer):
                     )
                 except VerificationCode.DoesNotExist:
                     raise serializers.ValidationError({"code": "验证码无效。"})
-                
+
                 if verification.is_expired:
                     raise serializers.ValidationError({"code": "验证码已过期。"})
-                
+
                 verification.is_used = True
                 verification.save()
-            
+                self.context['code_verified'] = True
+
             elif attrs.get('phone'):
                 phone = attrs['phone']
                 try:
@@ -110,33 +112,35 @@ class UserRegisterSerializer(serializers.ModelSerializer):
                     )
                 except VerificationCode.DoesNotExist:
                     raise serializers.ValidationError({"code": "验证码无效。"})
-                
+
                 if verification.is_expired:
                     raise serializers.ValidationError({"code": "验证码已过期。"})
-                
+
                 verification.is_used = True
                 verification.save()
-        
+                self.context['code_verified'] = True
+
         return attrs
-    
+
     def create(self, validated_data):
         validated_data.pop('password_confirm')
         if 'code' in validated_data:
             validated_data.pop('code')
-            
+
         user = User.objects.create_user(**validated_data)
-        
-        # 如果提供了验证码，则标记用户为已验证
-        user.is_verified = True
-        user.save()
-        
+
+        # 仅当验证码校验通过后才标记用户为已验证
+        if self.context.get('code_verified'):
+            user.is_verified = True
+            user.save(update_fields=['is_verified'])
+
         # 创建关联的用户资料，处理可能的重复创建问题
         try:
             UserProfile.objects.create(user=user)
-        except Exception as e:
+        except Exception:
             # 如果UserProfile已经存在，则忽略错误
             pass
-        
+
         return user
 
 

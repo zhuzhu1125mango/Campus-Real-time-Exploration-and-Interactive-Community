@@ -577,10 +577,24 @@ class BookmarkViewSet(viewsets.ModelViewSet):
     """书签视图集"""
     serializer_class = BookmarkSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def get_queryset(self):
         # 只能查看自己的书签
         return Bookmark.objects.filter(user=self.request.user)
+
+    @action(detail=False, methods=['delete'], url_path='unbookmark')
+    def unbookmark(self, request):
+        """取消收藏主题"""
+        topic_id = request.query_params.get('topic') or request.data.get('topic')
+        if not topic_id:
+            return Response({"detail": "请提供要取消收藏的主题ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            bookmark = Bookmark.objects.get(user=request.user, topic_id=topic_id)
+            bookmark.delete()
+            return Response({"status": "取消收藏成功"}, status=status.HTTP_200_OK)
+        except Bookmark.DoesNotExist:
+            return Response({"detail": "未找到收藏记录"}, status=status.HTTP_404_NOT_FOUND)
 
 
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -588,11 +602,11 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = StandardResultsSetPagination
-    
+
     def get_queryset(self):
         # 只能查看自己的通知
         return Notification.objects.filter(user=self.request.user)
-    
+
     @action(detail=True, methods=['post'])
     def mark_read(self, request, pk=None):
         """标记通知为已读"""
@@ -600,28 +614,12 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         notification.is_read = True
         notification.save(update_fields=['is_read'])
         return Response({"status": "标记成功"}, status=status.HTTP_200_OK)
-    
+
     @action(detail=False, methods=['post'])
     def mark_all_read(self, request):
         """标记所有通知为已读"""
         Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
         return Response({"status": "所有通知已标记为已读"}, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['delete'])
-    def unbookmark(self, request, pk=None):
-        """取消收藏主题"""
-        topic = self.get_object()
-        user = request.user
-        
-        if not user.is_authenticated:
-            return Response({"detail": "认证凭据未提供"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        try:
-            bookmark = Bookmark.objects.get(user=user, topic=topic)
-            bookmark.delete()
-            return Response({"status": "取消收藏成功"}, status=status.HTTP_200_OK)
-        except Bookmark.DoesNotExist:
-            return Response({"detail": "未找到收藏记录"}, status=status.HTTP_404_NOT_FOUND)
 
 
 class CommentViewSet(viewsets.ModelViewSet):
