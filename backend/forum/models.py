@@ -96,7 +96,12 @@ class Topic(models.Model):
         verbose_name = _('主题')
         verbose_name_plural = _('主题')
         ordering = ['-created_at']
-    
+        indexes = [
+            models.Index(fields=['board', '-created_at'], name='forum_topic_board_crt_idx'),
+            models.Index(fields=['author', '-created_at'], name='forum_topic_author_crt_idx'),
+            models.Index(fields=['status', '-created_at'], name='forum_topic_status_crt_idx'),
+        ]
+
     def __str__(self):
         return self.title
     
@@ -144,7 +149,12 @@ class Post(models.Model):
         verbose_name = _('帖子')
         verbose_name_plural = _('帖子')
         ordering = ['created_at']
-    
+        indexes = [
+            models.Index(fields=['topic', 'created_at'], name='forum_post_topic_crt_idx'),
+            models.Index(fields=['author', 'created_at'], name='forum_post_author_crt_idx'),
+            models.Index(fields=['content_status', 'created_at'], name='forum_post_status_crt_idx'),
+        ]
+
     def __str__(self):
         return f"{self.topic.title} - {self.author.username}"
 
@@ -273,7 +283,11 @@ class Notification(models.Model):
         verbose_name = _('通知')
         verbose_name_plural = _('通知')
         ordering = ['-created_at']
-    
+        indexes = [
+            models.Index(fields=['user', '-created_at'], name='forum_notif_user_crt_idx'),
+            models.Index(fields=['user', 'is_read', '-created_at'], name='forum_notif_user_read_crt_idx'),
+        ]
+
     def __str__(self):
         return f"{self.user.username}的通知: {self.message[:30]}"
 
@@ -291,7 +305,10 @@ class Bookmark(models.Model):
         verbose_name = _('书签')
         verbose_name_plural = _('书签')
         unique_together = ['user', 'topic']
-    
+        indexes = [
+            models.Index(fields=['user', '-created_at'], name='forum_bmk_user_crt_idx'),
+        ]
+
     def __str__(self):
         return f"{self.user.username} -> {self.topic.title[:30]}"
 
@@ -312,10 +329,14 @@ class Comment(models.Model):
         verbose_name = _('评论')
         verbose_name_plural = _('评论')
         ordering = ['created_at']
-    
+        indexes = [
+            models.Index(fields=['post', 'created_at'], name='forum_cmt_post_crt_idx'),
+            models.Index(fields=['author', 'created_at'], name='forum_cmt_author_crt_idx'),
+        ]
+
     def __str__(self):
         return f"{self.author.username} -> {self.post.id}"
-    
+
     @property
     def like_count(self):
         """获取评论的点赞数"""

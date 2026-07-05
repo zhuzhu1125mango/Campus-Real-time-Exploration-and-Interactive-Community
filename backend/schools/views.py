@@ -75,37 +75,30 @@ class SchoolViewSet(viewsets.ModelViewSet):
         return school
 
     def get_queryset(self):
-        # 构建缓存键
-        cache_key = f'schools_queryset_{self.request.query_params.urlencode()}'
-        
-        # 尝试从缓存获取
-        cached_queryset = cache.get(cache_key)
-        if cached_queryset:
-            return cached_queryset
-        
-        queryset = super().get_queryset()
-        
+        # 预取关联数据，避免 N+1 查询
+        queryset = School.objects.prefetch_related('majors__major', 'admission_scores', 'board')
+
         # 筛选条件
         province = self.request.query_params.get('province')
         if province:
             queryset = queryset.filter(province=province)
-        
+
         school_type = self.request.query_params.get('school_type')
         if school_type:
             queryset = queryset.filter(school_type=school_type)
-        
+
         school_level = self.request.query_params.get('school_level')
         if school_level:
             queryset = queryset.filter(school_level=school_level)
-        
+
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(
-                Q(name__icontains=search) | 
+                Q(name__icontains=search) |
                 Q(english_name__icontains=search) |
                 Q(abbreviation__icontains=search)
             )
-        
+
         sort_by = self.request.query_params.get('sort_by')
         if sort_by == 'ranking':
             queryset = queryset.order_by('national_rank', 'name')
@@ -113,11 +106,35 @@ class SchoolViewSet(viewsets.ModelViewSet):
             queryset = queryset.order_by('name')
         elif sort_by == 'founded_year':
             queryset = queryset.order_by('-founded_year', 'name')
-        
-        # 缓存查询结果，有效期5分钟
-        cache.set(cache_key, queryset, 300)
-        
+
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        """缓存序列化后的结果，避免缓存 QuerySet 对象"""
+        cache_key = f'schools_list_{request.query_params.urlencode()}'
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return Response(cached_data)
+
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(
+            page if page is not None else queryset,
+            many=True,
+            context={'request': request}
+        )
+        data = serializer.data
+
+        if page is not None:
+            response = self.get_paginated_response(data)
+            result = response.data
+        else:
+            response = Response(data)
+            result = data
+
+        # 缓存序列化结果，有效期5分钟
+        cache.set(cache_key, result, 300)
+        return response
     
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAdminUser])
     @parser_classes([MultiPartParser, FormParser])

@@ -125,7 +125,12 @@ class VerificationCode(models.Model):
     class Meta:
         verbose_name = '验证码'
         verbose_name_plural = '验证码'
-    
+        indexes = [
+            models.Index(fields=['email', 'is_used', 'code_type'], name='users_code_email_used_idx'),
+            models.Index(fields=['phone', 'is_used', 'code_type'], name='users_code_phone_used_idx'),
+            models.Index(fields=['created_at'], name='users_code_created_idx'),
+        ]
+
     @property
     def is_expired(self):
         """检查验证码是否过期"""
@@ -158,7 +163,11 @@ class UserActivity(models.Model):
         verbose_name = '用户行为'
         verbose_name_plural = '用户行为'
         ordering = ['-timestamp']
-    
+        indexes = [
+            models.Index(fields=['user', 'activity_type', '-timestamp'], name='users_act_user_type_time_idx'),
+            models.Index(fields=['target_type', 'target_id'], name='users_act_target_idx'),
+        ]
+
     def __str__(self):
         return f"{self.user.username} - {self.activity_type} - {self.target_type} - {self.target_id}"
 
@@ -191,6 +200,10 @@ class PointsRecord(models.Model):
         verbose_name = '积分记录'
         verbose_name_plural = '积分记录'
         ordering = ['-created_at']
-    
+        indexes = [
+            models.Index(fields=['user', 'action', '-created_at'], name='users_pts_user_act_crt_idx'),
+            models.Index(fields=['user', '-created_at'], name='users_pts_user_crt_idx'),
+        ]
+
     def __str__(self):
         return f"{self.user.username} - {self.action} - {self.points}"

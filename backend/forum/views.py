@@ -133,8 +133,8 @@ class BoardViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Board.objects.all()
         if self.action == 'list':
-            # 预取相关数据以减少 N+1 查询
-            return queryset.prefetch_related('topics', 'topics__posts')
+            # 预取分类与主题，减少 N+1 查询
+            return queryset.select_related('category').prefetch_related('topics')
         return queryset
     
     @action(detail=True, methods=['get'])
@@ -214,25 +214,26 @@ class TopicViewSet(viewsets.ModelViewSet):
         return [permissions.IsAuthenticated()]
     
     def get_queryset(self):
-        queryset = Topic.objects.all()
-        
+        # 预取作者、板块和标签，减少 N+1 查询
+        queryset = Topic.objects.select_related('author', 'board').prefetch_related('tags')
+
         # 过滤
         board_id = self.request.query_params.get('board')
         if board_id:
             queryset = queryset.filter(board_id=board_id)
-        
+
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)
-        
+
         tag = self.request.query_params.get('tag')
         if tag:
             queryset = queryset.filter(tags__name=tag)
-        
+
         author = self.request.query_params.get('author')
         if author:
             queryset = queryset.filter(author__username=author)
-        
+
         return queryset
     
     def perform_create(self, serializer):
@@ -329,34 +330,35 @@ class PostViewSet(viewsets.ModelViewSet):
         return PostSerializer
     
     def get_queryset(self):
-        queryset = Post.objects.all()
-        
+        # 预取作者、主题与板块、点赞数据，减少 N+1 查询
+        queryset = Post.objects.select_related('author', 'topic', 'topic__board').prefetch_related('likes')
+
         # 非管理员和版主只能看到已审核通过的帖子
         user = self.request.user
         if not user.is_authenticated or (not user.is_staff and not self.is_moderator(user)):
             queryset = queryset.filter(content_status='approved')
-        
+
         # 根据版块筛选
         board_id = self.request.query_params.get('board')
         if board_id:
             queryset = queryset.filter(topic__board_id=board_id)
-        
+
         # 根据作者筛选
         author_id = self.request.query_params.get('author')
         if author_id:
             queryset = queryset.filter(author_id=author_id)
-        
+
         # 根据主题筛选
         topic_id = self.request.query_params.get('topic')
         if topic_id:
             queryset = queryset.filter(topic_id=topic_id)
-        
+
         # 根据内容状态筛选（仅管理员和版主可见）
         if user.is_authenticated and (user.is_staff or self.is_moderator(user)):
             status_filter = self.request.query_params.get('status')
             if status_filter:
                 queryset = queryset.filter(content_status=status_filter)
-        
+
         return queryset
     
     def is_moderator(self, user):
@@ -653,18 +655,19 @@ class CommentViewSet(viewsets.ModelViewSet):
         return [permissions.IsAuthenticated()]
     
     def get_queryset(self):
-        queryset = Comment.objects.all()
-        
+        # 预取作者、帖子、点赞和回复，减少 N+1 查询
+        queryset = Comment.objects.select_related('author', 'post').prefetch_related('likes', 'replies__author')
+
         # 根据帖子筛选
         post_id = self.request.query_params.get('post')
         if post_id:
             queryset = queryset.filter(post_id=post_id, parent=None)
-        
+
         # 根据作者筛选
         author_id = self.request.query_params.get('author')
         if author_id:
             queryset = queryset.filter(author_id=author_id)
-        
+
         return queryset
     
     def perform_create(self, serializer):

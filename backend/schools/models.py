@@ -61,6 +61,12 @@ class School(models.Model):
         verbose_name = '学校'
         verbose_name_plural = '学校'
         ordering = ['-national_rank', 'name']
+        indexes = [
+            models.Index(fields=['province'], name='schools_school_province_idx'),
+            models.Index(fields=['school_type'], name='schools_school_type_idx'),
+            models.Index(fields=['school_level'], name='schools_school_level_idx'),
+            models.Index(fields=['-national_rank'], name='schools_school_rank_idx'),
+        ]
 
 class Major(models.Model):
     """专业模型"""
@@ -190,6 +196,10 @@ class AdmissionScore(models.Model):
         verbose_name = '录取分数线'
         verbose_name_plural = '录取分数线'
         ordering = ['-year']
+        indexes = [
+            models.Index(fields=['school', '-year'], name='schools_score_sch_year_idx'),
+            models.Index(fields=['province', '-year'], name='schools_score_prov_year_idx'),
+        ]
 
 class Event(models.Model):
     """校园活动模型"""
@@ -224,6 +234,10 @@ class Event(models.Model):
         verbose_name = '校园活动'
         verbose_name_plural = '校园活动'
         ordering = ['start_time']
+        indexes = [
+            models.Index(fields=['school', 'start_time'], name='schools_event_sch_start_idx'),
+            models.Index(fields=['status', 'start_time'], name='schools_event_status_start_idx'),
+        ]
 
 class EventRegistration(models.Model):
     """活动报名模型"""

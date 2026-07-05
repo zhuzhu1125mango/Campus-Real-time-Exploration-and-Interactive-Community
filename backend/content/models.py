@@ -87,6 +87,11 @@ class Content(models.Model):
         verbose_name = '内容'
         verbose_name_plural = '内容'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', '-created_at'], name='content_status_created_idx'),
+            models.Index(fields=['author', 'status'], name='content_author_status_idx'),
+            models.Index(fields=['content_type', 'status'], name='content_type_status_idx'),
+        ]
 
     def __str__(self):
         return self.title

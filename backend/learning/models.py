@@ -25,6 +25,10 @@ class Course(models.Model):
         verbose_name = '课程'
         verbose_name_plural = '课程'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['instructor', 'is_published'], name='learn_course_inst_pub_idx'),
+            models.Index(fields=['is_published', '-created_at'], name='learn_course_pub_crt_idx'),
+        ]
 
     def __str__(self):
         return self.title
