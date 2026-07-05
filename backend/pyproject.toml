@@ -28,3 +28,8 @@ prod = [
     "uvicorn[standard]>=0.42,<0.43",
 ]
 
+[dependency-groups]
+dev = [
+    "daphne>=4.2.2",
+]
+

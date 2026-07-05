@@ -107,6 +107,11 @@ prod = [
     { name = "uvicorn", extra = ["standard"] },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "daphne" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aliyun-python-sdk-core", specifier = ">=2.16,<2.17" },
@@ -127,6 +132,9 @@ requires-dist = [
     { name = "websockets", specifier = ">=14.0,<16.0" },
 ]
 provides-extras = ["dev", "prod"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "daphne", specifier = ">=4.2.2" }]
 
 [[package]]
 name = "cbor2"
