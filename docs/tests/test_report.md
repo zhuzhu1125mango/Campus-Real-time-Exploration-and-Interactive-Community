@@ -3,12 +3,12 @@
 ## 1. 测试环境
 
 - **操作系统**: Windows 11
-- **Python 版本**: 3.14.2
-- **Django 版本**: 6.0.2
+- **Python 版本**: 3.12.*
+- **Django 版本**: 以 pyproject.toml 锁定版本为准
 - **Node.js 版本**: 18.17.0
 - **前端框架**: Vue 3 + Element Plus
 - **后端框架**: Django + DRF
-- **数据库**: SQLite（开发环境）/ MySQL 8.0（生产环境）
+- **数据库**: MySQL 8.0
 
 ## 2. 测试结果
 
