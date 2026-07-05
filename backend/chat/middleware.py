@@ -29,11 +29,11 @@ class TokenAuthMiddleware:
                 user_id = access_token['user_id']
                 user = await TokenAuthMiddleware.get_user(user_id)
 
-                if user:
+                if user and user.is_active:
                     logger.info(f"WebSocket认证中间件: 认证成功，用户: {user.username} (ID: {user.id})")
                     scope['user'] = user
                 else:
-                    logger.warning("WebSocket认证中间件: 认证失败，用户不存在")
+                    logger.warning("WebSocket认证中间件: 认证失败，用户不存在或已被禁用")
                     scope['user'] = AnonymousUser()
             except Exception as e:
                 # token 过期或无效属于常见客户端状态，降级为警告避免污染日志

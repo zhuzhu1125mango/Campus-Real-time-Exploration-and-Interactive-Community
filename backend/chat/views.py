@@ -12,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from .models import ChatMessage
 from .serializers import ChatMessageSerializer
+from users.permissions import IsOwnerOrAdmin
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -177,8 +178,12 @@ class ChatMessageViewSet(viewsets.ModelViewSet):
     """聊天消息API视图集"""
     queryset = ChatMessage.objects.all().order_by('-created_at')
     serializer_class = ChatMessageSerializer
-    permission_classes = [IsAuthenticated]
-    
+
+    def get_permissions(self):
+        if self.action in ['create']:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), IsOwnerOrAdmin()]
+
     def perform_create(self, serializer):
         if self.request.user.is_authenticated:
             serializer.save(user=self.request.user)
