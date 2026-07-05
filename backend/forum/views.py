@@ -1,10 +1,11 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.db.models import Count, Q, Sum
 from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework import viewsets, permissions, filters, status, serializers
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from .models import (
@@ -531,22 +532,13 @@ class AttachmentViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         post_id = self.request.data.get('post')
-        try:
-            post = Post.objects.get(id=post_id)
-            
-            # 只能给自己的帖子添加附件
-            if post.author != self.request.user and not self.request.user.is_staff:
-                return Response(
-                    {"detail": "没有权限给此帖子添加附件"},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-            
-            serializer.save(post=post)
-        except Post.DoesNotExist:
-            return Response(
-                {"detail": "帖子不存在"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        post = get_object_or_404(Post, id=post_id)
+
+        # 只能给自己的帖子添加附件
+        if post.author != self.request.user and not self.request.user.is_staff:
+            raise PermissionDenied("没有权限给此帖子添加附件")
+
+        serializer.save(post=post)
     
     @action(detail=True, methods=['get'])
     def download(self, request, pk=None):

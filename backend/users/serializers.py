@@ -15,8 +15,32 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
+class UserPublicSerializer(serializers.ModelSerializer):
+    """用户公开信息序列化器，不暴露邮箱、手机号等敏感字段"""
+    favorite_schools = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'avatar', 'banner', 'bio',
+                  'is_student', 'grade', 'major', 'school', 'is_verified',
+                  'favorite_schools', 'date_joined')
+        read_only_fields = ('id', 'date_joined', 'is_verified', 'favorite_schools')
+
+    def get_favorite_schools(self, obj):
+        """从通用收藏模型中返回用户收藏的学校ID列表"""
+        from django.contrib.contenttypes.models import ContentType
+        from schools.models import School
+        from users.favorites import Favorite
+        school_ct = ContentType.objects.get_for_model(School)
+        return list(
+            Favorite.objects.filter(
+                user=obj, content_type=school_ct
+            ).order_by('-created_at').values_list('object_id', flat=True)
+        )
+
+
 class UserSerializer(serializers.ModelSerializer):
-    """用户基本信息序列化器"""
+    """用户基本信息序列化器（本人或管理员可见完整字段）"""
     favorite_schools = serializers.SerializerMethodField()
 
     class Meta:

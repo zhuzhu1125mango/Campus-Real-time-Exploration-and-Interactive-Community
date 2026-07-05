@@ -133,15 +133,17 @@ class ContentViewSet(viewsets.ModelViewSet):
         content.save()
         return Response({'status': 'rejected', 'id': content.id})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
     def publish(self, request, pk=None):
+        """管理员发布内容"""
         content = self.get_object()
         content.status = 'published'
         content.save()
         return Response({'status': 'published'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
     def unpublish(self, request, pk=None):
+        """管理员下架内容"""
         content = self.get_object()
         content.status = 'draft'
         content.save()
@@ -188,15 +190,17 @@ class CommentViewSet(viewsets.ModelViewSet):
         content.comment_count = content.comments.count()
         content.save()
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
     def approve(self, request, pk=None):
+        """管理员审核通过评论"""
         comment = self.get_object()
         comment.is_approved = True
         comment.save()
         return Response({'status': 'approved'})
-    
-    @action(detail=True, methods=['post'])
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
     def disapprove(self, request, pk=None):
+        """管理员审核拒绝评论"""
         comment = self.get_object()
         comment.is_approved = False
         comment.save()

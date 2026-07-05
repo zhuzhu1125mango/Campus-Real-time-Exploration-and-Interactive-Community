@@ -71,15 +71,17 @@ class CourseViewSet(viewsets.ModelViewSet):
         # 保存课程并设置讲师为当前用户
         serializer.save(instructor=self.request.user)
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsInstructorOrAdmin])
     def publish(self, request, pk=None):
+        """讲师或管理员发布课程"""
         course = self.get_object()
         course.is_published = True
         course.save()
         return Response({'status': 'published'})
-    
-    @action(detail=True, methods=['post'])
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsInstructorOrAdmin])
     def unpublish(self, request, pk=None):
+        """讲师或管理员下架课程"""
         course = self.get_object()
         course.is_published = False
         course.save()
@@ -321,15 +323,17 @@ class ReviewViewSet(viewsets.ModelViewSet):
         course.average_rating = total_rating / reviews.count() if reviews.count() > 0 else 0
         course.save()
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
     def approve(self, request, pk=None):
+        """管理员审核通过课程评价"""
         review = self.get_object()
         review.is_approved = True
         review.save()
         return Response({'status': 'review_approved'})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
     def disapprove(self, request, pk=None):
+        """管理员审核拒绝课程评价"""
         review = self.get_object()
         review.is_approved = False
         review.save()

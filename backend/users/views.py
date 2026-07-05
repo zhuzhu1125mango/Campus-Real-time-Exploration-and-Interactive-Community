@@ -14,7 +14,7 @@ from django.db.models import Q, F
 from django.db import transaction
 
 from .serializers import (
-    UserSerializer, UserRegisterSerializer, UserLoginSerializer, UserProfileSerializer,
+    UserSerializer, UserPublicSerializer, UserRegisterSerializer, UserLoginSerializer, UserProfileSerializer,
     PointsRecordSerializer, EmailVerificationSerializer, PhoneVerificationSerializer,
     VerifyCodeSerializer, EmailCodeLoginSerializer, PhoneCodeLoginSerializer, ResetPasswordSerializer
 )
@@ -34,8 +34,13 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'create':
             return UserRegisterSerializer
+        if self.action in ['search', 'list']:
+            return UserPublicSerializer
+        if self.action == 'retrieve':
+            # retrieve 方法中根据访问者身份动态选择序列化器
+            return UserPublicSerializer
         return self.serializer_class
-    
+
     def get_permissions(self):
         if self.action in ['create', 'login', 'me', 'send_email_code', 'send_phone_code',
                            'verify_code', 'email_code_login', 'phone_code_login', 'reset_password']:
@@ -44,8 +49,15 @@ class UserViewSet(viewsets.ModelViewSet):
             return [permissions.AllowAny()]
         elif self.action in ['update', 'partial_update', 'destroy']:
             return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
+        elif self.action in ['points', 'points_records']:
+            # 积分信息仅本人或管理员可见
+            return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
         return super().get_permissions()
-    
+
+    def _is_self_or_admin(self, user):
+        request_user = self.request.user
+        return request_user.is_authenticated and (request_user == user or request_user.is_staff)
+
     def get_object(self):
         pk = self.kwargs.get('pk')
         if pk == 'me':
@@ -55,6 +67,12 @@ class UserViewSet(viewsets.ModelViewSet):
                 from rest_framework.exceptions import AuthenticationFailed
                 raise AuthenticationFailed('用户未登录')
         return super().get_object()
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer_class = UserSerializer if self._is_self_or_admin(instance) else UserPublicSerializer
+        serializer = serializer_class(instance, context={'request': request})
+        return Response(serializer.data)
     
     @action(detail=False, methods=['post'])
     def login(self, request):
@@ -196,29 +214,39 @@ class UserViewSet(viewsets.ModelViewSet):
         
         return Response(data)
     
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def search(self, request):
         """搜索用户
-        通过用户名、邮箱或手机号搜索用户
+        普通用户仅可通过用户名搜索；管理员额外支持邮箱/手机号搜索。
+        返回用户公开信息，不暴露邮箱、手机号等敏感字段。
         """
         query = request.query_params.get('q', '')
         if not query:
             return Response({'error': '搜索关键词不能为空'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # 搜索用户
-        users = User.objects.filter(
-            Q(username__icontains=query) |
-            Q(email__icontains=query) |
-            Q(phone__icontains=query)
-        ).exclude(id=request.user.id)  # 排除当前用户
-        
+
+        # 普通用户只能按用户名搜索；管理员可按邮箱/手机号搜索
+        if request.user.is_authenticated and request.user.is_staff:
+            users = User.objects.filter(
+                Q(username__icontains=query) |
+                Q(email__icontains=query) |
+                Q(phone__icontains=query)
+            )
+        else:
+            users = User.objects.filter(username__icontains=query)
+
+        # 排除当前用户
+        if request.user.is_authenticated:
+            users = users.exclude(id=request.user.id)
+
         # 分页
         page = self.paginate_queryset(users)
+        serializer = UserPublicSerializer(
+            page if page is not None else users,
+            many=True,
+            context={'request': request}
+        )
         if page is not None:
-            serializer = UserSerializer(page, many=True, context={'request': request})
             return self.get_paginated_response(serializer.data)
-        
-        serializer = UserSerializer(users, many=True, context={'request': request})
         return Response(serializer.data)
     
     @action(detail=False, methods=['post'])
