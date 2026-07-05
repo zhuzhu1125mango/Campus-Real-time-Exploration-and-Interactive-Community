@@ -41,7 +41,7 @@
       <!-- 课时内容 -->
       <div class="lesson-content">
         <h3 class="lesson-section-title">课时内容</h3>
-        <div v-if="lesson.content" class="content-text" v-html="lesson.content"></div>
+        <div v-if="lesson.content" class="content-text" v-html="sanitizeHtml(lesson.content)"></div>
         <div v-else class="empty-tip">该课时暂无文字内容</div>
       </div>
 
@@ -72,6 +72,7 @@
 import { ref, watch, computed } from 'vue'
 import { ElDialog, ElMessage } from 'element-plus'
 import { learningApi } from '../api/learning'
+import { sanitizeHtml } from '../utils/xss'
 import type { Lesson, Course, Progress, Enrollment } from '../types/learning'
 
 const props = defineProps<{

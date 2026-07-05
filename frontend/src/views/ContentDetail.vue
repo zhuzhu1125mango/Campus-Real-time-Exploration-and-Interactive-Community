@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { contentApi } from '../api/content'
 import { useUserStore } from '../stores/userStore'
+import { sanitizeHtml } from '../utils/xss'
 import type { ContentItem, Comment } from '../types/content'
 
 const route = useRoute()
@@ -17,6 +18,7 @@ const commentText = ref('')
 const error = ref('')
 
 const isLoggedIn = computed(() => userStore.isLoggedIn)
+const safeContent = computed(() => content.value ? sanitizeHtml(content.value.content) : '')
 
 const loadContent = async () => {
   const id = route.params.id as string
@@ -115,7 +117,7 @@ onMounted(() => {
             <img :src="content.featured_image" :alt="content.title" class="featured-image" />
           </div>
 
-          <div class="content-text" v-html="content.content"></div>
+          <div class="content-text" v-html="safeContent"></div>
 
           <div class="comments-section">
             <h2 class="section-title">评论 ({{ comments.length }})</h2>
