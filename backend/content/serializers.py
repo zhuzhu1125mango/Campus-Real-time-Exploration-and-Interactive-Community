@@ -1,4 +1,5 @@
 from django.utils.text import slugify
+from django.db import transaction
 from rest_framework import serializers
 from .models import ContentType, Category, Tag, Content, Comment, ContentRevision
 from users.serializers import UserSerializer

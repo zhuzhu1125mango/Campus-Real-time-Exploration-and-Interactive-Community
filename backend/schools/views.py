@@ -3,7 +3,8 @@ from rest_framework.decorators import action, api_view, parser_classes, permissi
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
-from django.db.models import Q, Avg, Count
+from django.db.models import Q, Avg, Count, F
+from django.db import transaction
 from django.utils import timezone
 from django.core.cache import cache
 import csv
@@ -31,11 +32,22 @@ class SchoolViewSet(viewsets.ModelViewSet):
     """学校视图集"""
     queryset = School.objects.all()
     serializer_class = SchoolSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'english_name', 'abbreviation', 'code']
     ordering_fields = ['name', 'founded_year', 'national_rank', 'student_count']
     ordering = ['national_rank', 'name']
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'forums', 'majors', 'admission_scores', 'ratings', 'compare']:
+            return [permissions.AllowAny()]
+
+        # 尊重 @action(permission_classes=[...]) 的显式声明
+        action = getattr(self, self.action, None)
+        action_permission_classes = getattr(action, 'kwargs', {}).get('permission_classes')
+        if action_permission_classes:
+            return [permission() for permission in action_permission_classes]
+
+        return [permissions.IsAdminUser()]
 
     def perform_create(self, serializer):
         """创建学校时自动为其创建论坛板块"""
@@ -492,12 +504,23 @@ class MajorViewSet(viewsets.ModelViewSet):
     """专业视图集"""
     queryset = Major.objects.all()
     serializer_class = MajorSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'code', 'description']
     ordering_fields = ['name', 'degree_type', 'subject_category']
     ordering = ['name']
-    
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'schools', 'ratings']:
+            return [permissions.AllowAny()]
+
+        # 尊重 @action(permission_classes=[...]) 的显式声明
+        action = getattr(self, self.action, None)
+        action_permission_classes = getattr(action, 'kwargs', {}).get('permission_classes')
+        if action_permission_classes:
+            return [permission() for permission in action_permission_classes]
+
+        return [permissions.IsAdminUser()]
+
     def get_queryset(self):
         queryset = super().get_queryset()
         
@@ -616,6 +639,7 @@ class AdmissionScoreViewSet(viewsets.ModelViewSet):
 
 # 添加省份API视图
 @api_view(['GET'])
+@permission_classes([permissions.AllowAny])
 def get_provinces(request):
     """获取所有省份列表"""
     # 使用缓存减少数据库查询
@@ -631,6 +655,7 @@ def get_provinces(request):
 
 # 添加城市API视图
 @api_view(['GET'])
+@permission_classes([permissions.AllowAny])
 def get_cities(request):
     """根据省份获取城市列表"""
     province = request.query_params.get('province', None)
@@ -649,6 +674,7 @@ def get_cities(request):
 
 # 添加学校类型API视图
 @api_view(['GET'])
+@permission_classes([permissions.AllowAny])
 def get_school_types(request):
     """获取所有学校类型"""
     types_dict = {}
@@ -658,6 +684,7 @@ def get_school_types(request):
 
 # 添加学校层次API视图
 @api_view(['GET'])
+@permission_classes([permissions.AllowAny])
 def get_school_levels(request):
     """获取所有学校层次"""
     levels_dict = {}
@@ -667,6 +694,7 @@ def get_school_levels(request):
 
 # 添加专业类型API视图
 @api_view(['GET'])
+@permission_classes([permissions.AllowAny])
 def get_major_types(request):
     """获取所有专业学位类型"""
     types_dict = {}
@@ -676,6 +704,7 @@ def get_major_types(request):
 
 # 添加专业门类API视图
 @api_view(['GET'])
+@permission_classes([permissions.AllowAny])
 def get_subject_categories(request):
     """获取所有专业学科门类"""
     categories_dict = {}
@@ -856,8 +885,19 @@ class EventViewSet(viewsets.ModelViewSet):
     """校园活动视图集"""
     queryset = Event.objects.all()
     serializer_class = EventSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+
+        # 尊重 @action(permission_classes=[...]) 的显式声明
+        action = getattr(self, self.action, None)
+        action_permission_classes = getattr(action, 'kwargs', {}).get('permission_classes')
+        if action_permission_classes:
+            return [permission() for permission in action_permission_classes]
+
+        return [permissions.IsAdminUser()]
+
     def get_queryset(self):
         queryset = super().get_queryset()
         
@@ -888,34 +928,38 @@ class EventViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def register(self, request, pk=None):
-        """报名活动"""
+        """报名活动（带事务与行锁，防止并发超报）"""
         event = self.get_object()
         user = request.user
-        
-        # 检查是否已经报名
-        if EventRegistration.objects.filter(event=event, user=user).exists():
-            return Response({"detail": "您已经报名过此活动"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # 检查活动状态
-        if event.status in ['completed', 'cancelled']:
-            return Response({"detail": "活动已结束或已取消"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # 检查报名截止时间
-        if event.registration_deadline and timezone.now() > event.registration_deadline:
-            return Response({"detail": "报名已截止"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # 检查活动容量
-        if event.capacity and event.registrations.count() >= event.capacity:
-            return Response({"detail": "活动报名人数已达上限"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # 创建报名记录
-        registration = EventRegistration.objects.create(
-            event=event,
-            user=user,
-            status='pending',
-            metadata=request.data.get('metadata', {})
-        )
-        
+
+        with transaction.atomic():
+            # 锁定活动行，防止并发导致超报
+            event = Event.objects.select_for_update().get(pk=event.pk)
+
+            # 检查是否已经报名
+            if EventRegistration.objects.filter(event=event, user=user).exists():
+                return Response({"detail": "您已经报名过此活动"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 检查活动状态
+            if event.status in ['completed', 'cancelled']:
+                return Response({"detail": "活动已结束或已取消"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 检查报名截止时间
+            if event.registration_deadline and timezone.now() > event.registration_deadline:
+                return Response({"detail": "报名已截止"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 检查活动容量
+            if event.capacity and event.registrations.count() >= event.capacity:
+                return Response({"detail": "活动报名人数已达上限"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 创建报名记录
+            registration = EventRegistration.objects.create(
+                event=event,
+                user=user,
+                status='pending',
+                metadata=request.data.get('metadata', {})
+            )
+
         serializer = EventRegistrationSerializer(registration, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     

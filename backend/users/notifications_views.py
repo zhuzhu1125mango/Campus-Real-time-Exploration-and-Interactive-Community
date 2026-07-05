@@ -72,16 +72,16 @@ class NotificationViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
     
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAdminUser])
     def send_notification(self, request):
-        """发送通知"""
+        """发送通知（仅管理员可调用，防止普通用户越权发送系统通知）"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         notification = serializer.save()
-        
+
         # 发送实时通知
         send_notification(notification)
-        
+
         return Response({
             'id': notification.id,
             'message': '通知发送成功'

@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from django.db.models import Count, Q, Sum
+from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework import viewsets, permissions, filters, status, serializers
@@ -14,11 +15,12 @@ from .models import (
 from .serializers import (
     CategorySerializer, BoardListSerializer, BoardDetailSerializer,
     BoardCreateUpdateSerializer, TopicListSerializer, TopicDetailSerializer,
-    TopicCreateSerializer, PostSerializer, PostCreateSerializer, 
+    TopicCreateSerializer, PostSerializer, PostCreateSerializer,
     PostUpdateSerializer, AttachmentSerializer, LikeSerializer,
     TagSerializer, ReportCreateSerializer, BookmarkSerializer,
     NotificationSerializer, CommentSerializer, CommentCreateSerializer
 )
+from users.permissions import IsOwnerOrAdmin
 
 
 # 添加论坛统计功能
@@ -199,8 +201,14 @@ class TopicViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve', 'posts']:
             # 允许所有用户查看主题和帖子列表
             return [permissions.AllowAny()]
-        elif self.action in ['create', 'update', 'partial_update', 'destroy', 'bookmark', 'close']:
-            # 需要登录才能创建、编辑、删除主题，以及收藏、关闭主题
+        elif self.action in ['create', 'bookmark']:
+            # 需要登录才能创建主题、收藏
+            return [permissions.IsAuthenticated()]
+        elif self.action in ['update', 'partial_update', 'destroy']:
+            # 仅作者或管理员可编辑/删除主题
+            return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
+        elif self.action == 'close':
+            # 关闭主题由视图内部校验作者/版主/管理员
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated()]
     
@@ -363,11 +371,14 @@ class PostViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         post = serializer.save()
-        # 如果是主题的第一个帖子，设置为首贴
-        is_first_post = not Post.objects.filter(topic=post.topic).exclude(id=post.id).exists()
-        if is_first_post:
-            post.is_first_post = True
-            post.save(update_fields=['is_first_post'])
+        # 使用事务和行锁，防止并发下多个帖子同时被标记为首贴
+        with transaction.atomic():
+            # 锁定该主题下的所有帖子
+            Post.objects.filter(topic=post.topic).select_for_update()
+            is_first_post = not Post.objects.filter(topic=post.topic).exclude(id=post.id).exists()
+            if is_first_post:
+                post.is_first_post = True
+                post.save(update_fields=['is_first_post'])
     
     def perform_update(self, serializer):
         post = serializer.instance
@@ -377,6 +388,13 @@ class PostViewSet(viewsets.ModelViewSet):
         serializer.save()
     
     def perform_destroy(self, instance):
+        # 仅帖子作者、管理员或版主可删除
+        user = self.request.user
+        is_moderator = instance.topic.board.moderators.filter(id=user.id).exists()
+        if instance.author != user and not user.is_staff and not is_moderator:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("您没有权限删除此帖子")
+
         # 如果是首贴，删除整个主题
         if instance.is_first_post:
             instance.topic.delete()
@@ -387,32 +405,33 @@ class PostViewSet(viewsets.ModelViewSet):
     def like(self, request, pk=None):
         """点赞或取消点赞帖子"""
         post = self.get_object()
-        
+
         # 用户必须登录才能点赞
         if not request.user.is_authenticated:
             return Response({"detail": "认证凭据未提供"}, status=status.HTTP_401_UNAUTHORIZED)
-        
+
         # 只能点赞已审核通过的帖子
         if post.content_status != 'approved' and not request.user.is_staff and not self.is_moderator(request.user):
             return Response({"detail": "此帖子未通过审核或已被隐藏"}, status=status.HTTP_403_FORBIDDEN)
-        
-        like, created = Like.objects.get_or_create(user=request.user, post=post)
-        
-        if not created:
-            # 如果已存在，则取消点赞
-            like.delete()
-            return Response({"status": "取消点赞成功"}, status=status.HTTP_200_OK)
-        
-        # 创建点赞通知（如果点赞的不是自己的帖子）
-        if post.author != request.user:
-            Notification.objects.create(
-                user=post.author,
-                sender=request.user,
-                notification_type='like',
-                post=post,
-                message=f"{request.user.username} 点赞了你的帖子"
-            )
-        
+
+        with transaction.atomic():
+            like, created = Like.objects.get_or_create(user=request.user, post=post)
+
+            if not created:
+                # 如果已存在，则取消点赞
+                like.delete()
+                return Response({"status": "取消点赞成功"}, status=status.HTTP_200_OK)
+
+            # 创建点赞通知（如果点赞的不是自己的帖子）
+            if post.author != request.user:
+                Notification.objects.create(
+                    user=post.author,
+                    sender=request.user,
+                    notification_type='like',
+                    post=post,
+                    message=f"{request.user.username} 点赞了你的帖子"
+                )
+
         return Response({"status": "点赞成功"}, status=status.HTTP_201_CREATED)
     
     @action(detail=True, methods=['post'])
@@ -626,15 +645,19 @@ class CommentViewSet(viewsets.ModelViewSet):
     """评论视图集"""
     queryset = Comment.objects.all()
     pagination_class = StandardResultsSetPagination
-    
+
     def get_serializer_class(self):
         if self.action == 'create':
             return CommentCreateSerializer
         return CommentSerializer
-    
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [permissions.AllowAny()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
+        if self.action in ['approve', 'disapprove']:
+            return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
         return [permissions.IsAuthenticated()]
     
     def get_queryset(self):
@@ -659,26 +682,27 @@ class CommentViewSet(viewsets.ModelViewSet):
     def like(self, request, pk=None):
         """点赞或取消点赞评论"""
         comment = self.get_object()
-        
+
         if not request.user.is_authenticated:
             return Response({"detail": "认证凭据未提供"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        like, created = CommentLike.objects.get_or_create(user=request.user, comment=comment)
-        
-        if not created:
-            like.delete()
-            return Response({"status": "取消点赞成功"}, status=status.HTTP_200_OK)
-        
-        # 创建点赞通知（如果点赞的不是自己的评论）
-        if comment.author != request.user:
-            Notification.objects.create(
-                user=comment.author,
-                sender=request.user,
-                notification_type='like',
-                post=comment.post,
-                message=f"{request.user.username} 点赞了你的评论"
-            )
-        
+
+        with transaction.atomic():
+            like, created = CommentLike.objects.get_or_create(user=request.user, comment=comment)
+
+            if not created:
+                like.delete()
+                return Response({"status": "取消点赞成功"}, status=status.HTTP_200_OK)
+
+            # 创建点赞通知（如果点赞的不是自己的评论）
+            if comment.author != request.user:
+                Notification.objects.create(
+                    user=comment.author,
+                    sender=request.user,
+                    notification_type='like',
+                    post=comment.post,
+                    message=f"{request.user.username} 点赞了你的评论"
+                )
+
         return Response({"status": "点赞成功"}, status=status.HTTP_201_CREATED)
     
     @action(detail=True, methods=['post'])

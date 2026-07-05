@@ -15,6 +15,7 @@ from .messages_serializers import (
 )
 from .notification_sender import send_notification_to_user
 from .websocket_service import websocket_service
+from users.permissions import IsOwnerOrAdmin
 
 User = get_user_model()
 
@@ -24,8 +25,12 @@ class MessageViewSet(viewsets.ModelViewSet):
     私信视图集
     """
     serializer_class = MessageSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
+
+    def get_permissions(self):
+        if self.action in ['create']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
+
     def get_queryset(self):
         # 获取当前用户发送和接收的消息
         return Message.objects.filter(

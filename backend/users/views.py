@@ -10,7 +10,8 @@ import os
 from django.http import HttpResponse
 from datetime import datetime
 from django.shortcuts import get_object_or_404
-from django.db.models import Q
+from django.db.models import Q, F
+from django.db import transaction
 
 from .serializers import (
     UserSerializer, UserRegisterSerializer, UserLoginSerializer, UserProfileSerializer,
@@ -20,6 +21,7 @@ from .serializers import (
 from schools.models import School
 from forum.models import Topic, Post
 from forum.serializers import TopicListSerializer, PostSerializer
+from users.permissions import IsOwnerOrAdmin
 
 User = get_user_model()
 
@@ -40,6 +42,8 @@ class UserViewSet(viewsets.ModelViewSet):
             return [permissions.AllowAny()]
         elif self.action == 'retrieve':
             return [permissions.AllowAny()]
+        elif self.action in ['update', 'partial_update', 'destroy']:
+            return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
         return super().get_permissions()
     
     def get_object(self):
@@ -331,62 +335,63 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'])
     def daily_checkin(self, request):
-        """每日签到"""
+        """每日签到（带事务与行锁，防止并发重复签到）"""
         from .models import PointsRecord
-        
+
         user = request.user
-        
-        # 检查今天是否已经签到
         today = timezone.now().date()
-        has_checked_in = PointsRecord.objects.filter(
-            user=user,
-            action='daily_checkin',
-            created_at__date=today
-        ).exists()
-        
-        if has_checked_in:
-            return Response({'error': '今天已经签到过了'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # 添加签到积分（连续签到有额外奖励）
-        points = 5
-        
-        # 检查连续签到天数
-        yesterday = today - timezone.timedelta(days=1)
-        yesterday_checkin = PointsRecord.objects.filter(
-            user=user,
-            action='daily_checkin',
-            created_at__date=yesterday
-        ).exists()
-        
-        if yesterday_checkin:
-            # 检查连续签到次数
-            consecutive_days = 1
-            check_date = yesterday
-            while True:
-                check_date -= timezone.timedelta(days=1)
-                if PointsRecord.objects.filter(
-                    user=user,
-                    action='daily_checkin',
-                    created_at__date=check_date
-                ).exists():
-                    consecutive_days += 1
-                else:
-                    break
-            
-            # 连续签到奖励
-            if consecutive_days >= 7:
-                points += 10  # 连续7天额外奖励10分
-            elif consecutive_days >= 3:
-                points += 5   # 连续3天额外奖励5分
-        
-        # 创建积分记录
-        PointsRecord.objects.create(
-            user=user,
-            action='daily_checkin',
-            points=points,
-            description=f'每日签到{"(连续签到{}天)".format(consecutive_days + 1) if yesterday_checkin else ""}'
-        )
-        
+
+        with transaction.atomic():
+            # 锁定今天的签到记录（若存在）以及用户行，防止并发重复签到
+            has_checked_in = PointsRecord.objects.filter(
+                user=user,
+                action='daily_checkin',
+                created_at__date=today
+            ).select_for_update().exists()
+
+            if has_checked_in:
+                return Response({'error': '今天已经签到过了'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 添加签到积分（连续签到有额外奖励）
+            points = 5
+            yesterday = today - timezone.timedelta(days=1)
+            yesterday_checkin = PointsRecord.objects.filter(
+                user=user,
+                action='daily_checkin',
+                created_at__date=yesterday
+            ).exists()
+
+            consecutive_days = 0
+            if yesterday_checkin:
+                # 检查连续签到次数
+                consecutive_days = 1
+                check_date = yesterday
+                while True:
+                    check_date -= timezone.timedelta(days=1)
+                    if PointsRecord.objects.filter(
+                        user=user,
+                        action='daily_checkin',
+                        created_at__date=check_date
+                    ).exists():
+                        consecutive_days += 1
+                    else:
+                        break
+
+                # 连续签到奖励
+                if consecutive_days >= 7:
+                    points += 10
+                elif consecutive_days >= 3:
+                    points += 5
+
+            # 创建积分记录并更新用户积分（使用 F 表达式避免覆盖）
+            PointsRecord.objects.create(
+                user=user,
+                action='daily_checkin',
+                points=points,
+                description=f'每日签到{"(连续签到{}天)".format(consecutive_days + 1) if yesterday_checkin else ""}'
+            )
+            User.objects.filter(id=user.id).update(points=F('points') + points)
+
         return Response({
             'message': '签到成功',
             'points': points,
@@ -598,12 +603,14 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     queryset = UserProfile.objects.all()
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def get_permissions(self):
-        if self.action == 'retrieve':
+        if self.action in ['list', 'retrieve']:
             return [permissions.AllowAny()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
         return super().get_permissions()
-    
+
     def get_object(self):
         pk = self.kwargs.get('pk')
         if pk == 'me':

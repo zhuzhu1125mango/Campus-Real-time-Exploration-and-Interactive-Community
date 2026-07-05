@@ -13,6 +13,10 @@ from .serializers import (
     LearningResourceSerializer, LearningResourceCreateSerializer, LearningResourceUpdateSerializer
 )
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from users.permissions import IsOwnerOrAdmin, IsInstructorOrAdmin, IsCourseInstructorOrAdmin
+from rest_framework.exceptions import PermissionDenied
+from django.db import transaction
+from django.db.utils import IntegrityError
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -33,9 +37,13 @@ class CourseViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_permissions(self):
-        # 课程列表对游客开放；详情及关联内容、报名等操作需登录
-        if self.action == 'list':
+        # 课程列表/详情对游客开放；创建需登录；编辑/删除/发布仅讲师或管理员
+        if self.action in ['list', 'retrieve', 'chapters', 'lessons', 'resources', 'reviews']:
             return [AllowAny()]
+        if self.action in ['create']:
+            return [IsAuthenticated()]
+        if self.action in ['update', 'partial_update', 'destroy', 'publish', 'unpublish']:
+            return [IsAuthenticated(), IsInstructorOrAdmin()]
         return [IsAuthenticated()]
     
     def get_queryset(self):
@@ -108,15 +116,25 @@ class CourseViewSet(viewsets.ModelViewSet):
 
 class ChapterViewSet(viewsets.ModelViewSet):
     queryset = Chapter.objects.all()
-    permission_classes = [IsAuthenticated]
-    
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'lessons']:
+            return [AllowAny()]
+        return [IsAuthenticated(), IsCourseInstructorOrAdmin()]
+
     def get_serializer_class(self):
         if self.action == 'create':
             return ChapterCreateSerializer
         elif self.action == 'update' or self.action == 'partial_update':
             return ChapterUpdateSerializer
         return ChapterSerializer
-    
+
+    def perform_create(self, serializer):
+        course = serializer.validated_data.get('course')
+        if course and course.instructor != self.request.user and not self.request.user.is_staff:
+            raise PermissionDenied("您没有权限为此课程添加章节")
+        serializer.save()
+
     @action(detail=True, methods=['get'])
     def lessons(self, request, pk=None):
         chapter = self.get_object()
@@ -127,15 +145,26 @@ class ChapterViewSet(viewsets.ModelViewSet):
 
 class LessonViewSet(viewsets.ModelViewSet):
     queryset = Lesson.objects.all()
-    permission_classes = [IsAuthenticated]
-    
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'increment_view']:
+            return [AllowAny()]
+        return [IsAuthenticated(), IsCourseInstructorOrAdmin()]
+
     def get_serializer_class(self):
         if self.action == 'create':
             return LessonCreateSerializer
         elif self.action == 'update' or self.action == 'partial_update':
             return LessonUpdateSerializer
         return LessonSerializer
-    
+
+    def perform_create(self, serializer):
+        chapter = serializer.validated_data.get('chapter')
+        course = chapter.course if chapter else None
+        if course and course.instructor != self.request.user and not self.request.user.is_staff:
+            raise PermissionDenied("您没有权限为此课程添加课时")
+        serializer.save()
+
     @action(detail=True, methods=['post'])
     def increment_view(self, request, pk=None):
         lesson = self.get_object()
@@ -162,19 +191,30 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         course = serializer.validated_data['course']
         user = request.user
 
-        existing = Enrollment.objects.filter(user=user, course=course).first()
-        if existing:
-            serializer = EnrollmentSerializer(existing, context={'request': request})
-            return Response(serializer.data, status=status.HTTP_200_OK)
+        with transaction.atomic():
+            # 锁定课程行，并检查是否已报名，防止并发重复报名
+            course = Course.objects.select_for_update().get(pk=course.pk)
+            existing = Enrollment.objects.filter(user=user, course=course).first()
+            if existing:
+                serializer = EnrollmentSerializer(existing, context={'request': request})
+                return Response(serializer.data, status=status.HTTP_200_OK)
 
-        self.perform_create(serializer)
+            try:
+                self.perform_create(serializer, course=course)
+            except IntegrityError:
+                # 唯一约束冲突时返回已存在的报名记录
+                existing = Enrollment.objects.get(user=user, course=course)
+                serializer = EnrollmentSerializer(existing, context={'request': request})
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer, course=None):
         # 保存报名并更新课程的报名人数
         enrollment = serializer.save(user=self.request.user)
-        course = enrollment.course
+        if course is None:
+            course = enrollment.course
         course.enroll_count = course.enrollments.count()
         course.save()
 
@@ -255,13 +295,23 @@ class ProgressViewSet(viewsets.ModelViewSet):
 
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
-    permission_classes = [IsAuthenticated]
-    
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        if self.action in ['create']:
+            return [IsAuthenticated()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsOwnerOrAdmin()]
+        if self.action in ['approve', 'disapprove']:
+            return [IsAuthenticated(), IsAdminUser()]
+        return [IsAuthenticated()]
+
     def get_serializer_class(self):
         if self.action == 'create':
             return ReviewCreateSerializer
         return ReviewSerializer
-    
+
     def perform_create(self, serializer):
         # 保存评价并更新课程的平均评分
         review = serializer.save(user=self.request.user)
@@ -270,14 +320,14 @@ class ReviewViewSet(viewsets.ModelViewSet):
         total_rating = sum(review.rating for review in reviews)
         course.average_rating = total_rating / reviews.count() if reviews.count() > 0 else 0
         course.save()
-    
+
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         review = self.get_object()
         review.is_approved = True
         review.save()
         return Response({'status': 'review_approved'})
-    
+
     @action(detail=True, methods=['post'])
     def disapprove(self, request, pk=None):
         review = self.get_object()
@@ -290,10 +340,10 @@ class LearningResourceViewSet(viewsets.ModelViewSet):
     queryset = LearningResource.objects.all()
 
     def get_permissions(self):
-        # 学习资源列表/详情对游客开放；创建/更新/删除/下载统计需登录
-        if self.action in ['list', 'retrieve']:
+        # 学习资源列表/详情对游客开放；创建/更新/删除需课程讲师或管理员
+        if self.action in ['list', 'retrieve', 'increment_download']:
             return [AllowAny()]
-        return [IsAuthenticated()]
+        return [IsAuthenticated(), IsCourseInstructorOrAdmin()]
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -301,7 +351,13 @@ class LearningResourceViewSet(viewsets.ModelViewSet):
         elif self.action == 'update' or self.action == 'partial_update':
             return LearningResourceUpdateSerializer
         return LearningResourceSerializer
-    
+
+    def perform_create(self, serializer):
+        course = serializer.validated_data.get('course')
+        if course and course.instructor != self.request.user and not self.request.user.is_staff:
+            raise PermissionDenied("您没有权限为此课程添加学习资源")
+        serializer.save()
+
     @action(detail=True, methods=['post'])
     def increment_download(self, request, pk=None):
         resource = self.get_object()

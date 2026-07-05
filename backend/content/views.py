@@ -9,6 +9,7 @@ from .serializers import (
     CommentSerializer, CommentCreateSerializer, ContentRevisionSerializer
 )
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from users.permissions import IsOwnerOrAdmin
 
 
 class ContentTypeViewSet(viewsets.ModelViewSet):
@@ -52,7 +53,7 @@ class ContentViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
         if self.action in ['submit', 'create', 'update', 'partial_update', 'destroy', 'my_contents']:
-            return [IsAuthenticated()]
+            return [IsAuthenticated(), IsOwnerOrAdmin()]
         return [IsAuthenticated(), IsAdminUser()]
 
     def get_queryset(self):
@@ -169,6 +170,10 @@ class CommentViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsOwnerOrAdmin()]
+        if self.action in ['approve', 'disapprove']:
+            return [IsAuthenticated(), IsAdminUser()]
         return [IsAuthenticated()]
 
     def get_serializer_class(self):

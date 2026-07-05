@@ -8,6 +8,9 @@ from .activities_serializers import (
     ActivityCommentSerializer, ActivityCommentCreateSerializer
 )
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from users.permissions import IsOwnerOrAdmin
+from django.db import transaction
+from django.db.models import F
 
 
 class ActivityViewSet(viewsets.ModelViewSet):
@@ -18,6 +21,8 @@ class ActivityViewSet(viewsets.ModelViewSet):
         # 对于创建、点赞、取消点赞等操作，需要用户登录
         if self.action in ['create', 'like', 'unlike', 'comments', 'feed', 'my_activities']:
             return [IsAuthenticated()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsOwnerOrAdmin()]
         # 对于列表和详情视图，允许未登录用户访问
         return [AllowAny()]
     
@@ -38,28 +43,24 @@ class ActivityViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def like(self, request, pk=None):
         activity = self.get_object()
-        # 检查是否已经点赞
-        if activity.likes.filter(user=request.user).exists():
-            return Response({'status': 'already_liked'}, status=status.HTTP_400_BAD_REQUEST)
-        # 创建点赞记录
-        ActivityLike.objects.create(activity=activity, user=request.user)
-        # 更新动态的点赞数
-        activity.likes_count = activity.likes.count()
-        activity.save()
+        with transaction.atomic():
+            # 使用 get_or_create + 唯一约束，防止并发重复点赞
+            like, created = ActivityLike.objects.get_or_create(activity=activity, user=request.user)
+            if not created:
+                return Response({'status': 'already_liked'}, status=status.HTTP_400_BAD_REQUEST)
+            # 使用 F 表达式原子更新点赞数
+            Activity.objects.filter(pk=activity.pk).update(likes_count=F('likes_count') + 1)
         return Response({'status': 'liked'})
-    
+
     @action(detail=True, methods=['post'])
     def unlike(self, request, pk=None):
         activity = self.get_object()
-        # 检查是否已经点赞
-        like = activity.likes.filter(user=request.user).first()
-        if not like:
-            return Response({'status': 'not_liked'}, status=status.HTTP_400_BAD_REQUEST)
-        # 删除点赞记录
-        like.delete()
-        # 更新动态的点赞数
-        activity.likes_count = activity.likes.count()
-        activity.save()
+        with transaction.atomic():
+            like = ActivityLike.objects.filter(activity=activity, user=request.user).first()
+            if not like:
+                return Response({'status': 'not_liked'}, status=status.HTTP_400_BAD_REQUEST)
+            like.delete()
+            Activity.objects.filter(pk=activity.pk).update(likes_count=F('likes_count') - 1)
         return Response({'status': 'unliked'})
     
     @action(detail=True, methods=['get'])
@@ -90,25 +91,33 @@ class ActivityViewSet(viewsets.ModelViewSet):
 
 class ActivityLikeViewSet(viewsets.ModelViewSet):
     queryset = ActivityLike.objects.all()
-    permission_classes = [IsAuthenticated]
-    
+
+    def get_permissions(self):
+        if self.action in ['create']:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), IsOwnerOrAdmin()]
+
     def get_serializer_class(self):
         if self.action == 'create':
             return ActivityLikeCreateSerializer
         return ActivityLikeSerializer
-    
+
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
 
 class ActivityCommentViewSet(viewsets.ModelViewSet):
     queryset = ActivityComment.objects.all()
-    permission_classes = [IsAuthenticated]
-    
+
+    def get_permissions(self):
+        if self.action in ['create']:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), IsOwnerOrAdmin()]
+
     def get_serializer_class(self):
         if self.action == 'create':
             return ActivityCommentCreateSerializer
         return ActivityCommentSerializer
-    
+
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
