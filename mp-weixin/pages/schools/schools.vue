@@ -216,7 +216,7 @@ const viewSchoolDetail = (id) => {
 }
 
 .search-wrapper {
-  background-color: #4CAF50;
+  background-color: #4361ee;
   padding: 30rpx;
 }
 
@@ -235,7 +235,7 @@ const viewSchoolDetail = (id) => {
 }
 
 .search-btn {
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
   font-size: 26rpx;
   padding: 10rpx 30rpx;
@@ -312,7 +312,7 @@ const viewSchoolDetail = (id) => {
 }
 
 .tag-level {
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
 }
 
@@ -343,7 +343,7 @@ const viewSchoolDetail = (id) => {
 .score-value {
   font-size: 32rpx;
   font-weight: 600;
-  color: #4CAF50;
+  color: #4361ee;
 }
 
 .school-rank {
@@ -362,7 +362,7 @@ const viewSchoolDetail = (id) => {
 .rank-value {
   font-size: 32rpx;
   font-weight: 600;
-  color: #4CAF50;
+  color: #4361ee;
 }
 
 .loading-more,

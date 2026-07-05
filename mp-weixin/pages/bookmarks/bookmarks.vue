@@ -230,7 +230,7 @@ const formatTime = (time) => {
 }
 
 .tab-item.active {
-  color: #4CAF50;
+  color: #4361ee;
   font-weight: 500;
 }
 
@@ -242,7 +242,7 @@ const formatTime = (time) => {
   transform: translateX(-50%);
   width: 60rpx;
   height: 4rpx;
-  background-color: #4CAF50;
+  background-color: #4361ee;
   border-radius: 2rpx;
 }
 

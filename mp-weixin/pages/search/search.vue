@@ -3,17 +3,24 @@
     <!-- 搜索栏 -->
     <view class="search-header">
       <view class="search-box">
-        <input
-          type="text"
-          v-model="query"
-          placeholder="搜索课程、内容、学校、论坛..."
-          class="search-input"
-          confirm-type="search"
-          @confirm="doSearch"
-          @input="handleInput"
-          @focus="handleFocus"
-        />
-        <button class="search-btn" @click="doSearch">搜索</button>
+        <view class="search-input-wrapper">
+          <text class="search-icon">🔍</text>
+          <input
+            type="text"
+            v-model="query"
+            placeholder="搜索课程、内容、学校、论坛..."
+            class="search-input"
+            confirm-type="search"
+            maxlength="100"
+            @confirm="doSearch"
+            @input="handleInput"
+            @focus="handleFocus"
+          />
+          <view v-if="query" class="clear-btn" @click="query = ''; results = {}; hasSearched = false">
+            <text class="clear-icon">✕</text>
+          </view>
+        </view>
+        <button class="search-btn" :disabled="loading" @click="doSearch">{{ loading ? '搜索中' : '搜索' }}</button>
       </view>
       <view v-if="suggestions.length > 0 && showSuggestions" class="suggestions">
         <view
@@ -23,7 +30,7 @@
           @click="selectSuggestion(item)"
         >
           <text class="suggestion-type">{{ typeLabels[item.type] }}</text>
-          <text class="suggestion-title">{{ item.title }}</text>
+          <rich-text class="suggestion-title" :nodes="highlightNodes(item.title, query)"></rich-text>
         </view>
       </view>
     </view>
@@ -43,13 +50,21 @@
 
     <!-- 搜索结果 -->
     <view class="search-body">
-      <view v-if="loading" class="loading-state">
-        <text>搜索中...</text>
+      <view v-if="loading" class="skeleton-wrapper">
+        <view v-for="i in 2" :key="i" class="skeleton-section">
+          <view class="skeleton-title"></view>
+          <view v-for="j in 3" :key="j" class="skeleton-card">
+            <view class="skeleton-line short"></view>
+            <view class="skeleton-line"></view>
+          </view>
+        </view>
       </view>
 
       <template v-else-if="hasSearched">
         <view v-if="totalCount === 0" class="empty-state">
-          <text>未找到与 "{{ query }}" 相关的结果</text>
+          <view class="empty-icon">🔍</view>
+          <text class="empty-title">未找到与 "{{ query }}" 相关的结果</text>
+          <text class="empty-desc">换个关键词试试看</text>
         </view>
 
         <scroll-view v-else scroll-y class="result-scroll">
@@ -62,8 +77,8 @@
               class="result-card"
               @click="goDetail('course', course)"
             >
-              <view class="result-title">{{ course.title }}</view>
-              <view class="result-desc">{{ course.description }}</view>
+              <rich-text class="result-title" :nodes="highlightNodes(course.title, query)"></rich-text>
+              <rich-text class="result-desc" :nodes="highlightNodes(course.description, query)"></rich-text>
               <view class="result-meta">
                 <text>{{ course.instructor?.username }}</text>
                 <text>{{ course.enroll_count }} 人报名</text>
@@ -80,8 +95,8 @@
               class="result-card"
               @click="goDetail('content', item)"
             >
-              <view class="result-title">{{ item.title }}</view>
-              <view class="result-desc">{{ stripHtml(item.summary || item.content).substring(0, 80) }}...</view>
+              <rich-text class="result-title" :nodes="highlightNodes(item.title, query)"></rich-text>
+              <rich-text class="result-desc" :nodes="highlightNodes(stripHtml(item.summary || item.content).substring(0, 80), query) + '...'"></rich-text>
               <view class="result-meta">
                 <text>{{ item.author?.username }}</text>
                 <text>{{ formatDate(item.created_at) }}</text>
@@ -98,8 +113,8 @@
               class="result-card"
               @click="goDetail('school', school)"
             >
-              <view class="result-title">{{ school.name }}</view>
-              <view class="result-desc">{{ school.province }} {{ school.city }}</view>
+              <rich-text class="result-title" :nodes="highlightNodes(school.name, query)"></rich-text>
+              <rich-text class="result-desc" :nodes="highlightNodes(`${school.province} ${school.city}`, query)"></rich-text>
               <view class="result-meta">
                 <text>{{ school.school_level }}</text>
                 <text v-if="school.national_rank">全国排名 {{ school.national_rank }}</text>
@@ -116,7 +131,7 @@
               class="result-card"
               @click="goDetail('topic', topic)"
             >
-              <view class="result-title">{{ topic.title }}</view>
+              <rich-text class="result-title" :nodes="highlightNodes(topic.title, query)"></rich-text>
               <view class="result-meta">
                 <text>{{ topic.author?.username }}</text>
                 <text>{{ topic.views }} 浏览</text>
@@ -133,7 +148,7 @@
               class="result-card"
               @click="goDetail('post', post)"
             >
-              <view class="result-desc">{{ stripHtml(post.content).substring(0, 100) }}...</view>
+              <rich-text class="result-desc" :nodes="highlightNodes(stripHtml(post.content).substring(0, 100), query) + '...'"></rich-text>
               <view class="result-meta">
                 <text>{{ post.author?.username }}</text>
                 <text>{{ formatDate(post.created_at) }}</text>
@@ -143,8 +158,45 @@
         </scroll-view>
       </template>
 
-      <view v-else class="empty-state">
-        <text>输入关键词开始搜索</text>
+      <view v-else class="search-placeholder">
+        <view v-if="searchHistory.length > 0" class="history-section">
+          <view class="section-header">
+            <text class="section-title">搜索历史</text>
+            <text class="clear-link" @click="clearHistory">清空</text>
+          </view>
+          <view class="tag-list">
+            <text
+              v-for="item in searchHistory"
+              :key="item"
+              class="history-tag"
+              @click="useHistory(item)"
+            >
+              {{ item }}
+              <text class="remove-btn" @click.stop="removeHistory(item)">✕</text>
+            </text>
+          </view>
+        </view>
+
+        <view class="hot-section">
+          <view class="section-header">
+            <text class="section-title">热门搜索</text>
+          </view>
+          <view class="tag-list">
+            <text
+              v-for="item in hotSearches"
+              :key="item"
+              class="hot-tag"
+              @click="useHistory(item)"
+            >
+              {{ item }}
+            </text>
+          </view>
+        </view>
+
+        <view class="empty-state soft">
+          <view class="empty-icon">🔍</view>
+          <text class="empty-title">输入关键词开始搜索</text>
+        </view>
       </view>
     </view>
   </view>
@@ -173,6 +225,10 @@ const results = ref({})
 const suggestions = ref([])
 const showSuggestions = ref(false)
 const suggestionTimer = ref(null)
+const searchHistory = ref([])
+
+const HISTORY_KEY = 'campus_search_history'
+const MAX_HISTORY = 10
 
 const searchTypes = [
   { key: 'all', label: '全部' },
@@ -191,6 +247,8 @@ const typeLabels = {
   post: '帖子'
 }
 
+const hotSearches = ['计算机', '清华大学', '考研', 'Python', '校园活动']
+
 const totalCount = computed(() => {
   let count = 0
   const keys = ['courses', 'contents', 'schools', 'topics', 'posts']
@@ -201,7 +259,54 @@ const totalCount = computed(() => {
   return count
 })
 
+const loadHistory = () => {
+  try {
+    const raw = uni.getStorageSync(HISTORY_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        searchHistory.value = parsed.slice(0, MAX_HISTORY)
+      }
+    }
+  } catch {
+    searchHistory.value = []
+  }
+}
+
+const saveHistory = () => {
+  try {
+    uni.setStorageSync(HISTORY_KEY, JSON.stringify(searchHistory.value))
+  } catch {
+    // ignore
+  }
+}
+
+const addHistory = (keyword) => {
+  if (!keyword) return
+  const list = searchHistory.value.filter(item => item !== keyword)
+  list.unshift(keyword)
+  searchHistory.value = list.slice(0, MAX_HISTORY)
+  saveHistory()
+}
+
+const removeHistory = (keyword) => {
+  searchHistory.value = searchHistory.value.filter(item => item !== keyword)
+  saveHistory()
+}
+
+const clearHistory = () => {
+  searchHistory.value = []
+  saveHistory()
+}
+
+const useHistory = (keyword) => {
+  query.value = keyword
+  showSuggestions.value = false
+  doSearch()
+}
+
 onMounted(() => {
+  loadHistory()
   const pages = getCurrentPages()
   const page = pages[pages.length - 1]
   const options = page?.options || page?.$route?.query || {}
@@ -226,6 +331,7 @@ const doSearch = async () => {
   try {
     const res = await searchApi.search(q, activeType.value, 20)
     results.value = res.results || {}
+    addHistory(q)
   } catch (err) {
     console.error('搜索失败', err)
     uni.showToast({ title: '搜索失败', icon: 'none' })
@@ -298,12 +404,31 @@ const formatDate = (date) => {
   const d = new Date(date)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+
+const escapeHtml = (text) => {
+  if (!text) return ''
+  return text.replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+const highlightNodes = (text, keyword) => {
+  if (!keyword || !text) return escapeHtml(String(text))
+  const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`(${safeKeyword})`, 'gi')
+  const html = escapeHtml(String(text)).replace(regex, '<span style="color:#4361ee;font-weight:600;">$1</span>')
+  return html
+}
 </script>
 
 <style scoped>
 .container {
   min-height: 100vh;
   background-color: #f5f5f5;
+  display: flex;
+  flex-direction: column;
 }
 
 .search-header {
@@ -318,13 +443,39 @@ const formatDate = (date) => {
   gap: 16rpx;
 }
 
+.search-input-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background-color: #f5f5f5;
+  border-radius: 36rpx;
+  padding: 0 20rpx;
+}
+
+.search-icon {
+  font-size: 26rpx;
+  color: #999;
+  margin-right: 12rpx;
+}
+
 .search-input {
   flex: 1;
   height: 72rpx;
-  padding: 0 24rpx;
-  background-color: #f5f5f5;
-  border-radius: 36rpx;
   font-size: 28rpx;
+  background: transparent;
+}
+
+.clear-btn {
+  width: 40rpx;
+  height: 40rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clear-icon {
+  font-size: 24rpx;
+  color: #999;
 }
 
 .search-btn {
@@ -336,6 +487,10 @@ const formatDate = (date) => {
   line-height: 64rpx;
   border-radius: 32rpx;
   border: none;
+}
+
+.search-btn[disabled] {
+  opacity: 0.7;
 }
 
 .suggestions {
@@ -366,6 +521,7 @@ const formatDate = (date) => {
 }
 
 .suggestion-title {
+  flex: 1;
   font-size: 28rpx;
   color: #333;
 }
@@ -394,19 +550,96 @@ const formatDate = (date) => {
 }
 
 .search-body {
+  flex: 1;
   padding: 20rpx 30rpx;
+  overflow: hidden;
 }
 
-.loading-state,
+.skeleton-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 40rpx;
+}
+
+.skeleton-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.skeleton-title {
+  width: 120rpx;
+  height: 40rpx;
+  background: linear-gradient(90deg, #eee 25%, #f5f5f5 50%, #eee 75%);
+  background-size: 200% 100%;
+  border-radius: 8rpx;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-card {
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.skeleton-line {
+  height: 28rpx;
+  background: linear-gradient(90deg, #eee 25%, #f5f5f5 50%, #eee 75%);
+  background-size: 200% 100%;
+  border-radius: 8rpx;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-line.short {
+  width: 50%;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 .empty-state {
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: 120rpx 40rpx;
+  text-align: center;
+}
+
+.empty-state.soft {
+  padding: 80rpx 40rpx;
+}
+
+.empty-icon {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  background: rgba(67, 97, 238, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 56rpx;
+  margin-bottom: 24rpx;
+}
+
+.empty-title {
+  font-size: 30rpx;
+  color: #333;
+  margin-bottom: 12rpx;
+}
+
+.empty-desc {
+  font-size: 26rpx;
   color: #999;
-  font-size: 28rpx;
 }
 
 .result-scroll {
-  max-height: calc(100vh - 260rpx);
+  height: 100%;
 }
 
 .result-section {
@@ -427,6 +660,13 @@ const formatDate = (date) => {
   border-radius: 12rpx;
   padding: 24rpx;
   margin-bottom: 16rpx;
+  border: 1rpx solid transparent;
+  transition: all 0.2s;
+}
+
+.result-card:active {
+  transform: scale(0.98);
+  border-color: rgba(67, 97, 238, 0.2);
 }
 
 .result-title {
@@ -452,5 +692,65 @@ const formatDate = (date) => {
   gap: 16rpx;
   font-size: 22rpx;
   color: #999;
+}
+
+.search-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 30rpx;
+}
+
+.history-section,
+.hot-section {
+  background: #fff;
+  border-radius: 12rpx;
+  padding: 24rpx;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+}
+
+.section-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #333;
+}
+
+.clear-link {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.history-tag,
+.hot-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 10rpx 20rpx;
+  border-radius: 30rpx;
+  font-size: 26rpx;
+  color: #666;
+  background: #f5f5f5;
+}
+
+.hot-tag {
+  color: #4361ee;
+  background: rgba(67, 97, 238, 0.08);
+}
+
+.remove-btn {
+  font-size: 20rpx;
+  color: #999;
+  padding: 4rpx;
 }
 </style>

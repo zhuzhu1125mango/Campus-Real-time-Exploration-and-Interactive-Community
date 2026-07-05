@@ -129,7 +129,7 @@ const goToSchools = () => {
 
 .browse-btn {
   margin-top: 40rpx;
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
   font-size: 28rpx;
   padding: 15rpx 50rpx;
@@ -174,7 +174,7 @@ const goToSchools = () => {
 }
 
 .tag-level {
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
 }
 
@@ -205,7 +205,7 @@ const goToSchools = () => {
 .rank-value {
   font-size: 32rpx;
   font-weight: 600;
-  color: #4CAF50;
+  color: #4361ee;
 }
 
 .loading-more,

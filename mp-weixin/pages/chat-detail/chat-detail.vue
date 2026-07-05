@@ -1,9 +1,13 @@
 <template>
   <view class="container">
-    <view class="header">
+    <view class="header" :style="headerStyle">
       <text class="back-icon" @click="goBack">&#60;</text>
       <image class="header-avatar" :src="formatAvatar(userInfo.avatar)" mode="aspectFill" />
       <text class="header-title">{{ userInfo.username || username }}</text>
+      <view class="header-status" :class="connectionStatus">
+        <text class="status-dot"></text>
+        <text class="status-text">{{ connectionStatusText }}</text>
+      </view>
     </view>
 
     <scroll-view class="message-list" scroll-y :scroll-top="scrollTop" :scroll-with-animation="true">
@@ -14,20 +18,55 @@
         <text>加载中...</text>
       </view>
 
-      <view class="message-item" v-for="(msg, index) in messages" :key="msg.id || index"
-        :class="{ 'message-mine': isMine(msg) }">
-        <image v-if="!isMine(msg)" class="msg-avatar" :src="formatAvatar(msg.sender?.avatar)" mode="aspectFill" />
-        <view class="message-content">
-          <text class="message-text">{{ msg.content }}</text>
-          <text class="message-time">{{ formatDateTime(msg.created_at) }}</text>
-        </view>
-        <image v-if="isMine(msg)" class="msg-avatar" :src="formatAvatar(currentUserAvatar)" mode="aspectFill" />
+      <view class="empty-tip" v-if="!loading && messages.length === 0">
+        <view class="empty-icon">✉️</view>
+        <text>开始与 {{ userInfo.username || username }} 聊天吧！</text>
+      </view>
+
+      <view v-else class="messages-list">
+        <template v-for="(group, groupIndex) in groupedMessages" :key="groupIndex">
+          <view v-if="group.date" class="date-divider">
+            <text>{{ group.date }}</text>
+          </view>
+          <view
+            class="message-item"
+            v-for="(msg, index) in group.messages"
+            :key="msg.id || index"
+            :class="{ 'message-mine': isMine(msg) }"
+          >
+            <image v-if="!isMine(msg)" class="msg-avatar" :src="formatAvatar(msg.sender?.avatar)" mode="aspectFill" />
+            <view class="message-body">
+              <view class="message-content" :class="{ 'send-failed': msg.sendFailed }">
+                <text class="message-text">{{ msg.content }}</text>
+              </view>
+              <view class="message-meta">
+                <text v-if="msg.isTemp && !msg.sendFailed" class="status-hint sending">发送中...</text>
+                <text v-else-if="msg.sendFailed" class="status-hint failed" @click="resendMessage(msg)">发送失败，点击重试</text>
+                <text v-else-if="isMine(msg)" class="status-hint sent">已发送</text>
+                <text class="message-time">{{ formatDateTime(msg.created_at) }}</text>
+              </view>
+            </view>
+            <image v-if="isMine(msg)" class="msg-avatar" :src="formatAvatar(currentUserAvatar)" mode="aspectFill" />
+          </view>
+        </template>
       </view>
     </scroll-view>
 
-    <view class="input-area">
-      <input class="message-input" v-model="inputMessage" type="text" placeholder="输入消息..." confirm-type="send"
-        @confirm="sendMessage" />
+    <view v-if="!isConnected && !loading" class="reconnect-bar">
+      <text class="reconnect-text">⚠ 连接已断开，可能无法实时收到新消息</text>
+      <text class="reconnect-btn" @click="initWebSocket">重新连接</text>
+    </view>
+
+    <view class="input-area safe-area-bottom">
+      <input
+        class="message-input"
+        v-model="inputMessage"
+        type="text"
+        placeholder="输入消息..."
+        confirm-type="send"
+        :disabled="sending"
+        @confirm="sendMessage"
+      />
       <button class="send-btn" :disabled="!inputMessage.trim() || sending" @click="sendMessage">
         {{ sending ? '发送中' : '发送' }}
       </button>
@@ -36,7 +75,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import userApi from '../../api/user'
 import { getWebSocketUrl, getWebSocketProtocols } from '../../api/request'
@@ -50,6 +89,7 @@ const messages = ref([])
 const inputMessage = ref('')
 const currentUserId = ref(0)
 const currentUserAvatar = ref('')
+const loading = ref(false)
 const loadingMore = ref(false)
 const sending = ref(false)
 const scrollTop = ref(0)
@@ -62,12 +102,69 @@ const heartbeatTimer = ref(null)
 const reconnectAttempts = ref(0)
 const maxReconnectAttempts = 5
 const reconnectDelay = 1000
+const connectionStatus = ref('disconnected')
+const isConnected = ref(false)
 
 const isMine = (msg) => {
   return msg.sender?.id === currentUserId.value
 }
 
+const statusBarHeight = ref(0)
+
+const headerStyle = computed(() => {
+  return {
+    paddingTop: `${statusBarHeight.value + 20}rpx`
+  }
+})
+
+const connectionStatusText = computed(() => {
+  const map = {
+    connecting: '连接中',
+    connected: '在线',
+    disconnected: '已断开',
+    error: '连接错误'
+  }
+  return map[connectionStatus.value] || ''
+})
+
+const formatDate = (time) => {
+  if (!time) return ''
+  const date = new Date(time)
+  if (isNaN(date.getTime())) return ''
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+
+  const isSameDay = (a, b) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+
+  if (isSameDay(date, today)) return '今天'
+  if (isSameDay(date, yesterday)) return '昨天'
+  return `${date.getMonth() + 1}月${date.getDate()}日`
+}
+
+const groupedMessages = computed(() => {
+  const groups = []
+  let currentDate = ''
+
+  messages.value.forEach(msg => {
+    const date = formatDate(msg.created_at)
+    if (date !== currentDate) {
+      currentDate = date
+      groups.push({ date, messages: [msg] })
+    } else {
+      groups[groups.length - 1].messages.push(msg)
+    }
+  })
+
+  return groups
+})
+
 onLoad((options) => {
+  const info = uni.getSystemInfoSync()
+  statusBarHeight.value = info.statusBarHeight
   userId.value = Number(options.userId) || 0
   username.value = options.username || ''
   checkAuthAndLoad()
@@ -135,6 +232,7 @@ const loadMessages = async (isLoadMore = false) => {
     loadingMore.value = true
     page.value++
   } else {
+    loading.value = true
     page.value = 1
   }
 
@@ -163,6 +261,7 @@ const loadMessages = async (isLoadMore = false) => {
     console.error('获取对话失败:', error)
     uni.showToast({ title: '加载失败', icon: 'none' })
   } finally {
+    loading.value = false
     loadingMore.value = false
   }
 }
@@ -173,13 +272,14 @@ const loadMore = () => {
 
 const scrollToBottom = () => {
   nextTick(() => {
-    scrollTop.value = 999999
+    scrollTop.value = 999999 + Date.now()
   })
 }
 
 const initWebSocket = () => {
   if (!userId.value || socketTask.value) return
 
+  connectionStatus.value = 'connecting'
   const url = getWebSocketUrl(`private/${userId.value}`)
   const protocols = getWebSocketProtocols()
 
@@ -193,32 +293,33 @@ const initWebSocket = () => {
 
   socketTask.value.onOpen(() => {
     console.log('私信 WebSocket 连接已打开')
+    connectionStatus.value = 'connected'
+    isConnected.value = true
     reconnectAttempts.value = 0
     startHeartbeat()
+    loadMessages()
   })
 
   socketTask.value.onMessage((res) => {
     try {
       const data = JSON.parse(res.data)
       if (data.type === 'private_message') {
-        const msg = {
-          id: data.id,
-          content: data.content,
-          created_at: data.created_at,
-          sender: {
-            id: data.sender_id,
-            username: data.sender_username,
-            avatar: data.sender_avatar
-          },
-          receiver: {
-            id: data.receiver_id,
-            username: data.receiver_username
-          }
-        }
-        messages.value.push(msg)
-        scrollToBottom()
+        handlePrivateMessage(data)
+      } else if (data.type === 'private_chat_ready') {
+        console.log('私聊频道就绪:', data.message)
       } else if (data.type === 'heartbeat_response') {
         // 忽略
+      } else if (data.type === 'message_received') {
+        const index = messages.value.findIndex(
+          msg => msg.isTemp && msg.content === data.content && msg.sender?.id === currentUserId.value
+        )
+        if (index !== -1) {
+          messages.value[index] = {
+            ...messages.value[index],
+            isTemp: false,
+            sendFailed: false
+          }
+        }
       } else if (data.type === 'error') {
         uni.showToast({ title: data.message || '服务器错误', icon: 'none' })
       }
@@ -230,6 +331,8 @@ const initWebSocket = () => {
   socketTask.value.onClose((res) => {
     console.log('私信 WebSocket 连接已关闭', res)
     socketTask.value = null
+    isConnected.value = false
+    connectionStatus.value = 'disconnected'
     stopHeartbeat()
 
     // 4001 未认证、4002 缺少参数、4003 非好友、4004 用户不存在时不重连
@@ -259,7 +362,49 @@ const initWebSocket = () => {
 
   socketTask.value.onError((error) => {
     console.error('私信 WebSocket 错误:', error)
+    connectionStatus.value = 'error'
+    isConnected.value = false
   })
+}
+
+const handlePrivateMessage = (data) => {
+  const senderId = Number(data.sender_id)
+  const receiverId = Number(data.receiver_id)
+  const currentId = Number(userId.value)
+
+  // 只处理属于当前对话的消息
+  const participants = [senderId, receiverId]
+  if (!participants.includes(currentUserId.value) || !participants.includes(currentId)) {
+    return
+  }
+
+  const newMessage = {
+    id: data.id || Date.now(),
+    sender: {
+      id: senderId,
+      username: data.sender_username,
+      avatar: data.sender_avatar
+    },
+    receiver: {
+      id: receiverId,
+      username: data.receiver_username
+    },
+    content: data.content,
+    is_read: data.is_read || false,
+    created_at: data.created_at || new Date().toISOString()
+  }
+
+  // 检查是否是当前用户的临时消息，如果是则替换
+  const existingIndex = messages.value.findIndex(msg =>
+    msg.isTemp && msg.sender?.id === senderId && msg.content === newMessage.content
+  )
+
+  if (existingIndex !== -1) {
+    messages.value[existingIndex] = newMessage
+  } else {
+    messages.value.push(newMessage)
+    scrollToBottom()
+  }
 }
 
 const startHeartbeat = () => {
@@ -294,28 +439,79 @@ const closeSocket = () => {
 
 const sendMessage = async () => {
   const content = inputMessage.value.trim()
-  if (!content || sending.value) return
+  if (!content || sending.value || !userId.value) return
 
   sending.value = true
-  const tempMsg = {
-    id: `temp-${Date.now()}`,
+  const tempId = `temp-${Date.now()}`
+  const tempMessage = {
+    id: tempId,
     content,
     created_at: new Date().toISOString(),
     sender: {
       id: currentUserId.value,
       username: '我',
       avatar: currentUserAvatar.value
-    }
+    },
+    receiver: userInfo.value,
+    isTemp: true,
+    sendFailed: false
   }
-  messages.value.push(tempMsg)
+
+  messages.value.push(tempMessage)
   inputMessage.value = ''
   scrollToBottom()
 
   try {
-    await userApi.sendMessage(userId.value, { content })
+    const response = await userApi.sendMessage(userId.value, { content })
+    const index = messages.value.findIndex(msg => msg.id === tempId)
+    if (index !== -1 && response) {
+      messages.value[index] = {
+        ...response,
+        sender: response.sender || tempMessage.sender,
+        receiver: response.receiver || userInfo.value,
+        isTemp: false,
+        sendFailed: false
+      }
+    }
   } catch (error) {
     console.error('发送私信失败:', error)
+    const index = messages.value.findIndex(msg => msg.id === tempId)
+    if (index !== -1) {
+      messages.value[index] = {
+        ...messages.value[index],
+        isTemp: false,
+        sendFailed: true
+      }
+    }
     uni.showToast({ title: '发送失败', icon: 'none' })
+  } finally {
+    sending.value = false
+  }
+}
+
+const resendMessage = async (message) => {
+  if (!message.content || !userId.value) return
+  message.sendFailed = false
+  message.isTemp = true
+  sending.value = true
+
+  try {
+    const response = await userApi.sendMessage(userId.value, { content: message.content })
+    const index = messages.value.findIndex(msg => msg.id === message.id)
+    if (index !== -1 && response) {
+      messages.value[index] = {
+        ...response,
+        sender: response.sender || message.sender,
+        receiver: response.receiver || userInfo.value,
+        isTemp: false,
+        sendFailed: false
+      }
+    }
+  } catch (error) {
+    console.error('重发私信失败:', error)
+    message.sendFailed = true
+    message.isTemp = false
+    uni.showToast({ title: '重发失败', icon: 'none' })
   } finally {
     sending.value = false
   }
@@ -358,9 +554,54 @@ const goBack = () => {
 }
 
 .header-title {
+  flex: 1;
   font-size: 32rpx;
   font-weight: 600;
   color: #333;
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  padding: 4rpx 12rpx;
+  border-radius: 12rpx;
+  font-size: 22rpx;
+}
+
+.header-status .status-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  margin-right: 8rpx;
+}
+
+.header-status.connecting {
+  background: #fff7e6;
+  color: #fa8c16;
+}
+
+.header-status.connecting .status-dot {
+  background: #fa8c16;
+}
+
+.header-status.connected {
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.header-status.connected .status-dot {
+  background: #52c41a;
+}
+
+.header-status.disconnected,
+.header-status.error {
+  background: #fff1f0;
+  color: #f5222d;
+}
+
+.header-status.disconnected .status-dot,
+.header-status.error .status-dot {
+  background: #f5222d;
 }
 
 .message-list {
@@ -378,7 +619,42 @@ const goBack = () => {
 }
 
 .load-more {
-  color: #4CAF50;
+  color: #4361ee;
+}
+
+.empty-tip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 100rpx 30rpx;
+  color: #999;
+  font-size: 28rpx;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 80rpx;
+  margin-bottom: 20rpx;
+}
+
+.messages-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.date-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 20rpx 0;
+}
+
+.date-divider text {
+  padding: 8rpx 20rpx;
+  background: #e0e0e0;
+  color: #666;
+  border-radius: 20rpx;
+  font-size: 24rpx;
 }
 
 .message-item {
@@ -399,17 +675,31 @@ const goBack = () => {
   flex-shrink: 0;
 }
 
-.message-content {
+.message-body {
   max-width: 70%;
   margin: 0 20rpx;
   display: flex;
   flex-direction: column;
 }
 
-.message-text {
-  background-color: #fff;
+.message-content {
   padding: 18rpx 24rpx;
   border-radius: 16rpx;
+  background-color: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.message-mine .message-content {
+  background-color: #4361ee;
+}
+
+.message-content.send-failed {
+  background-color: #fff1f0 !important;
+  border: 1rpx solid #f5222d;
+}
+
+.message-text {
   font-size: 28rpx;
   color: #333;
   line-height: 1.5;
@@ -417,18 +707,73 @@ const goBack = () => {
 }
 
 .message-mine .message-text {
-  background-color: #4CAF50;
   color: #fff;
+}
+
+.message-mine .send-failed .message-text {
+  color: #f5222d;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  margin-top: 8rpx;
+  flex-wrap: wrap;
+}
+
+.message-mine .message-meta {
+  justify-content: flex-end;
+}
+
+.status-hint {
+  font-size: 22rpx;
+  margin-right: 12rpx;
+}
+
+.status-hint.sending {
+  color: #fa8c16;
+}
+
+.status-hint.failed {
+  color: #f5222d;
+  text-decoration: underline;
+}
+
+.status-hint.sent {
+  color: #999;
 }
 
 .message-time {
   font-size: 20rpx;
   color: #999;
-  margin-top: 8rpx;
 }
 
 .message-mine .message-time {
-  text-align: right;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.reconnect-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16rpx 24rpx;
+  background: #fff7e6;
+  border-top: 1rpx solid #ffe7ba;
+}
+
+.reconnect-text {
+  font-size: 24rpx;
+  color: #fa8c16;
+  flex: 1;
+}
+
+.reconnect-btn {
+  font-size: 24rpx;
+  color: #fff;
+  background: #fa8c16;
+  padding: 8rpx 20rpx;
+  border-radius: 24rpx;
+  margin-left: 16rpx;
 }
 
 .input-area {
@@ -455,7 +800,7 @@ const goBack = () => {
   line-height: 72rpx;
   margin-left: 20rpx;
   padding: 0;
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
   font-size: 28rpx;
   border-radius: 36rpx;

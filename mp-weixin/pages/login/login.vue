@@ -165,13 +165,13 @@ const goToRegister = () => {
 
 .forgot-text {
   font-size: 26rpx;
-  color: #4CAF50;
+  color: #4361ee;
 }
 
 .login-btn {
   width: 100%;
   height: 90rpx;
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
   border-radius: 45rpx;
   font-size: 32rpx;
@@ -222,7 +222,7 @@ const goToRegister = () => {
 }
 
 .link {
-  color: #4CAF50;
+  color: #4361ee;
   margin-left: 10rpx;
 }
 </style>

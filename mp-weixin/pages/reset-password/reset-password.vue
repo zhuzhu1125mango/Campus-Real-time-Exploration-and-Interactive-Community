@@ -365,8 +365,8 @@ const goToLogin = () => {
 }
 
 .tab-item.active {
-  color: #4CAF50;
-  border-bottom-color: #4CAF50;
+  color: #4361ee;
+  border-bottom-color: #4361ee;
   font-weight: 500;
 }
 
@@ -404,7 +404,7 @@ const goToLogin = () => {
 .btn-code {
   width: 220rpx;
   height: 80rpx;
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
   font-size: 24rpx;
   border-radius: 12rpx;
@@ -425,7 +425,7 @@ const goToLogin = () => {
 .btn-reset {
   width: 100%;
   height: 90rpx;
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
   font-size: 32rpx;
   font-weight: 500;
@@ -445,7 +445,7 @@ const goToLogin = () => {
 }
 
 .login-link {
-  color: #4CAF50;
+  color: #4361ee;
   margin-left: 10rpx;
 }
 </style>

@@ -141,7 +141,7 @@ const goBack = () => {
 }
 
 .header {
-  background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+  background: linear-gradient(135deg, #4361ee 0%, #2E7D32 100%);
   color: #fff;
   padding: 40rpx 30rpx;
 }
@@ -231,7 +231,7 @@ const goBack = () => {
 }
 
 .btn-primary {
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
 }
 

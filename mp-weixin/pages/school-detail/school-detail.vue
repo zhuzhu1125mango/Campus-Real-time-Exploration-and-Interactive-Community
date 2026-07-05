@@ -221,7 +221,7 @@ const goToSchoolForum = () => {
 }
 
 .tag-type {
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
 }
 
@@ -298,7 +298,7 @@ const goToSchoolForum = () => {
 
 .score {
   font-size: 28rpx;
-  color: #4CAF50;
+  color: #4361ee;
   font-weight: 500;
 }
 
@@ -379,7 +379,7 @@ const goToSchoolForum = () => {
 }
 
 .compare-btn {
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
 }
 

@@ -143,7 +143,7 @@
             @ended="handleLessonComplete"
           />
           <view v-else class="player-content">
-            <rich-text :nodes="currentLesson?.content"></rich-text>
+            <rich-text :nodes="safeLessonContent"></rich-text>
           </view>
           <view v-if="currentLesson?.video_url" class="player-controls">
             <view class="speed-control">
@@ -177,8 +177,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import learningApi from '../../api/learning'
+import { sanitizeHtml } from '../../utils/xss'
 
 const defaultCover = 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=campus%20online%20course%20cover%20image&image_size=landscape_16_9'
 
@@ -199,6 +200,8 @@ const progressMap = ref({})
 const currentProgress = ref(null)
 const lastSavedPosition = ref(0)
 const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 2]
+
+const safeLessonContent = computed(() => sanitizeHtml(currentLesson.value?.content || ''))
 
 const courseId = ref('')
 

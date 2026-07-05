@@ -329,7 +329,7 @@ const formatDate = (dateStr) => {
 }
 
 .avatar-placeholder {
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
   display: flex;
   align-items: center;
@@ -347,7 +347,7 @@ const formatDate = (dateStr) => {
 .msg-btn {
   margin-left: 20rpx;
   padding: 12rpx 30rpx;
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
   font-size: 26rpx;
   border-radius: 30rpx;
@@ -403,7 +403,7 @@ const formatDate = (dateStr) => {
 .stat-value {
   font-size: 36rpx;
   font-weight: bold;
-  color: #4CAF50;
+  color: #4361ee;
   margin-bottom: 8rpx;
 }
 
@@ -468,8 +468,8 @@ const formatDate = (dateStr) => {
 }
 
 .tab-item.active {
-  color: #4CAF50;
-  border-bottom-color: #4CAF50;
+  color: #4361ee;
+  border-bottom-color: #4361ee;
   font-weight: 500;
 }
 
@@ -523,7 +523,7 @@ const formatDate = (dateStr) => {
 
 .topic-board {
   background-color: #f0f9f0;
-  color: #4CAF50;
+  color: #4361ee;
   font-size: 22rpx;
   padding: 5rpx 15rpx;
   border-radius: 4rpx;

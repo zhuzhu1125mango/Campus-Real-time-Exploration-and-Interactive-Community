@@ -259,7 +259,7 @@ onPullDownRefresh(() => {
 }
 
 .sort-item.active {
-  color: #4CAF50;
+  color: #4361ee;
   font-weight: 500;
 }
 
@@ -270,7 +270,7 @@ onPullDownRefresh(() => {
   left: 30rpx;
   right: 30rpx;
   height: 4rpx;
-  background-color: #4CAF50;
+  background-color: #4361ee;
   border-radius: 2rpx;
 }
 
@@ -295,7 +295,7 @@ onPullDownRefresh(() => {
 }
 
 .category-item.active {
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
 }
 
@@ -345,7 +345,7 @@ onPullDownRefresh(() => {
 .board-tag {
   padding: 6rpx 16rpx;
   background-color: #e8f5e9;
-  color: #4CAF50;
+  color: #4361ee;
   font-size: 22rpx;
   border-radius: 8rpx;
 }
@@ -390,7 +390,7 @@ onPullDownRefresh(() => {
   bottom: 100rpx;
   width: 100rpx;
   height: 100rpx;
-  background-color: #4CAF50;
+  background-color: #4361ee;
   border-radius: 50%;
   display: flex;
   align-items: center;

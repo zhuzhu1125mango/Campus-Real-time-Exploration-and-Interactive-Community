@@ -21,7 +21,7 @@
 
       <!-- 首贴内容 -->
       <view class="first-post-card" v-if="firstPost">
-        <rich-text class="post-content" :nodes="firstPost.content"></rich-text>
+        <rich-text class="post-content" :nodes="safeFirstPostContent"></rich-text>
         <view class="post-actions">
           <view class="action-item" @click="togglePostLike(firstPost)">
             <text class="icon">{{ firstPost.is_liked ? '❤️' : '🤍' }}</text>
@@ -50,7 +50,7 @@
                 <text class="reply-floor">{{ reply.floor }}楼</text>
                 <text class="reply-time">{{ formatTime(reply.created_at) }}</text>
               </view>
-              <rich-text class="reply-text" :nodes="reply.content"></rich-text>
+              <rich-text class="reply-text" :nodes="safeReplyContent(reply.content)"></rich-text>
               <view class="reply-actions">
                 <view class="reply-action" @click="togglePostLike(reply)">
                   <text class="icon">{{ reply.is_liked ? '❤️' : '🤍' }}</text>
@@ -89,6 +89,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import forumApi from '../../api/forum'
+import { sanitizeHtml } from '../../utils/xss'
 
 const topicId = ref(null)
 const loading = ref(false)
@@ -104,6 +105,9 @@ const noMore = ref(false)
 const firstPost = computed(() => {
   return posts.value.find(p => p.is_first_post) || posts.value[0] || null
 })
+
+const safeFirstPostContent = computed(() => sanitizeHtml(firstPost.value?.content || ''))
+const safeReplyContent = (content) => sanitizeHtml(content || '')
 
 onMounted(() => {
   const pages = getCurrentPages()
@@ -316,7 +320,7 @@ onPullDownRefresh(() => {
 .board-tag {
   padding: 6rpx 16rpx;
   background-color: #e8f5e9;
-  color: #4CAF50;
+  color: #4361ee;
   font-size: 22rpx;
   border-radius: 8rpx;
 }
@@ -400,7 +404,7 @@ onPullDownRefresh(() => {
 
 .reply-floor {
   font-size: 22rpx;
-  color: #4CAF50;
+  color: #4361ee;
   background-color: #e8f5e9;
   padding: 2rpx 10rpx;
   border-radius: 6rpx;
@@ -469,7 +473,7 @@ onPullDownRefresh(() => {
 .submit-btn {
   width: 120rpx;
   height: 70rpx;
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
   border-radius: 35rpx;
   font-size: 28rpx;

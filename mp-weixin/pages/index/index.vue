@@ -186,7 +186,7 @@ const formatTime = (time) => {
 }
 
 .search-section {
-  background-color: #4CAF50;
+  background-color: #4361ee;
   padding: 30rpx;
 }
 
@@ -205,7 +205,7 @@ const formatTime = (time) => {
 }
 
 .search-btn {
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
   font-size: 26rpx;
   padding: 10rpx 30rpx;

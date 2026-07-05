@@ -206,7 +206,7 @@ const formatTime = (time) => {
   right: 30rpx;
   width: 16rpx;
   height: 16rpx;
-  background-color: #4CAF50;
+  background-color: #4361ee;
   border-radius: 50%;
 }
 

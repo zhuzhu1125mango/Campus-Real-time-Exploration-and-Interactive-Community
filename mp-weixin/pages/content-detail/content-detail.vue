@@ -57,7 +57,7 @@
           :src="content.featured_image"
           mode="widthFix"
         />
-        <rich-text class="content-text" :nodes="content.content"></rich-text>
+        <rich-text class="content-text" :nodes="safeContent"></rich-text>
       </view>
 
       <!-- 评论区 -->
@@ -109,6 +109,7 @@
 import { ref, onMounted, computed } from 'vue'
 import contentApi from '../../api/content'
 import userApi from '../../api/user'
+import { sanitizeHtml } from '../../utils/xss'
 
 const props = defineProps({
   id: {
@@ -125,6 +126,8 @@ const commentText = ref('')
 const error = ref('')
 const isLoggedIn = ref(false)
 const currentUserId = ref(null)
+
+const safeContent = computed(() => sanitizeHtml(content.value?.content || ''))
 
 const statusLabels = {
   draft: '草稿',

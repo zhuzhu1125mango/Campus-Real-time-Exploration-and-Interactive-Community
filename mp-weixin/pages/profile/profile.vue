@@ -190,9 +190,9 @@ const handleLogout = () => {
 
 .edit-btn {
   font-size: 26rpx;
-  color: #4CAF50;
+  color: #4361ee;
   padding: 10rpx 30rpx;
-  border: 1rpx solid #4CAF50;
+  border: 1rpx solid #4361ee;
   border-radius: 30rpx;
   background-color: #fff;
 }
@@ -247,15 +247,15 @@ const handleLogout = () => {
 }
 
 .login-btn {
-  background-color: #4CAF50;
+  background-color: #4361ee;
   color: #fff;
   border: none;
 }
 
 .register-btn {
   background-color: #fff;
-  color: #4CAF50;
-  border: 1rpx solid #4CAF50;
+  color: #4361ee;
+  border: 1rpx solid #4361ee;
 }
 
 .logout-btn {

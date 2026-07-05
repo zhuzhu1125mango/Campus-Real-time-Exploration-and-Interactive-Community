@@ -282,7 +282,7 @@ const onReachBottom = () => {
 }
 
 .header {
-  background: linear-gradient(135deg, #3498db, #2980b9);
+  background: linear-gradient(135deg, #4361ee, #2980b9);
   color: #fff;
   padding: 60rpx 30rpx;
   text-align: center;
@@ -321,7 +321,7 @@ const onReachBottom = () => {
 }
 
 .search-btn {
-  background-color: #3498db;
+  background-color: #4361ee;
   color: #fff;
   font-size: 26rpx;
   padding: 10rpx 30rpx;
@@ -363,7 +363,7 @@ const onReachBottom = () => {
 
 .my-learning {
   font-size: 26rpx;
-  color: #3498db;
+  color: #4361ee;
 }
 
 .course-list {
@@ -498,6 +498,6 @@ const onReachBottom = () => {
 
 .download-icon {
   font-size: 32rpx;
-  color: #3498db;
+  color: #4361ee;
 }
 </style>
