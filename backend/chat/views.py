@@ -1,5 +1,8 @@
 import logging
+import os
 import threading
+import time
+
 from django.shortcuts import render
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
@@ -13,28 +16,81 @@ from .serializers import ChatMessageSerializer
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
-# 在线用户集合（简化实现，单进程内使用锁保证线程安全）
-_online_users = set()
-_online_users_lock = threading.Lock()
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 
 
-class OnlineUsers:
-    """在线用户集合包装类，提供线程安全的增删查操作。"""
+class RecentActivePresence:
+    """
+    基于 Redis 的"最近活跃"用户统计。
 
-    def add(self, user_id):
-        with _online_users_lock:
-            _online_users.add(user_id)
+    使用 Redis Sorted Set 记录用户最近一次活跃时间，窗口期内的用户即为"在线"。
+    当 Redis 不可用时，回退到线程安全的内存字典（开发环境单进程）。
 
-    def discard(self, user_id):
-        with _online_users_lock:
-            _online_users.discard(user_id)
+    相比内存集合的优势：
+    - 支持多 worker / 多实例部署
+    - 同一用户多连接不会误删，以最近活跃时间为准
+    - 连接异常断开时，用户会在窗口过期后自动下线
+    """
 
-    def __len__(self):
-        with _online_users_lock:
-            return len(_online_users)
+    KEY = "chat:recent_active_users"
+    WINDOW_SECONDS = 300  # 5 分钟活跃窗口
+
+    _redis = None
+    _redis_available = None
+    _lock = threading.Lock()
+    _fallback_users = {}
+
+    @classmethod
+    def _get_redis(cls):
+        if cls._redis_available is False:
+            return None
+        if cls._redis is not None:
+            return cls._redis
+        try:
+            import redis
+            cls._redis = redis.from_url(REDIS_URL, decode_responses=True)
+            cls._redis.ping()
+            cls._redis_available = True
+            logger.info("Redis 最近活跃用户统计已启用")
+            return cls._redis
+        except Exception as e:
+            logger.warning("Redis 不可用，回退到内存最近活跃用户统计: %s", e)
+            cls._redis_available = False
+            return None
+
+    @classmethod
+    def mark_active(cls, user_id):
+        """标记用户为活跃（连接、心跳、发消息时调用）。"""
+        if user_id is None:
+            return
+        r = cls._get_redis()
+        user_id = str(user_id)
+        timestamp = time.time()
+        if r:
+            r.zadd(cls.KEY, {user_id: timestamp})
+        else:
+            with cls._lock:
+                cls._fallback_users[user_id] = timestamp
+
+    @classmethod
+    def count(cls):
+        """返回窗口期内的活跃用户数量，并清理过期记录。"""
+        r = cls._get_redis()
+        cutoff = time.time() - cls.WINDOW_SECONDS
+        if r:
+            r.zremrangebyscore(cls.KEY, 0, cutoff)
+            return r.zcard(cls.KEY) or 0
+        with cls._lock:
+            inactive = [
+                uid for uid, ts in cls._fallback_users.items()
+                if ts < cutoff
+            ]
+            for uid in inactive:
+                cls._fallback_users.pop(uid, None)
+            return len(cls._fallback_users) or 0
 
 
-online_users = OnlineUsers()
+presence = RecentActivePresence()
 
 # API视图函数
 
@@ -59,8 +115,12 @@ def recent_messages(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_online_users(request):
-    """获取在线用户数量"""
-    return Response({"count": len(online_users) or 1})
+    """获取最近活跃用户数量"""
+    return Response({
+        "count": presence.count() or 1,
+        "metric": "recently_active",
+        "window_seconds": presence.WINDOW_SECONDS,
+    })
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -89,8 +149,7 @@ def send_message(request):
     # 创建消息记录
     message = ChatMessage.objects.create(
         content=content,
-        user=user,
-        username=username
+        user=user
     )
 
     # 广播给所有WebSocket客户端

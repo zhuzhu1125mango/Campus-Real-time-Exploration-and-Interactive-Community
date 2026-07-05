@@ -1,7 +1,7 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 import logging
-from .views import online_users
+from .views import presence
 from asgiref.sync import sync_to_async
 from datetime import datetime
 from users.notifications import Notification
@@ -50,8 +50,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
         
         if self.user.is_authenticated:
             logger.info(f"已认证用户已连接: {self.user.username} (ID: {self.user.id})")
-            # 添加到在线用户列表
-            await sync_to_async(online_users.add)(self.user.id)
+            # 标记用户为活跃（基于 Redis 的最近活跃统计）
+            await sync_to_async(presence.mark_active)(self.user.id)
             # 发送认证成功消息
             await self.send(text_data=json.dumps({
                 'type': 'auth_success',
@@ -74,20 +74,21 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'type': 'auth_warning',
                 'message': "您尚未登录，部分功能可能受限。"
             }))
-        
-        # 获取在线用户数量
-        online_count = await sync_to_async(len)(online_users)
-        
+
+        # 获取最近活跃用户数量
+        online_count = await sync_to_async(presence.count)()
+
         # 发送欢迎消息和在线用户数量
         await self.send(text_data=json.dumps({
             'type': 'welcome',
             'message': "欢迎来到聊天室！",
             'time': datetime.now().isoformat(),
             'online_users': {
-                'count': online_count or 1
+                'count': online_count or 1,
+                'metric': 'recently_active'
             }
         }))
-        
+
         # 广播在线用户更新
         await self.channel_layer.group_send(
             self.room_group_name,
@@ -99,11 +100,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, close_code):
         logger.info(f"断开WebSocket连接: {self.channel_name}, 代码: {close_code}")
-        
-        # 从在线用户列表中移除
+
+        # 基于"最近活跃"统计，断开时不立即移除用户；
+        # 用户会在 WINDOW_SECONDS 窗口过期后自动从在线统计中下线。
+        # 这种设计对多标签页更友好，也避免连接异常断开导致统计抖动。
         if hasattr(self, 'user') and self.user.is_authenticated:
-            await sync_to_async(online_users.discard)(self.user.id)
-            logger.info(f"用户 {self.user.username} (ID: {self.user.id}) 已从在线列表移除")
+            logger.info(f"用户 {self.user.username} (ID: {self.user.id}) 连接断开")
             # 从用户特定的通知组中移除
             if hasattr(self, 'user_group_name'):
                 await self.channel_layer.group_discard(
@@ -111,15 +113,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     self.channel_name
                 )
                 logger.info(f"用户 {self.user.username} (ID: {self.user.id}) 已从通知组中移除")
-        
+
         # 从群组中移除
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
         )
-        
-        # 广播在线用户更新
-        online_count = await sync_to_async(len)(online_users)
+
+        # 广播在线用户更新（基于最近活跃统计）
+        online_count = await sync_to_async(presence.count)()
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -137,6 +139,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             
             # 处理心跳消息
             if message_type == 'heartbeat':
+                if self.user.is_authenticated:
+                    await sync_to_async(presence.mark_active)(self.user.id)
                 await self.send(text_data=json.dumps({
                     'type': 'heartbeat_response',
                     'timestamp': data.get('timestamp', 0)
@@ -181,7 +185,22 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     avatar = None
                 
                 current_time = datetime.now().isoformat()
-                
+
+                # 发消息时刷新用户活跃时间
+                if self.user.is_authenticated:
+                    await sync_to_async(presence.mark_active)(self.user.id)
+
+                # 持久化到数据库，便于历史消息查询
+                from .models import ChatMessage
+                try:
+                    await sync_to_async(ChatMessage.objects.create)(
+                        user=self.user,
+                        content=content
+                    )
+                    logger.info(f"公共聊天室消息已持久化: {content[:50]}")
+                except Exception as e:
+                    logger.error(f"公共聊天室消息持久化失败: {e}")
+
                 # 广播消息给所有连接的客户端
                 logger.info(f"广播消息给所有连接的客户端: {content}")
                 await self.channel_layer.group_send(
