@@ -165,16 +165,16 @@ class EnrollmentCreateSerializer(serializers.ModelSerializer):
 class ProgressSerializer(serializers.ModelSerializer):
     enrollment = serializers.CharField(source='enrollment.id')
     lesson = LessonSerializer()
-    
+
     class Meta:
         model = Progress
-        fields = ['id', 'enrollment', 'lesson', 'is_completed', 'last_watched_at', 'watched_duration']
+        fields = ['id', 'enrollment', 'lesson', 'is_completed', 'last_watched_at', 'watched_duration', 'last_position']
 
 
 class ProgressUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Progress
-        fields = ['is_completed', 'last_watched_at', 'watched_duration']
+        fields = ['is_completed', 'last_watched_at', 'watched_duration', 'last_position']
 
 
 class ReviewSerializer(serializers.ModelSerializer):

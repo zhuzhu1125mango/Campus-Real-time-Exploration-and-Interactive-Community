@@ -212,7 +212,7 @@ class ProgressViewSet(viewsets.ModelViewSet):
         return Progress.objects.filter(enrollment__user=self.request.user)
 
     def get_serializer_class(self):
-        if self.action == 'update' or self.action == 'partial_update':
+        if self.action == 'update' or self.action == 'partial_update' or self.action == 'record':
             return ProgressUpdateSerializer
         return ProgressSerializer
 
@@ -224,6 +224,33 @@ class ProgressViewSet(viewsets.ModelViewSet):
         completed_lessons = enrollment.progresses.filter(is_completed=True).count()
         enrollment.progress = (completed_lessons / total_lessons) * 100 if total_lessons > 0 else 0
         enrollment.save()
+
+    @action(detail=False, methods=['post'])
+    def record(self, request):
+        """创建或更新课时学习进度"""
+        enrollment_id = request.data.get('enrollment')
+        lesson_id = request.data.get('lesson')
+        if not enrollment_id or not lesson_id:
+            return Response({'detail': '缺少 enrollment 或 lesson 参数'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            enrollment = Enrollment.objects.get(id=enrollment_id, user=request.user)
+            lesson = Lesson.objects.get(id=lesson_id)
+        except Enrollment.DoesNotExist:
+            return Response({'detail': '报名记录不存在'}, status=status.HTTP_404_NOT_FOUND)
+        except Lesson.DoesNotExist:
+            return Response({'detail': '课时不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+        progress, _ = Progress.objects.get_or_create(
+            enrollment=enrollment,
+            lesson=lesson,
+            defaults={'is_completed': False, 'last_position': 0}
+        )
+
+        serializer = ProgressUpdateSerializer(progress, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(ProgressSerializer(progress).data)
 
 
 class ReviewViewSet(viewsets.ModelViewSet):

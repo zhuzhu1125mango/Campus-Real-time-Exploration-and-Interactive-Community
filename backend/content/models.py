@@ -58,6 +58,13 @@ class Tag(models.Model):
 
 class Content(models.Model):
     """内容模型"""
+    STATUS_CHOICES = [
+        ('draft', '草稿'),
+        ('pending', '待审核'),
+        ('published', '已发布'),
+        ('rejected', '已拒绝'),
+    ]
+
     title = models.CharField(max_length=200, verbose_name='标题')
     slug = models.SlugField(max_length=200, unique=True, verbose_name='别名')
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE, verbose_name='内容类型')
@@ -68,6 +75,7 @@ class Content(models.Model):
     summary = models.TextField(blank=True, verbose_name='摘要')
     featured_image = models.ImageField(upload_to='content/images/', blank=True, null=True, verbose_name='特色图片')
     is_published = models.BooleanField(default=False, verbose_name='是否发布')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', verbose_name='状态')
     publish_date = models.DateTimeField(null=True, blank=True, verbose_name='发布时间')
     view_count = models.IntegerField(default=0, verbose_name='浏览次数')
     comment_count = models.IntegerField(default=0, verbose_name='评论次数')
@@ -87,6 +95,12 @@ class Content(models.Model):
         return reverse('content-detail', args=[self.slug])
 
     def save(self, *args, **kwargs):
+        # 保持 is_published 与 status 同步，便于旧代码兼容
+        if self.status == 'published':
+            self.is_published = True
+        elif self.status in ('draft', 'rejected'):
+            self.is_published = False
+
         if self.is_published and not self.publish_date:
             self.publish_date = timezone.now()
         super().save(*args, **kwargs)

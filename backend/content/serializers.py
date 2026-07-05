@@ -35,7 +35,7 @@ class ContentSerializer(serializers.ModelSerializer):
         model = Content
         fields = [
             'id', 'title', 'slug', 'content_type', 'category', 'tags', 'author',
-            'content', 'summary', 'featured_image', 'is_published', 'publish_date',
+            'content', 'summary', 'featured_image', 'is_published', 'status', 'publish_date',
             'view_count', 'comment_count', 'like_count', 'created_at', 'updated_at'
         ]
     
@@ -50,12 +50,13 @@ class ContentCreateSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), allow_null=True, required=False)
     tags = serializers.PrimaryKeyRelatedField(queryset=Tag.objects.all(), many=True, allow_null=True, required=False)
     slug = serializers.SlugField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(choices=Content.STATUS_CHOICES, default='draft', required=False)
 
     class Meta:
         model = Content
         fields = [
             'id', 'title', 'slug', 'content_type', 'category', 'tags', 'content',
-            'summary', 'featured_image', 'is_published'
+            'summary', 'featured_image', 'is_published', 'status'
         ]
 
     def create(self, validated_data):
@@ -76,12 +77,13 @@ class ContentUpdateSerializer(serializers.ModelSerializer):
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), allow_null=True, required=False)
     tags = serializers.PrimaryKeyRelatedField(queryset=Tag.objects.all(), many=True, allow_null=True, required=False)
     slug = serializers.SlugField(required=False, allow_blank=True)
+    status = serializers.ChoiceField(choices=Content.STATUS_CHOICES, required=False)
 
     class Meta:
         model = Content
         fields = [
             'title', 'slug', 'content_type', 'category', 'tags', 'content',
-            'summary', 'featured_image', 'is_published'
+            'summary', 'featured_image', 'is_published', 'status'
         ]
 
 

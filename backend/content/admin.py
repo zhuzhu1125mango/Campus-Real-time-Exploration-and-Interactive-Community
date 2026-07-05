@@ -27,8 +27,8 @@ class TagAdmin(admin.ModelAdmin):
 
 @admin.register(Content)
 class ContentAdmin(admin.ModelAdmin):
-    list_display = ('title', 'content_type', 'category', 'author', 'is_published', 'publish_date', 'view_count', 'created_at')
-    list_filter = ('content_type', 'category', 'is_published', 'created_at', 'publish_date')
+    list_display = ('title', 'content_type', 'category', 'author', 'status', 'is_published', 'publish_date', 'view_count', 'created_at')
+    list_filter = ('content_type', 'category', 'status', 'is_published', 'created_at', 'publish_date')
     search_fields = ('title', 'content', 'summary', 'author__username')
     filter_horizontal = ('tags',)
     date_hierarchy = 'created_at'

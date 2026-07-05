@@ -138,6 +138,7 @@ class Progress(models.Model):
     is_completed = models.BooleanField(default=False, verbose_name='是否完成')
     last_watched_at = models.DateTimeField(null=True, blank=True, verbose_name='最后观看时间')
     watched_duration = models.DurationField(default=timezone.timedelta(seconds=0), verbose_name='观看时长')
+    last_position = models.IntegerField(default=0, verbose_name='上次观看位置(秒)')
 
     class Meta:
         verbose_name = '学习进度'
