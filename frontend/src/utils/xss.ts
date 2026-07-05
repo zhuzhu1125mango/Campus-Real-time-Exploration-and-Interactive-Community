@@ -53,10 +53,12 @@ export function sanitizeHtml(html: string): string {
 
 /**
  * 从 HTML 内容中提取纯文本。
+ * 先使用 DOMPurify 清理危险标签与事件属性，再读取 textContent，
+ * 避免在转换过程中触发 XSS 攻击载荷。
  */
 export function stripHtml(html: string): string {
   if (!html) return ''
   const tmp = document.createElement('div')
-  tmp.innerHTML = html
+  tmp.innerHTML = sanitizeHtml(html)
   return tmp.textContent || tmp.innerText || ''
 }

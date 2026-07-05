@@ -4,13 +4,18 @@
       v-model="searchValue"
       :placeholder="placeholder"
       :size="size"
-      :prefix-icon="prefixIcon"
-      :suffix-icon="searching ? 'el-icon-loading' : 'el-icon-search'"
       :disabled="disabled"
       @keyup.enter="handleSearch"
       clearable
       @clear="handleClear"
     >
+      <template #prefix>
+        <el-icon><Search /></el-icon>
+      </template>
+      <template #suffix>
+        <el-icon v-if="searching" class="is-loading"><Loading /></el-icon>
+        <el-icon v-else><Search /></el-icon>
+      </template>
       <template v-if="$slots.prepend" #prepend>
         <slot name="prepend"></slot>
       </template>
@@ -23,6 +28,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { Search, Loading } from '@element-plus/icons-vue'
 
 type InputSize = 'large' | 'default' | 'small'
 
@@ -38,10 +44,6 @@ const props = defineProps({
   size: {
     type: String as () => InputSize,
     default: 'default'
-  },
-  prefixIcon: {
-    type: String,
-    default: 'el-icon-search'
   },
   disabled: {
     type: Boolean,
