@@ -12,8 +12,8 @@ const redirectToLogin = () => {
 
 // 是否正在刷新token
 let isRefreshing = false
-// 等待刷新token的请求队列
-let requests: Array<(token: string) => void> = []
+// 共享的 token 刷新 Promise，用于让并发 401 请求等待同一次刷新
+let refreshPromise: Promise<string | null> | null = null
 
 // 创建 axios 实例
 const service: AxiosInstance = axios.create({
@@ -80,68 +80,78 @@ service.interceptors.response.use(
       const { status, data } = error.response
       
       // 处理token过期 (401错误)
-      if (status === 401 && !originalRequest._retry) {
-        // 检查是否是登录请求或刷新token请求
-        const url = originalRequest.url || ''
-        const isLoginRequest = ['/users/users/login/', '/users/users/email_code_login/', '/users/users/phone_code_login/'].some(path => url.includes(path))
-        const isRefreshRequest = url === '/token/refresh/'
-        
-        // 登录请求和刷新token请求的401错误直接返回，不尝试刷新token
-        if (isLoginRequest || isRefreshRequest) {
-          return Promise.reject(error)
-        }
-        
-        if (isRefreshing) {
-          // 如果已经在刷新token，将请求加入队列
-          return new Promise(resolve => {
-            requests.push((token: string) => {
-              originalRequest.headers.Authorization = `${config.jwt.tokenType} ${token}`
-              resolve(service.request(originalRequest))
-            })
-          })
-        }
-        
-        originalRequest._retry = true
-        isRefreshing = true
-        
-        try {
-          // 获取刷新token
-          const refreshToken = localStorage.getItem(config.jwt.refreshTokenKey)
-          if (!refreshToken) {
-            throw new Error('没有刷新token')
+        if (status === 401 && !originalRequest._retry) {
+          // 检查是否是登录请求或刷新token请求
+          const url = originalRequest.url || ''
+          const isLoginRequest = ['/users/users/login/', '/users/users/email_code_login/', '/users/users/phone_code_login/'].some(path => url.includes(path))
+          const isRefreshRequest = url === '/token/refresh/'
+
+          // 登录请求和刷新token请求的401错误直接返回，不尝试刷新token
+          if (isLoginRequest || isRefreshRequest) {
+            return Promise.reject(error)
           }
-          
-          // 使用 service 实例刷新 token，与项目其他请求保持一致
-          const refreshResponse = await service.post('/token/refresh/', { refresh: refreshToken }) as { access: string }
-          const newToken = refreshResponse.access
-          
-          if (newToken) {
-            // 保存新token到localStorage
-            localStorage.setItem(config.jwt.accessTokenKey, newToken)
-            
-            // 执行队列中的请求
-            requests.forEach(callback => callback(newToken))
-            requests = []
-            
-            // 更新当前请求的Authorization头
+
+          originalRequest._retry = true
+
+          // 如果已经在刷新token，复用共享的刷新 Promise
+          if (isRefreshing && refreshPromise) {
+            try {
+              const newToken = await refreshPromise
+              if (!newToken) {
+                return Promise.reject(new Error('Token刷新失败'))
+              }
+              originalRequest.headers.Authorization = `${config.jwt.tokenType} ${newToken}`
+              return service.request(originalRequest)
+            } catch (refreshError) {
+              return Promise.reject(refreshError)
+            }
+          }
+
+          isRefreshing = true
+
+          refreshPromise = (async () => {
+            try {
+              // 获取刷新token
+              const refreshToken = localStorage.getItem(config.jwt.refreshTokenKey)
+              if (!refreshToken) {
+                throw new Error('没有刷新token')
+              }
+
+              // 使用 service 实例刷新 token，与项目其他请求保持一致
+              const refreshResponse = await service.post('/token/refresh/', { refresh: refreshToken }) as { access?: string }
+              const newToken = refreshResponse.access
+
+              if (!newToken) {
+                throw new Error('Token刷新失败')
+              }
+
+              // 保存新token到localStorage
+              localStorage.setItem(config.jwt.accessTokenKey, newToken)
+              return newToken
+            } catch (refreshError) {
+              // 刷新失败，清除token并跳转到登录页
+              localStorage.removeItem(config.jwt.accessTokenKey)
+              localStorage.removeItem(config.jwt.refreshTokenKey)
+              redirectToLogin()
+              throw refreshError
+            } finally {
+              isRefreshing = false
+              refreshPromise = null
+            }
+          })()
+
+          try {
+            const newToken = await refreshPromise
+            if (!newToken) {
+              return Promise.reject(new Error('Token刷新失败'))
+            }
+            // 更新当前请求的Authorization头并重试
             originalRequest.headers.Authorization = `${config.jwt.tokenType} ${newToken}`
             return service.request(originalRequest)
-          } else {
-            // 刷新失败，清除token并跳转到登录页
-            localStorage.removeItem(config.jwt.accessTokenKey)
-            localStorage.removeItem(config.jwt.refreshTokenKey)
-            redirectToLogin()
-            return Promise.reject(new Error('Token刷新失败'))
+          } catch (refreshError) {
+            return Promise.reject(refreshError)
           }
-        } catch (refreshError) {
-          localStorage.removeItem(config.jwt.accessTokenKey)
-          localStorage.removeItem(config.jwt.refreshTokenKey)
-          redirectToLogin()
-          return Promise.reject(refreshError)
-        } finally {
-          isRefreshing = false
         }
-      }
       
       switch (status) {
         case 400:

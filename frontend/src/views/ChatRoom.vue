@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
 import { useUserStore } from '../stores/userStore'
 import config from '../utils/config'
 import { messageStorage } from '../utils/messageStorage'
+import { chatApi } from '../api/chat'
 import { ElMessage } from 'element-plus'
 
 interface ChatUser {
@@ -80,8 +80,8 @@ const scrollToBottom = () => {
 const loadHistoryMessages = async () => {
   loading.value = true
   try {
-    const response = await axios.get('/api/chat/messages/recent_messages/')
-    const history = (response.data || []).map((msg: any) => ({
+    const data = await chatApi.getRecentMessages()
+    const history = (data || []).map((msg: any) => ({
       id: msg.id,
       content: msg.content,
       type: 'chat' as const,
@@ -105,8 +105,8 @@ const loadHistoryMessages = async () => {
 // 加载在线人数
 const loadOnlineCount = async () => {
   try {
-    const response = await axios.get('/api/chat/messages/online_users/')
-    onlineCount.value = response.data?.count || 0
+    const data = await chatApi.getOnlineUsers()
+    onlineCount.value = data?.count || 0
   } catch (error) {
     console.error('加载在线人数失败:', error)
   }

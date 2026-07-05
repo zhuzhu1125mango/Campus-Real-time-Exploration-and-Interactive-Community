@@ -119,8 +119,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import axios from 'axios'
-import config from '../utils/config'
+import { userApi } from '../api/user'
 import { useToast } from '../composables/useToast'
 
 interface Tab {
@@ -188,11 +187,6 @@ const filteredNotifications = computed(() => {
 const fetchNotifications = async (reset = true) => {
   loading.value = true
   try {
-    const token = localStorage.getItem(config.jwt.accessTokenKey)
-    if (!token) {
-      return
-    }
-
     // 如果是重置，则重置页码
     if (reset) {
       page.value = 1
@@ -215,34 +209,29 @@ const fetchNotifications = async (reset = true) => {
       params.type = activeTab.value
     }
 
-    const response = await axios.get('/api/users/notifications/', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      },
-      params
-    })
+    const response = await userApi.getNotifications(params)
 
     // 更新数据
     if (reset) {
-      notifications.value = response.data.results || response.data
+      notifications.value = response.results || response
     } else {
-      notifications.value = [...notifications.value, ...(response.data.results || response.data)]
+      notifications.value = [...notifications.value, ...(response.results || response)]
     }
 
     // 更新分页信息
-    if (response.data.count !== undefined) {
-      totalCount.value = response.data.count
-      hasMoreNotifications.value = notifications.value.length < response.data.count
+    if (response.count !== undefined) {
+      totalCount.value = response.count
+      hasMoreNotifications.value = notifications.value.length < response.count
     } else {
       hasMoreNotifications.value = false
     }
-    
+
     // 获取各类型的数量
     fetchTypeCounts()
-    
+
     // 获取未读数量
     fetchUnreadCount()
-    
+
   } catch (error) {
     console.error('获取通知失败:', error)
     showToast('获取通知失败', 'error')
@@ -262,23 +251,14 @@ const loadMoreNotifications = () => {
 // 获取各类型通知数量
 const fetchTypeCounts = async () => {
   try {
-    const token = localStorage.getItem(config.jwt.accessTokenKey)
-    if (!token) {
-      return
-    }
-
-    const response = await axios.get('/api/users/notifications/type_counts/', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
+    const response = await userApi.getNotificationTypeCounts()
 
     // 更新各类型计数
     tabs.value = tabs.value.map(tab => {
       if (tab.type === 'all') {
         return { ...tab, count: totalCount.value }
       } else {
-        return { ...tab, count: response.data[tab.type] || 0 }
+        return { ...tab, count: response[tab.type] || 0 }
       }
     })
   } catch (error) {
@@ -289,17 +269,8 @@ const fetchTypeCounts = async () => {
 // 获取未读通知数
 const fetchUnreadCount = async () => {
   try {
-    const token = localStorage.getItem(config.jwt.accessTokenKey)
-    if (!token) {
-      return
-    }
-
-    const response = await axios.get('/api/users/notifications/count/', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-    unreadCount.value = response.data.unread_count
+    const response = await userApi.getUnreadNotificationsCount()
+    unreadCount.value = response.unread_count
   } catch (error) {
     console.error('获取未读数失败:', error)
   }
@@ -308,27 +279,18 @@ const fetchUnreadCount = async () => {
 // 标记单个通知为已读
 const markAsRead = async (id: number) => {
   try {
-    const token = localStorage.getItem(config.jwt.accessTokenKey)
-    if (!token) {
-      return
-    }
+    await userApi.markNotificationAsRead(id)
 
-    await axios.post(`/api/users/notifications/${id}/mark_read/`, {}, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-    
     // 更新通知状态
-    notifications.value = notifications.value.map(n => 
+    notifications.value = notifications.value.map(n =>
       n.id === id ? { ...n, is_read: true } : n
     )
-    
+
     // 减少未读数
     if (unreadCount.value > 0) {
       unreadCount.value--
     }
-    
+
     showToast('通知已标记为已读', 'success')
   } catch (error) {
     console.error('标记已读失败:', error)
@@ -340,23 +302,15 @@ const markAsRead = async (id: number) => {
 const markAllAsRead = async () => {
   try {
     loading.value = true
-    const token = localStorage.getItem(config.jwt.accessTokenKey)
-    if (!token) {
-      return
-    }
 
-    await axios.post('/api/users/notifications/mark_all_read/', {}, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-    
+    await userApi.markAllNotificationsAsRead()
+
     // 更新所有通知状态
     notifications.value = notifications.value.map(n => ({
       ...n,
       is_read: true
     }))
-    
+
     unreadCount.value = 0
     showToast('所有通知已标记为已读', 'success')
   } catch (error) {
@@ -372,29 +326,20 @@ const deleteNotification = async (id: number) => {
   if (!confirm('确定要删除这条通知吗？')) {
     return
   }
-  
+
   try {
-    const token = localStorage.getItem(config.jwt.accessTokenKey)
-    if (!token) {
-      return
+    await userApi.deleteNotification(id)
+
+    // 先判断是否是未读通知，再从列表中移除
+    const notification = notifications.value.find(n => n.id === id)
+    if (notification && !notification.is_read && unreadCount.value > 0) {
+      unreadCount.value--
     }
 
-    await axios.delete(`/api/users/notifications/${id}/`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-    
     // 从列表中移除
     notifications.value = notifications.value.filter(n => n.id !== id)
     totalCount.value--
-    
-    // 如果是未读通知，减少未读数
-    const notification = notifications.value.find(n => n.id === id)
-    if (notification && !notification.is_read) {
-      unreadCount.value--
-    }
-    
+
     showToast('通知已删除', 'success')
   } catch (error) {
     console.error('删除通知失败:', error)
@@ -407,23 +352,16 @@ const deleteAllRead = async () => {
   if (!confirm('确定要删除所有已读通知吗？')) {
     return
   }
-  
+
   try {
     loading.value = true
-    const token = localStorage.getItem(config.jwt.accessTokenKey)
-    if (!token) {
-      return
-    }
 
-    const response = await axios.delete('/api/users/notifications/delete_all_read/', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-    
+    const response = await userApi.deleteAllReadNotifications()
+
     // 刷新列表
     fetchNotifications()
-    showToast(`已删除${response.data.message.match(/\d+/)[0]}条已读通知`, 'success')
+    const match = response.message.match(/\d+/)
+    showToast(`已删除${match ? match[0] : 0}条已读通知`, 'success')
   } catch (error) {
     console.error('删除已读通知失败:', error)
     showToast('操作失败，请稍后再试', 'error')

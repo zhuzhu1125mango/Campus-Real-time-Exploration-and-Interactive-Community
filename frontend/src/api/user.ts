@@ -147,8 +147,8 @@ export const userApi = {
   },
 
   // 获取通知列表
-  getNotifications() {
-    return request.get('/users/notifications/')
+  getNotifications(params?: { page?: number; page_size?: number; unread?: boolean; type?: string }) {
+    return request.get('/users/notifications/', { params })
   },
 
   // 获取未读通知数
@@ -164,6 +164,21 @@ export const userApi = {
   // 标记单个通知为已读
   markNotificationAsRead(notificationId: number) {
     return request.post(`/users/notifications/${notificationId}/mark_read/`)
+  },
+
+  // 删除通知
+  deleteNotification(notificationId: number) {
+    return request.delete(`/users/notifications/${notificationId}/`)
+  },
+
+  // 获取通知类型统计
+  getNotificationTypeCounts() {
+    return request.get<{ [key: string]: number }>('/users/notifications/type_counts/')
+  },
+
+  // 删除所有已读通知
+  deleteAllReadNotifications() {
+    return request.delete<{ message: string }>('/users/notifications/delete_all_read/')
   },
 
   // 退出登录
