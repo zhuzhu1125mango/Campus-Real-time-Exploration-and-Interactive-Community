@@ -4,9 +4,6 @@ from rest_framework.decorators import action
 from django.db.models import Q
 from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
-from datetime import datetime
 
 from .messages import Message
 from .messages_serializers import (
@@ -17,6 +14,7 @@ from .messages_serializers import (
     UserSerializer
 )
 from .notification_sender import send_notification_to_user
+from .websocket_service import websocket_service
 
 User = get_user_model()
 
@@ -62,49 +60,9 @@ class MessageViewSet(viewsets.ModelViewSet):
         )
         
         # 通过WebSocket推送消息给接收者
-        self.send_private_message_via_websocket(sender, receiver, message)
+        websocket_service.send_private_message(sender, receiver, message)
         
         return message
-    
-    def send_private_message_via_websocket(self, sender, receiver, message):
-        """通过WebSocket推送私信给接收者"""
-        try:
-            channel_layer = get_channel_layer()
-            if not channel_layer:
-                return
-            
-            # 获取发送者头像
-            sender_avatar = None
-            if hasattr(sender, 'avatar') and sender.avatar:
-                try:
-                    sender_avatar = sender.avatar.url
-                except Exception:
-                    pass
-            
-            # 创建私聊组名（按用户ID排序）
-            user_ids = sorted([str(sender.id), str(receiver.id)])
-            room_group_name = f"private_chat_{user_ids[0]}_{user_ids[1]}"
-            
-            # 发送WebSocket消息
-            async_to_sync(channel_layer.group_send)(
-                room_group_name,
-                {
-                    'type': 'private_message',
-                    'id': message.id,
-                    'content': message.content,
-                    'sender_id': sender.id,
-                    'sender_username': sender.username,
-                    'sender_avatar': sender_avatar,
-                    'receiver_id': receiver.id,
-                    'receiver_username': receiver.username,
-                    'is_read': message.is_read,
-                    'created_at': message.created_at.isoformat()
-                }
-            )
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"WebSocket消息推送失败: {str(e)}")
     
     @action(detail=False, methods=['get'])
     def conversations(self, request):
@@ -299,7 +257,7 @@ class MessageViewSet(viewsets.ModelViewSet):
             )
             
             # 通过WebSocket推送消息
-            self.send_private_message_via_websocket(request.user, other_user, message)
+            websocket_service.send_private_message(request.user, other_user, message)
             
             serializer = MessageSerializer(message)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
