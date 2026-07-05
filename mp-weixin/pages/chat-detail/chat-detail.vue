@@ -36,10 +36,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { ref, nextTick } from 'vue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
 import userApi from '../../api/user'
-import { getWebSocketUrl } from '../../api/request'
+import { getWebSocketUrl, getWebSocketProtocols } from '../../api/request'
 import { formatAvatar } from '../../utils/image'
 import { formatDateTime } from '../../utils/date'
 
@@ -58,6 +58,10 @@ const page = ref(1)
 const pageSize = 20
 const socketTask = ref(null)
 const reconnectTimer = ref(null)
+const heartbeatTimer = ref(null)
+const reconnectAttempts = ref(0)
+const maxReconnectAttempts = 5
+const reconnectDelay = 1000
 
 const isMine = (msg) => {
   return msg.sender?.id === currentUserId.value
@@ -66,17 +70,11 @@ const isMine = (msg) => {
 onLoad((options) => {
   userId.value = Number(options.userId) || 0
   username.value = options.username || ''
-})
-
-onMounted(() => {
   checkAuthAndLoad()
 })
 
-onUnmounted(() => {
+onUnload(() => {
   closeSocket()
-  if (reconnectTimer.value) {
-    clearTimeout(reconnectTimer.value)
-  }
 })
 
 const checkAuthAndLoad = async () => {
@@ -156,7 +154,7 @@ const loadMessages = async (isLoadMore = false) => {
       scrollToBottom()
     }
 
-    // 标记对方消息为已读
+    // 标记对方消息为已读，并建立 WebSocket 连接
     if (!isLoadMore) {
       userApi.markMessagesAsRead(userId.value).catch(() => { })
       initWebSocket()
@@ -183,8 +181,11 @@ const initWebSocket = () => {
   if (!userId.value || socketTask.value) return
 
   const url = getWebSocketUrl(`private/${userId.value}`)
+  const protocols = getWebSocketProtocols()
+
   socketTask.value = uni.connectSocket({
     url,
+    protocols,
     success: () => {
       console.log('私信 WebSocket 连接请求已发送')
     }
@@ -192,6 +193,8 @@ const initWebSocket = () => {
 
   socketTask.value.onOpen(() => {
     console.log('私信 WebSocket 连接已打开')
+    reconnectAttempts.value = 0
+    startHeartbeat()
   })
 
   socketTask.value.onMessage((res) => {
@@ -214,6 +217,10 @@ const initWebSocket = () => {
         }
         messages.value.push(msg)
         scrollToBottom()
+      } else if (data.type === 'heartbeat_response') {
+        // 忽略
+      } else if (data.type === 'error') {
+        uni.showToast({ title: data.message || '服务器错误', icon: 'none' })
       }
     } catch (error) {
       console.error('解析私信消息失败:', error)
@@ -223,6 +230,7 @@ const initWebSocket = () => {
   socketTask.value.onClose((res) => {
     console.log('私信 WebSocket 连接已关闭', res)
     socketTask.value = null
+    stopHeartbeat()
 
     // 4001 未认证、4002 缺少参数、4003 非好友、4004 用户不存在时不重连
     if ([4001, 4002, 4003, 4004].includes(res?.code)) {
@@ -239,9 +247,14 @@ const initWebSocket = () => {
       return
     }
 
-    reconnectTimer.value = setTimeout(() => {
-      initWebSocket()
-    }, 5000)
+    // 带退避的有限重连
+    if (reconnectAttempts.value < maxReconnectAttempts) {
+      reconnectAttempts.value++
+      const delay = reconnectDelay * Math.pow(1.5, reconnectAttempts.value - 1)
+      reconnectTimer.value = setTimeout(() => {
+        initWebSocket()
+      }, delay)
+    }
   })
 
   socketTask.value.onError((error) => {
@@ -249,7 +262,30 @@ const initWebSocket = () => {
   })
 }
 
+const startHeartbeat = () => {
+  stopHeartbeat()
+  heartbeatTimer.value = setInterval(() => {
+    if (socketTask.value) {
+      socketTask.value.send({
+        data: JSON.stringify({ type: 'heartbeat', timestamp: Date.now() })
+      })
+    }
+  }, 30000)
+}
+
+const stopHeartbeat = () => {
+  if (heartbeatTimer.value) {
+    clearInterval(heartbeatTimer.value)
+    heartbeatTimer.value = null
+  }
+}
+
 const closeSocket = () => {
+  if (reconnectTimer.value) {
+    clearTimeout(reconnectTimer.value)
+    reconnectTimer.value = null
+  }
+  stopHeartbeat()
   if (socketTask.value) {
     socketTask.value.close()
     socketTask.value = null

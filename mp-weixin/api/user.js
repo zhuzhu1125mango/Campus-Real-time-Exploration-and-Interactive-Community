@@ -83,7 +83,7 @@ const userApi = {
    * @returns {Promise} 刷新结果
    */
   refreshToken: (data) => {
-    return request.post('/users/users/token/refresh/', data)
+    return request.post('/token/refresh/', data)
   },
 
   /**

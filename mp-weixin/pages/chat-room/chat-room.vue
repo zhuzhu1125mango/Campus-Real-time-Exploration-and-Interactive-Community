@@ -72,9 +72,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, nextTick } from 'vue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
 import chatApi from '../../api/chat'
-import { getWebSocketUrl } from '../../api/request'
+import { getWebSocketUrl, getWebSocketProtocols } from '../../api/request'
 import { formatAvatar } from '../../utils/image'
 import { formatDateTime } from '../../utils/date'
 
@@ -90,6 +91,9 @@ const connectionStatus = ref('disconnected')
 const socketTask = ref(null)
 const reconnectTimer = ref(null)
 const heartbeatTimer = ref(null)
+const reconnectAttempts = ref(0)
+const maxReconnectAttempts = 5
+const reconnectDelay = 1000
 
 const currentUserId = ref(0)
 const currentUserAvatar = ref('')
@@ -104,13 +108,12 @@ const connectionStatusText = computed(() => {
   return map[connectionStatus.value] || ''
 })
 
-onMounted(() => {
+onLoad(() => {
   checkAuthAndLoad()
 })
 
-onUnmounted(() => {
+onUnload(() => {
   closeSocket()
-  stopHeartbeat()
 })
 
 const checkAuthAndLoad = () => {
@@ -178,8 +181,11 @@ const initWebSocket = () => {
 
   connectionStatus.value = 'connecting'
   const url = getWebSocketUrl('public')
+  const protocols = getWebSocketProtocols()
+
   socketTask.value = uni.connectSocket({
     url,
+    protocols,
     success: () => {
       console.log('公共聊天室 WebSocket 连接请求已发送')
     }
@@ -189,6 +195,7 @@ const initWebSocket = () => {
     console.log('公共聊天室 WebSocket 连接已打开')
     connectionStatus.value = 'connected'
     connected.value = true
+    reconnectAttempts.value = 0
     startHeartbeat()
   })
 
@@ -208,6 +215,7 @@ const initWebSocket = () => {
     connectionStatus.value = 'disconnected'
     stopHeartbeat()
 
+    // 认证失败不重连
     if (event?.code === 4001) {
       uni.showToast({ title: '登录已过期，请重新登录', icon: 'none' })
       setTimeout(() => {
@@ -216,9 +224,14 @@ const initWebSocket = () => {
       return
     }
 
-    reconnectTimer.value = setTimeout(() => {
-      initWebSocket()
-    }, 5000)
+    // 带退避的有限重连
+    if (reconnectAttempts.value < maxReconnectAttempts) {
+      reconnectAttempts.value++
+      const delay = reconnectDelay * Math.pow(1.5, reconnectAttempts.value - 1)
+      reconnectTimer.value = setTimeout(() => {
+        initWebSocket()
+      }, delay)
+    }
   })
 
   socketTask.value.onError((error) => {
@@ -275,6 +288,7 @@ const closeSocket = () => {
     clearTimeout(reconnectTimer.value)
     reconnectTimer.value = null
   }
+  stopHeartbeat()
   if (socketTask.value) {
     socketTask.value.close()
     socketTask.value = null
