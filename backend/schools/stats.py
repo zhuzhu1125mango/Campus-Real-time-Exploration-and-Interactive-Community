@@ -2,7 +2,8 @@ from django.db.models import Count, Avg, Sum
 from django.core.cache import cache
 from django.utils import timezone
 from datetime import timedelta
-from .models import School, Major, Post, Comment, Event, EventRegistration
+from forum.models import Post, Comment
+from .models import School, Major, Event, EventRegistration
 from users.models import User, UserActivity
 
 class StatsService:
@@ -67,7 +68,7 @@ class StatsService:
         total_comments = Comment.objects.count()
         
         # 帖子状态分布
-        post_status_distribution = list(Post.objects.values('is_published').annotate(count=Count('is_published')))
+        post_status_distribution = list(Post.objects.values('content_status').annotate(count=Count('content_status')))
         
         # 最近7天的帖子数量
         seven_days_ago = timezone.now() - timedelta(days=7)

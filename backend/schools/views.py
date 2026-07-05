@@ -9,15 +9,16 @@ from django.core.cache import cache
 import csv
 import io
 from .models import (
-    Forum, Post, Comment, Tag, School, Major, SchoolMajor, 
+    School, Major, SchoolMajor,
     SchoolRating, MajorRating, AdmissionScore, Event, EventRegistration
 )
 from .serializers import (
-    ForumSerializer, PostSerializer, CommentSerializer, 
-    TagSerializer, SchoolSerializer, MajorSerializer,
+    SchoolSerializer, MajorSerializer,
     SchoolMajorSerializer, SchoolRatingSerializer,
     MajorRatingSerializer, AdmissionScoreSerializer, EventSerializer, EventRegistrationSerializer
 )
+from forum.models import Post as ForumPost
+from forum.serializers import PostSerializer as ForumPostSerializer
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
@@ -37,13 +38,26 @@ class SchoolViewSet(viewsets.ModelViewSet):
     ordering = ['national_rank', 'name']
 
     def perform_create(self, serializer):
-        """创建学校时自动为其创建论坛"""
+        """创建学校时自动为其创建论坛板块"""
         school = serializer.save()
-        Forum.objects.get_or_create(
+        # 延迟导入避免循环引用
+        from forum.models import Board, Category
+        category, _ = Category.objects.get_or_create(
+            name='院校专区',
+            defaults={
+                'description': '各高校的讨论板块',
+                'icon': 'el-icon-school',
+                'order': 100
+            }
+        )
+        Board.objects.get_or_create(
             school=school,
             defaults={
                 'name': f'{school.name}论坛',
-                'description': f'欢迎来到{school.name}论坛，这里是校友交流、分享资讯的地方。'
+                'description': f'欢迎来到{school.name}论坛，这里是校友交流、分享资讯的地方。',
+                'category': category,
+                'icon': 'el-icon-school',
+                'order': 0
             }
         )
         return school
@@ -138,12 +152,24 @@ class SchoolViewSet(viewsets.ModelViewSet):
                             'national_rank': int(row.get('national_rank', 0)) if row.get('national_rank') else None,
                         }
                     )
-                    # 确保学校论坛存在
-                    Forum.objects.get_or_create(
+                    # 确保学校论坛板块存在
+                    from forum.models import Board, Category
+                    category, _ = Category.objects.get_or_create(
+                        name='院校专区',
+                        defaults={
+                            'description': '各高校的讨论板块',
+                            'icon': 'el-icon-school',
+                            'order': 100
+                        }
+                    )
+                    Board.objects.get_or_create(
                         school=school,
                         defaults={
                             'name': f'{school.name}论坛',
-                            'description': f'欢迎来到{school.name}论坛，这里是校友交流、分享资讯的地方。'
+                            'description': f'欢迎来到{school.name}论坛，这里是校友交流、分享资讯的地方。',
+                            'category': category,
+                            'icon': 'el-icon-school',
+                            'order': 0
                         }
                     )
                     success_count += 1
@@ -744,7 +770,7 @@ def get_recommendations(request):
             elif recommendation_type == 'posts':
                 # 获取帖子推荐
                 result = recommendation_service.get_post_recommendations(limit)
-                serializer = PostSerializer(result['posts'], many=True)
+                serializer = ForumPostSerializer(result['posts'], many=True, context={'request': request})
                 return Response({
                     'recommendations': serializer.data,
                     'reasoning': result['reasoning']
@@ -775,10 +801,12 @@ def get_recommendations(request):
                     'reasoning': ['推荐热门专业']
                 }, status=status.HTTP_200_OK)
             elif recommendation_type == 'posts':
-                default_recommendations = Post.objects.order_by(
-                    '-like_count', '-comment_count'
-                )[:limit]
-                serializer = PostSerializer(default_recommendations, many=True)
+                from django.db.models import Count as _Count
+                default_recommendations = ForumPost.objects.annotate(
+                    like_count=_Count('likes'),
+                    comment_count=_Count('comments')
+                ).order_by('-like_count', '-comment_count')[:limit]
+                serializer = ForumPostSerializer(default_recommendations, many=True, context={'request': request})
                 return Response({
                     'recommendations': serializer.data,
                     'reasoning': ['推荐热门帖子']
@@ -808,10 +836,12 @@ def get_recommendations(request):
                 'reasoning': ['推荐热门专业']
             }, status=status.HTTP_200_OK)
         elif recommendation_type == 'posts':
-            default_recommendations = Post.objects.order_by(
-                '-like_count', '-comment_count'
-            )[:limit]
-            serializer = PostSerializer(default_recommendations, many=True)
+            from django.db.models import Count as _Count
+            default_recommendations = ForumPost.objects.annotate(
+                like_count=_Count('likes'),
+                comment_count=_Count('comments')
+            ).order_by('-like_count', '-comment_count')[:limit]
+            serializer = ForumPostSerializer(default_recommendations, many=True, context={'request': request})
             return Response({
                 'recommendations': serializer.data,
                 'reasoning': ['推荐热门帖子']
@@ -821,88 +851,6 @@ def get_recommendations(request):
                 {"detail": "无效的推荐类型"},
                 status=status.HTTP_400_BAD_REQUEST)
 
-
-class ForumViewSet(viewsets.ModelViewSet):
-    queryset = Forum.objects.all()
-    serializer_class = ForumSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    
-    @action(detail=True, methods=['get'])
-    def posts(self, request, pk=None):
-        forum = self.get_object()
-        posts = forum.posts.all()
-        serializer = PostSerializer(posts, many=True)
-        return Response(serializer.data)
-
-class PostViewSet(viewsets.ModelViewSet):
-    queryset = Post.objects.all()
-    serializer_class = PostSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    
-    def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
-    
-    @action(detail=True, methods=['post'])
-    def like(self, request, pk=None):
-        post = self.get_object()
-        if request.user in post.likes.all():
-            post.likes.remove(request.user)
-        else:
-            post.likes.add(request.user)
-        return Response({'status': 'success'})
-    
-    @action(detail=True, methods=['get'])
-    def comments(self, request, pk=None):
-        post = self.get_object()
-        comments = post.comments.filter(parent=None)
-        serializer = CommentSerializer(comments, many=True)
-        return Response(serializer.data)
-
-class CommentViewSet(viewsets.ModelViewSet):
-    queryset = Comment.objects.all()
-    serializer_class = CommentSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    
-    def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
-    
-    @action(detail=True, methods=['post'])
-    def like(self, request, pk=None):
-        comment = self.get_object()
-        if request.user in comment.likes.all():
-            comment.likes.remove(request.user)
-        else:
-            comment.likes.add(request.user)
-        return Response({'status': 'success'})
-    
-    @action(detail=True, methods=['get'])
-    def replies(self, request, pk=None):
-        comment = self.get_object()
-        replies = comment.replies.all()
-        serializer = CommentSerializer(replies, many=True)
-        return Response(serializer.data)
-
-class TagViewSet(viewsets.ModelViewSet):
-    queryset = Tag.objects.all()
-    serializer_class = TagSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-
-    @action(detail=False, methods=['get'])
-    def hot(self, request):
-        """获取热门标签（按关联帖子数排序）"""
-        limit = int(request.query_params.get('limit', 10))
-        tags = Tag.objects.annotate(
-            post_count=Count('posts')
-        ).order_by('-post_count', '-id')[:limit]
-        serializer = self.get_serializer(tags, many=True)
-        return Response(serializer.data)
-
-    @action(detail=True, methods=['get'])
-    def posts(self, request, pk=None):
-        tag = self.get_object()
-        posts = tag.posts.all()
-        serializer = PostSerializer(posts, many=True)
-        return Response(serializer.data)
 
 class EventViewSet(viewsets.ModelViewSet):
     """校园活动视图集"""

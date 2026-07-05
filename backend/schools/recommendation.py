@@ -1,7 +1,8 @@
 from django.db.models import Q, Count, Avg
 from django.core.cache import cache
+from forum.models import Post
 from users.models import UserActivity
-from .models import School, Major, Post
+from .models import School, Major
 
 class RecommendationService:
     """推荐服务类"""
@@ -233,9 +234,12 @@ class RecommendationService:
         if school_ids:
             # 获取这些学校论坛的帖子
             related_posts = Post.objects.filter(
-                forum__school_id__in=school_ids
-            ).exclude(id__in=post_ids)
-            
+                topic__board__school_id__in=school_ids
+            ).exclude(id__in=post_ids).annotate(
+                like_count=Count('likes'),
+                comment_count=Count('comments')
+            )
+
             # 按帖子热度排序（基于点赞和评论数）
             related_posts = related_posts.order_by('-like_count', '-comment_count')[:limit]
             
@@ -245,8 +249,11 @@ class RecommendationService:
         
         # 2. 推荐热门帖子
         if len(recommendations) < limit:
-            hot_posts = Post.objects.filter(
-                id__not_in=post_ids + [p.id for p in recommendations]
+            hot_posts = Post.objects.exclude(
+                id__in=post_ids + [p.id for p in recommendations]
+            ).annotate(
+                like_count=Count('likes'),
+                comment_count=Count('comments')
             ).order_by('-like_count', '-comment_count')[:limit - len(recommendations)]
             
             if hot_posts.exists():

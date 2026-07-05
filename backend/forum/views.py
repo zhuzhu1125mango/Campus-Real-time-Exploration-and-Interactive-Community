@@ -251,7 +251,7 @@ class TopicViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def bookmark(self, request, pk=None):
-        """收藏或取消收藏主题"""
+        """收藏主题"""
         topic = self.get_object()
         user = request.user
         
@@ -261,11 +261,25 @@ class TopicViewSet(viewsets.ModelViewSet):
         bookmark, created = Bookmark.objects.get_or_create(user=user, topic=topic)
         
         if not created:
-            # 如果已存在，则删除书签
-            bookmark.delete()
-            return Response({"status": "取消收藏成功"}, status=status.HTTP_200_OK)
+            return Response({"detail": "已经收藏过此主题"}, status=status.HTTP_200_OK)
         
         return Response({"status": "收藏成功"}, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=['delete'])
+    def unbookmark(self, request, pk=None):
+        """取消收藏主题"""
+        topic = self.get_object()
+        user = request.user
+        
+        if not user.is_authenticated:
+            return Response({"detail": "认证凭据未提供"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        try:
+            bookmark = Bookmark.objects.get(user=user, topic=topic)
+            bookmark.delete()
+            return Response({"status": "取消收藏成功"}, status=status.HTTP_200_OK)
+        except Bookmark.DoesNotExist:
+            return Response({"detail": "未找到收藏记录"}, status=status.HTTP_404_NOT_FOUND)
     
     @action(detail=True, methods=['post'])
     def close(self, request, pk=None):

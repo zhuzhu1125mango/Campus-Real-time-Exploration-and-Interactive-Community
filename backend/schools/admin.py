@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
-from .models import School, Major, SchoolMajor, SchoolRating, MajorRating, AdmissionScore, Forum, Post, Comment, Tag
+from .models import School, Major, SchoolMajor, SchoolRating, MajorRating, AdmissionScore
 
 
 @admin.register(School)
@@ -64,29 +64,3 @@ class AdmissionScoreAdmin(admin.ModelAdmin):
     search_fields = ('school__name', 'major__name', 'province')
 
 
-@admin.register(Forum)
-class ForumAdmin(admin.ModelAdmin):
-    list_display = ['name', 'school', 'created_at']
-    search_fields = ['name', 'school__name']
-    list_filter = ['created_at']
-
-
-@admin.register(Post)
-class PostAdmin(admin.ModelAdmin):
-    list_display = ['title', 'author', 'forum', 'is_published', 'created_at']
-    search_fields = ['title', 'content', 'author__username']
-    list_filter = ['is_published', 'created_at']
-
-
-@admin.register(Comment)
-class CommentAdmin(admin.ModelAdmin):
-    list_display = ['author', 'post', 'created_at']
-    search_fields = ['content', 'author__username']
-    list_filter = ['created_at']
-
-
-@admin.register(Tag)
-class TagAdmin(admin.ModelAdmin):
-    list_display = ['name', 'created_at']
-    search_fields = ['name', 'description']
-    list_filter = ['created_at']

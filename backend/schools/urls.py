@@ -6,10 +6,6 @@ router = DefaultRouter()
 # 先注册子资源路由
 router.register(r'majors', views.MajorViewSet)
 router.register(r'admission-scores', views.AdmissionScoreViewSet)
-router.register(r'forums', views.ForumViewSet)
-router.register(r'posts', views.PostViewSet)
-router.register(r'comments', views.CommentViewSet)
-router.register(r'tags', views.TagViewSet)
 router.register(r'events', views.EventViewSet)
 router.register(r'event-registrations', views.EventRegistrationViewSet)
 # 最后注册根路径视图集

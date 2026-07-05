@@ -1,7 +1,7 @@
 from rest_framework import serializers
 import random
 from .models import (
-    Forum, Post, Comment, Tag, School, Major, SchoolMajor, 
+    School, Major, SchoolMajor,
     SchoolRating, MajorRating, AdmissionScore, Event, EventRegistration
 )
 from users.serializers import UserSerializer
@@ -151,59 +151,6 @@ class MajorRatingSerializer(serializers.ModelSerializer):
         model = MajorRating
         fields = ['id', 'major', 'user', 'rating', 'comment', 'created_at', 'updated_at']
         read_only_fields = ['user', 'created_at', 'updated_at']
-
-class TagSerializer(serializers.ModelSerializer):
-    topic_count = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Tag
-        fields = ['id', 'name', 'description', 'topic_count']
-
-    def get_topic_count(self, obj):
-        return obj.posts.count()
-
-class CommentSerializer(serializers.ModelSerializer):
-    author = UserSerializer(read_only=True)
-    likes_count = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Comment
-        fields = ['id', 'author', 'content', 'parent', 'likes_count', 'created_at', 'updated_at']
-        read_only_fields = ['author', 'created_at', 'updated_at']
-    
-    def get_likes_count(self, obj):
-        return obj.likes.count()
-
-class PostSerializer(serializers.ModelSerializer):
-    author = UserSerializer(read_only=True)
-    comments_count = serializers.SerializerMethodField()
-    likes_count = serializers.SerializerMethodField()
-    tags = TagSerializer(many=True, read_only=True)
-    
-    class Meta:
-        model = Post
-        fields = ['id', 'forum', 'author', 'title', 'content', 'status', 
-                 'views', 'likes_count', 'comments_count', 'tags', 
-                 'created_at', 'updated_at']
-        read_only_fields = ['author', 'views', 'created_at', 'updated_at']
-    
-    def get_comments_count(self, obj):
-        return obj.comments.count()
-    
-    def get_likes_count(self, obj):
-        return obj.likes.count()
-
-class ForumSerializer(serializers.ModelSerializer):
-    posts_count = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Forum
-        fields = ['id', 'school', 'name', 'description', 'posts_count', 
-                 'created_at', 'updated_at']
-        read_only_fields = ['created_at', 'updated_at']
-    
-    def get_posts_count(self, obj):
-        return obj.posts.count()
 
 class EventSerializer(serializers.ModelSerializer):
     """校园活动序列化器"""

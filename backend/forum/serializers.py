@@ -265,11 +265,9 @@ class PostCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
         fields = ('topic', 'content')
-    
+
     def create(self, validated_data):
-        # 默认新帖子需要审核
         validated_data['author'] = self.context['request'].user
-        validated_data['content_status'] = 'pending'
         return super().create(validated_data)
 
 
