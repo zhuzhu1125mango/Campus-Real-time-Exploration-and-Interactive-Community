@@ -147,6 +147,25 @@ const connectionStatusText = computed(() => {
   }
 })
 
+// 检查好友关系
+const checkFriendship = async (): Promise<boolean> => {
+  if (!userId.value) return false
+  try {
+    const { is_friend } = await userApi.checkFriendship(Number(userId.value))
+    if (!is_friend) {
+      showToast('你们还不是好友，无法发起私聊', 'warning')
+      router.replace('/messages')
+      return false
+    }
+    return true
+  } catch (error) {
+    console.error('检查好友关系失败:', error)
+    showToast('无法验证好友关系，请稍后再试', 'error')
+    router.replace('/messages')
+    return false
+  }
+}
+
 // 加载对话
 const loadConversation = async (page = 1, isLoadMore = false) => {
   if (!userId.value) return
@@ -379,14 +398,21 @@ const connectWebSocket = async () => {
         heartbeatInterval.value = null
       }
 
-      // 认证失败(4001)、缺少参数(4002)或目标用户不存在(4004)时不盲目重连
+      // 认证失败(4001)、缺少参数(4002)、非好友(4003)或目标用户不存在(4004)时不盲目重连
       if ([4001, 4002, 4003, 4004].includes(event.code)) {
         if (event.code === 4001) {
           lastError.value = '登录会话已过期，请重新登录'
+          showToast('登录会话已过期，请重新登录', 'error')
         } else if (event.code === 4003) {
           lastError.value = '双方不是好友，无法建立私聊'
+          showToast('双方不是好友，无法建立私聊', 'warning')
+          // 非好友时返回消息列表，避免停留在无法连接的页面
+          setTimeout(() => {
+            router.replace('/messages')
+          }, 1500)
         } else if (event.code === 4004) {
           lastError.value = '对方用户不存在'
+          showToast('对方用户不存在', 'error')
         }
         return
       }
@@ -549,14 +575,17 @@ watch(() => route.params.id, () => {
 })
 
 // 生命周期钩子
-onMounted(() => {
+onMounted(async () => {
+  const canChat = await checkFriendship()
+  if (!canChat) return
+
   loadConversation()
-  
+
   // 建立WebSocket连接
   if (userStore.isLoggedIn) {
     connectWebSocket()
   }
-  
+
   // 监听登录状态变化
   const loginWatcher = watch(() => userStore.isLoggedIn, (newValue) => {
     if (newValue && userId.value) {
@@ -565,7 +594,7 @@ onMounted(() => {
       closeWebSocket()
     }
   })
-  
+
   // 监听用户ID变化，重新连接WebSocket
   const userIdWatcher = watch(userId, () => {
     closeWebSocket()
@@ -573,7 +602,7 @@ onMounted(() => {
       connectWebSocket()
     }
   })
-  
+
   // 清理函数
   return () => {
     loginWatcher()

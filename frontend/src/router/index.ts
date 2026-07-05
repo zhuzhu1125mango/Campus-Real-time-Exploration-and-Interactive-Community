@@ -99,6 +99,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/chat-room',
+    name: 'ChatRoom',
+    component: () => import('../views/ChatRoom.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/chat/:id',
     name: 'ChatDetail',
     component: () => import('../components/ChatDetail.vue'),
@@ -109,11 +115,6 @@ const routes = [
     name: 'Messages',
     component: () => import('../views/Messages.vue'),
     meta: { requiresAuth: true }
-  },
-  {
-    path: '/chat-room',
-    name: 'ChatRoom',
-    component: () => import('../components/ChatRoom.vue')
   },
   {
     path: '/events',
@@ -147,6 +148,12 @@ const routes = [
     name: 'MyLearning',
     component: () => import('../views/MyLearning.vue'),
     meta: { requiresAuth: true }
+  },
+  // 全局搜索
+  {
+    path: '/search',
+    name: 'Search',
+    component: () => import('../views/Search.vue')
   },
   // 内容中心路由
   {

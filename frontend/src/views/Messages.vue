@@ -67,6 +67,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { userApi } from '@/api/user'
+import { useToast } from '@/composables/useToast'
 import config from '@/utils/config'
 import type { User } from '@/types/user'
 
@@ -82,6 +83,7 @@ interface Conversation {
 }
 
 const router = useRouter()
+const { showToast } = useToast()
 
 const conversations = ref<Conversation[]>([])
 const searchQuery = ref('')
@@ -108,8 +110,19 @@ const fetchConversations = async () => {
   }
 }
 
-const goToChat = (userId: number) => {
-  router.push(`/chat/${userId}`)
+const goToChat = async (userId: number) => {
+  try {
+    const { is_friend } = await userApi.checkFriendship(userId)
+    if (!is_friend) {
+      showToast('你们还不是好友，请先添加好友', 'warning')
+      router.push(`/friends?add=${userId}`)
+      return
+    }
+    router.push(`/chat/${userId}`)
+  } catch (error) {
+    console.error('检查好友关系失败:', error)
+    showToast('无法建立私聊，请稍后再试', 'error')
+  }
 }
 
 const getMessagePreview = (content?: string) => {

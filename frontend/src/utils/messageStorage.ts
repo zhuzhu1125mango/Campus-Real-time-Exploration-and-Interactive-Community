@@ -7,16 +7,18 @@ const MESSAGE_EXPIRY_DAYS = 7 // 消息保留天数
 
 // 消息类型定义
 export interface ChatMessage {
-  id: number
+  id: number | string
   content: string
   type: 'chat' | 'system'
-  user?: {
+  user: {
     id: number
     username: string
-    avatar?: string
+    avatar?: string | null
   }
   time: string
   clientId?: number
+  isTemp?: boolean
+  sendFailed?: boolean
 }
 
 export interface PrivateMessage {
