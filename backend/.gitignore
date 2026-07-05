@@ -19,11 +19,22 @@ __pycache__/
 htmlcov/
 
 # Django runtime artifacts
-db.sqlite3
-*.sqlite3
 logs/
 media/
 /static/
+
+# Keep default avatar and banner assets
+!media/
+!media/avatars/
+!media/banners/
+media/avatars/*
+media/banners/*
+!media/avatars/default-avatar.svg
+!media/banners/default-banner.svg
+
+# Ignore legacy localized asset directories and user uploads
+media/avatars1/
+media/banners1/
 
 # Data and temporary files
 data.json

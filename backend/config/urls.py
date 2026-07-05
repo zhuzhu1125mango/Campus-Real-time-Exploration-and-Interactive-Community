@@ -60,6 +60,7 @@ urlpatterns = [
     path('api/chat/', include('chat.urls')),
     path('api/content/', include('content.urls')),
     path('api/learning/', include('learning.urls')),
+    path('api/search/', include('search.urls')),
     
     # Simple JWT 端点
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

@@ -13,14 +13,13 @@
 Thumbs.db
 desktop.ini
 
-# Legacy project directories (replaced by backend/ + frontend/)
+# Legacy project directories (replaced by backend/ + frontend/ + mp-weixin/)
 djangoend/
 frontvue/
-校园实时探索与互动社区/
 
-# WeChat mini-program configs that belong to the legacy mini-app
-project.config.json
-project.private.config.json
+# Root-level WeChat mini-program configs (legacy, not tracked)
+/project.config.json
+/project.private.config.json
 
 # Root-level temporary / debug files
 start_server.py
