@@ -180,6 +180,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { userApi } from '../api/user'
 import config from '../utils/config'
+import { getErrorMessage } from '../utils/error'
 import { useToast } from '../composables/useToast'
 import { useUserStore } from '../stores/userStore'
 
@@ -242,8 +243,7 @@ const handlePasswordLogin = async () => {
       showToast(userStore.error || '登录失败，请检查用户名和密码', 'error')
     }
   } catch (error: any) {
-    const errorMessage = error.response?.data?.detail || error.message || '登录过程中发生错误'
-    showToast(errorMessage, 'error')
+    showToast(getErrorMessage(error, '登录失败，请检查用户名和密码'), 'error')
   } finally {
     loading.value = false
   }
@@ -280,8 +280,7 @@ const handlePhoneLogin = async () => {
       userStore.logout()
     }
   } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || error.message || '登录失败，请检查手机号和验证码'
-    showToast(errorMsg, 'error')
+    showToast(getErrorMessage(error, '登录失败，请检查手机号和验证码'), 'error')
     // 清除token
     userStore.logout()
   } finally {
@@ -320,8 +319,7 @@ const handleEmailLogin = async () => {
       userStore.logout()
     }
   } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || error.message || '登录失败，请检查邮箱和验证码'
-    showToast(errorMsg, 'error')
+    showToast(getErrorMessage(error, '登录失败，请检查邮箱和验证码'), 'error')
     // 清除token
     userStore.logout()
   } finally {
@@ -353,8 +351,7 @@ const sendPhoneCode = async () => {
     
     showToast('验证码已发送', 'success')
   } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || error.message || '发送验证码失败'
-    showToast(errorMsg, 'error')
+    showToast(getErrorMessage(error, '发送验证码失败'), 'error')
   }
 }
 
@@ -382,8 +379,7 @@ const sendEmailCode = async () => {
     
     showToast('验证码已发送', 'success')
   } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || error.message || '发送验证码失败'
-    showToast(errorMsg, 'error')
+    showToast(getErrorMessage(error, '发送验证码失败'), 'error')
   }
 }
 </script>

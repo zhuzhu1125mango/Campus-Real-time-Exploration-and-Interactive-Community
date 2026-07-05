@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { contentApi } from '../api/content'
 import RichTextEditor from '../components/RichTextEditor.vue'
+import config from '../utils/config'
 import type { ContentType, Category, Tag } from '../types/content'
 
 const router = useRouter()
@@ -43,9 +44,21 @@ const loadOptions = async () => {
 
 const handleImageChange = (event: Event) => {
   const target = event.target as HTMLInputElement
-  if (target.files && target.files.length > 0) {
-    featuredImage.value = target.files[0]
+  if (!target.files || target.files.length === 0) return
+
+  const file = target.files[0]
+  if (!config.upload.allowedTypes.includes(file.type)) {
+    error.value = '请选择 JPG、PNG、GIF 或 WebP 格式的图片'
+    target.value = ''
+    return
   }
+  if (file.size > config.upload.maxSize) {
+    error.value = `图片大小不能超过 ${config.upload.maxSize / 1024 / 1024}MB`
+    target.value = ''
+    return
+  }
+
+  featuredImage.value = file
 }
 
 const submitContent = async () => {

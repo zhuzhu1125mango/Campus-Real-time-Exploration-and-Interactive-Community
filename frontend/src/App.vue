@@ -206,9 +206,9 @@ const retryBackendCheck = async () => {
   height: 50px;
   border: 4px solid rgba(67, 97, 238, 0.3);
   border-radius: 50%;
-  border-top-color: #4361ee;
+  border-top-color: var(--primary-500);
   animation: spin 1s ease-in-out infinite;
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--space-6);
 }
 
 @keyframes spin {
@@ -217,33 +217,33 @@ const retryBackendCheck = async () => {
 
 .backend-checking p {
   font-size: 1.2rem;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .backend-offline .offline-icon {
   font-size: 4rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--space-6);
 }
 
 .backend-offline h2 {
   font-size: 2rem;
-  color: #e74c3c;
-  margin-bottom: 1rem;
+  color: var(--error-color);
+  margin-bottom: var(--space-4);
 }
 
 .backend-offline p {
   font-size: 1.1rem;
-  color: #666;
-  margin-bottom: 2rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-8);
   max-width: 500px;
 }
 
 .retry-button {
   padding: 0.8rem 1.5rem;
-  background-color: #4361ee;
-  color: white;
+  background-color: var(--primary-500);
+  color: var(--text-inverse);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
@@ -251,7 +251,7 @@ const retryBackendCheck = async () => {
 }
 
 .retry-button:hover {
-  background-color: #3a56d4;
+  background-color: var(--primary-600);
 }
 </style>
 
@@ -263,9 +263,9 @@ const retryBackendCheck = async () => {
 }
 
 .navbar {
-  background-color: #fff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  padding: 1rem 2rem;
+  background-color: var(--bg-primary);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-4) var(--space-8);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -277,15 +277,16 @@ const retryBackendCheck = async () => {
 .nav-brand a {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #333;
+  color: var(--text-primary);
   text-decoration: none;
   transition: color 0.3s;
   display: flex;
   align-items: center;
+  white-space: nowrap;
 }
 
 .nav-brand a:hover {
-  color: #4361ee;
+  color: var(--primary-500);
 }
 
 .nav-brand a::before {
@@ -293,36 +294,45 @@ const retryBackendCheck = async () => {
   display: inline-block;
   width: 12px;
   height: 12px;
-  background-color: #4361ee;
-  border-radius: 50%;
+  background-color: var(--primary-500);
+  border-radius: var(--radius-full);
   margin-right: 0.6rem;
 }
 
 .nav-links {
   display: flex;
-  gap: 1.5rem;
+  gap: var(--space-2);
   align-items: center;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  margin-left: var(--space-4);
+}
+
+.nav-links::-webkit-scrollbar {
+  display: none;
 }
 
 .nav-links a {
-  color: #666;
+  color: var(--text-secondary);
   text-decoration: none;
   font-weight: 500;
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
   transition: all 0.3s;
+  white-space: nowrap;
 }
 
 .nav-links a:hover {
-  color: #4361ee;
-  background-color: rgba(67, 97, 238, 0.08);
+  color: var(--primary-500);
+  background-color: var(--primary-50);
   text-decoration: none;
 }
 
 .nav-links a.router-link-active {
-  color: #4361ee;
+  color: var(--primary-500);
   font-weight: 600;
-  background-color: rgba(67, 97, 238, 0.08);
+  background-color: var(--primary-50);
 }
 
 .messages-link {
@@ -336,11 +346,11 @@ const retryBackendCheck = async () => {
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
-  background-color: #ef4444;
-  color: white;
+  background-color: var(--error-color);
+  color: var(--text-inverse);
   font-size: 10px;
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: var(--radius-full);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -348,52 +358,46 @@ const retryBackendCheck = async () => {
 }
 
 .notification-container {
-  margin: 0 0.5rem;
+  margin: 0 var(--space-2);
 }
 
 .main-content {
   flex: 1;
-  background-color: #f9fafc;
+  background-color: var(--bg-secondary);
 }
 
 .footer {
-  background-color: #fff;
-  padding: 1.5rem;
+  background-color: var(--bg-primary);
+  padding: var(--space-6);
   text-align: center;
-  color: #666;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
 }
 
-/* 全局样式 */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+@media (max-width: 768px) {
+  .navbar {
+    padding: var(--space-3) var(--space-4);
+  }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  line-height: 1.6;
-  color: #333;
-  background-color: #f9fafc;
-}
+  .nav-brand a {
+    font-size: 1.1rem;
+  }
 
-a {
-  color: #4361ee;
-  text-decoration: none;
-}
+  .nav-brand a::before {
+    width: 10px;
+    height: 10px;
+    margin-right: 0.4rem;
+  }
 
-a:hover {
-  text-decoration: underline;
-}
+  .nav-links {
+    gap: var(--space-1);
+    margin-left: var(--space-3);
+  }
 
-button {
-  cursor: pointer;
-  font-family: inherit;
-}
-
-input, select, textarea {
-  font-family: inherit;
+  .nav-links a {
+    padding: var(--space-2);
+    font-size: 0.85rem;
+  }
 }
 </style>

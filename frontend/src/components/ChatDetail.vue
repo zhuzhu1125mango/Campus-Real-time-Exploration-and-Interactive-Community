@@ -5,7 +5,7 @@
         <span class="back-icon"></span>
       </button>
       <div class="chat-user-info">
-        <div class="chat-user-avatar" :style="{ backgroundImage: user?.avatar ? `url(${getAvatarUrl(user.avatar)})` : 'none' }">
+        <div class="chat-user-avatar" :style="{ backgroundImage: user?.avatar ? `url(${formatAvatar(user.avatar)})` : 'none' }">
           <span v-if="!user?.avatar">{{ getInitials(user?.username || '') }}</span>
         </div>
         <h3 class="chat-user-name">{{ user?.username }}</h3>
@@ -20,11 +20,18 @@
         </button>
       </div>
     </div>
-    
+
     <div class="chat-messages" ref="messagesContainer" @scroll="handleMessagesScroll">
-      <div v-if="loading" class="loading-container">
+      <div v-if="loading && messages.length === 0" class="loading-container">
         <div class="loading-spinner"></div>
         <p>加载中...</p>
+      </div>
+
+      <div v-else-if="messages.length === 0" class="empty-messages">
+        <div class="empty-icon">
+          <span class="empty-letter">✉</span>
+        </div>
+        <p>开始与 {{ user?.username }} 聊天吧！</p>
       </div>
 
       <div v-else>
@@ -33,42 +40,56 @@
           <span>加载历史消息...</span>
         </div>
 
-        <div v-if="messages.length === 0" class="empty-messages">
-          <p>开始与 {{ user?.username }} 聊天吧！</p>
-        </div>
-
-        <div v-else class="messages-list">
-        <div 
-          v-for="message in messages" 
-          :key="message.id" 
-          :class="['message-item', message.sender.id === currentUserId ? 'sent' : 'received']"
-        >
-          <div
-            class="message-avatar"
-            @click="goToUserProfile(message.sender.id)"
-            :style="{ backgroundImage: message.sender.avatar ? `url(${getAvatarUrl(message.sender.avatar)})` : 'none' }"
-          >
-            <span v-if="!message.sender.avatar">{{ getInitials(message.sender.username || '') }}</span>
-          </div>
-          <div class="message-content" :class="{ 'send-failed': message.sendFailed }">
-            <p class="message-text">{{ message.content }}</p>
-            <span v-if="message.sendFailed" class="send-failed-text">发送失败</span>
-            <span class="message-time">{{ formatTime(message.created_at) }}</span>
-          </div>
+        <div class="messages-list">
+          <template v-for="(group, groupIndex) in groupedMessages" :key="groupIndex">
+            <div v-if="group.date" class="date-divider">
+              <span>{{ group.date }}</span>
+            </div>
+            <div
+              v-for="message in group.messages"
+              :key="message.id"
+              :class="['message-item', isMine(message) ? 'sent' : 'received']"
+            >
+              <div
+                class="message-avatar"
+                @click="goToUserProfile(message.sender.id)"
+                :style="{ backgroundImage: message.sender.avatar ? `url(${formatAvatar(message.sender.avatar)})` : 'none' }"
+              >
+                <span v-if="!message.sender.avatar">{{ getInitials(message.sender.username || '') }}</span>
+              </div>
+              <div class="message-body">
+                <div class="message-content" :class="{ 'send-failed': message.sendFailed }">
+                  <p class="message-text">{{ message.content }}</p>
+                </div>
+                <div class="message-meta">
+                  <span v-if="message.isTemp" class="message-status sending">发送中...</span>
+                  <span v-else-if="message.sendFailed" class="message-status failed" @click="resendMessage(message)">
+                    发送失败，点击重试
+                  </span>
+                  <span v-else-if="isMine(message)" class="message-status sent">已发送</span>
+                  <span class="message-time">{{ formatTime(message.created_at) }}</span>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
     </div>
+
+    <div v-if="!isConnected && !loading" class="reconnect-bar">
+      <span>连接已断开，可能无法实时收到新消息</span>
+      <button class="reconnect-btn" @click="connectWebSocket">重新连接</button>
     </div>
 
     <div class="chat-input-area">
-      <input 
-        type="text" 
-        v-model="messageInput" 
-        placeholder="输入消息..."
+      <textarea
+        v-model="messageInput"
+        placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
         class="message-input"
-        @keyup.enter="sendMessage"
-      >
-      <button class="send-btn" @click="sendMessage" :disabled="!messageInput.trim()">
+        rows="1"
+        @keydown="handleInputKeydown"
+      ></textarea>
+      <button class="send-btn" @click="sendMessage" :disabled="!messageInput.trim() || sending">
         <span class="send-icon"></span>
       </button>
     </div>
@@ -82,13 +103,8 @@ import { useToast } from '../composables/useToast'
 import { userApi } from '../api/user'
 import { useUserStore } from '../stores/userStore'
 import config from '../utils/config'
-import { ElMessage } from 'element-plus'
+import { formatAvatar } from '../utils/image'
 
-const getAvatarUrl = (avatar?: string | null) => {
-  if (!avatar) return `${config.media.baseUrl}${config.media.defaultAvatar}`
-  if (avatar.startsWith('http')) return avatar
-  return `${config.media.baseUrl}${avatar}`
-}
 
 const router = useRouter()
 const route = useRoute()
@@ -111,12 +127,14 @@ const pageSize = 20
 // WebSocket相关状态
 const ws = ref<WebSocket | null>(null)
 const connectionStatus = ref<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected')
+const isConnected = ref(false)
 const reconnectAttempts = ref(0)
 const maxReconnectAttempts = 3
 const reconnectTimeout = ref<number | null>(null)
 const heartbeatInterval = ref<number | null>(null)
 const lastError = ref('')
 const reconnectDelay = 1000
+const sending = ref(false)
 
 // 获取WebSocket基础URL
 const WS_BASE_URL = config.wsBaseUrl
@@ -145,6 +163,48 @@ const connectionStatusText = computed(() => {
     default:
       return ''
   }
+})
+
+const isMine = (msg: any) => {
+  return msg.sender?.id === currentUserId.value
+}
+
+const formatTime = (dateString: string) => {
+  const date = new Date(dateString)
+  return `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString)
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+
+  if (isSameDay(date, today)) return '今天'
+  if (isSameDay(date, yesterday)) return '昨天'
+  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
+
+const groupedMessages = computed(() => {
+  const groups: { date: string; messages: any[] }[] = []
+  let currentDate = ''
+
+  messages.value.forEach(msg => {
+    const date = formatDate(msg.created_at)
+    if (date !== currentDate) {
+      currentDate = date
+      groups.push({ date, messages: [msg] })
+    } else {
+      groups[groups.length - 1].messages.push(msg)
+    }
+  })
+
+  return groups
 })
 
 // 检查好友关系
@@ -235,17 +295,16 @@ const handleMessagesScroll = () => {
 
 // 发送消息
 const sendMessage = async () => {
-  if (!messageInput.value.trim() || !userId.value) return
+  if (!messageInput.value.trim() || !userId.value || sending.value) return
 
   const content = messageInput.value.trim()
   messageInput.value = ''
 
   // 生成临时消息ID，避免与服务器真实ID冲突
   const tempId = `temp_${Date.now()}`
+  sending.value = true
 
   try {
-    console.log(`[ChatDetail] 发送消息给用户 ${userId.value}: ${content}`)
-
     // 先添加到消息列表（乐观更新）
     const tempMessage = {
       id: tempId,
@@ -266,8 +325,6 @@ const sendMessage = async () => {
     // 发送消息到后端
     const response = await userApi.sendMessage(Number(userId.value), { content })
 
-    console.log('[ChatDetail] 消息发送成功:', response)
-
     // 用服务器返回的真实消息替换临时消息
     const index = messages.value.findIndex(msg => msg.id === tempId)
     if (index !== -1 && response) {
@@ -281,13 +338,50 @@ const sendMessage = async () => {
     }
   } catch (error) {
     console.error('[ChatDetail] 发送消息失败:', error)
-    showToast('发送消息失败', 'error')
 
     // 标记临时消息为失败，保留内容以便重发
     const index = messages.value.findIndex(msg => msg.id === tempId)
     if (index !== -1) {
-      messages.value[index] = { ...messages.value[index], sendFailed: true }
+      messages.value[index] = { ...messages.value[index], sendFailed: true, isTemp: false }
     }
+  } finally {
+    sending.value = false
+  }
+}
+
+// 重发消息
+const resendMessage = async (message: any) => {
+  if (!message.content || !userId.value) return
+  message.sendFailed = false
+  message.isTemp = true
+  sending.value = true
+
+  try {
+    const response = await userApi.sendMessage(Number(userId.value), { content: message.content })
+    const index = messages.value.findIndex(msg => msg.id === message.id)
+    if (index !== -1 && response) {
+      messages.value[index] = {
+        ...response,
+        sender: response.sender || userStore.user,
+        receiver: response.receiver || user.value,
+        isTemp: false,
+        sendFailed: false
+      }
+    }
+  } catch (error) {
+    console.error('[ChatDetail] 重发消息失败:', error)
+    message.sendFailed = true
+    message.isTemp = false
+    showToast('重发失败', 'error')
+  } finally {
+    sending.value = false
+  }
+}
+
+const handleInputKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+    e.preventDefault()
+    sendMessage()
   }
 }
 
@@ -312,6 +406,7 @@ const connectWebSocket = async () => {
   if (!validToken) {
     console.log('[ChatDetail] 无法获取有效 token，跳过 WebSocket 连接')
     connectionStatus.value = 'disconnected'
+    isConnected.value = false
     lastError.value = '登录会话已过期，请重新登录'
     return
   }
@@ -339,6 +434,7 @@ const connectWebSocket = async () => {
     ws.value.onopen = () => {
       console.log('[ChatDetail] 私聊WebSocket连接已成功打开')
       connectionStatus.value = 'connected'
+      isConnected.value = true
       reconnectAttempts.value = 0
       lastError.value = ''
 
@@ -355,12 +451,9 @@ const connectWebSocket = async () => {
           }))
         }
       }, 30000)
-      
+
       // 连接成功后，重新加载对话确保消息同步
       loadConversation()
-      
-      // 显示连接成功提示
-      ElMessage.success('WebSocket连接已建立')
     }
 
     ws.value.onmessage = (event) => {
@@ -391,6 +484,7 @@ const connectWebSocket = async () => {
     ws.value.onclose = (event) => {
       console.log(`[ChatDetail] 私聊WebSocket连接已关闭，代码: ${event.code}, 原因: ${event.reason}`)
       connectionStatus.value = 'disconnected'
+      isConnected.value = false
 
       // 清理定时器
       if (heartbeatInterval.value) {
@@ -423,11 +517,6 @@ const connectWebSocket = async () => {
         const delay = reconnectDelay * Math.pow(1.5, reconnectAttempts.value - 1)
         console.log(`[ChatDetail] 将在 ${delay}ms 后尝试重新连接，第 ${reconnectAttempts.value} 次`)
 
-        // 显示重连提示
-        if (reconnectAttempts.value === 1) {
-          ElMessage.warning(`WebSocket连接断开，正在尝试重新连接... (第 ${reconnectAttempts.value} 次)`)
-        }
-
         reconnectTimeout.value = window.setTimeout(() => {
           if (userStore.isLoggedIn && userId.value) {
             console.log('[ChatDetail] 执行重连...')
@@ -436,46 +525,20 @@ const connectWebSocket = async () => {
         }, delay)
       } else {
         console.log('[ChatDetail] 达到最大重连次数或用户已登出，停止重连')
-        if (userStore.isLoggedIn) {
-          ElMessage.error('WebSocket连接断开，已达到最大重连次数')
-        }
       }
     }
 
     ws.value.onerror = () => {
       // 连接细节已在 onclose 中记录，避免重复报错
       connectionStatus.value = 'error'
+      isConnected.value = false
       lastError.value = '私聊连接发生错误，请稍后重试'
-
-      // 尝试重连
-      if (reconnectAttempts.value < maxReconnectAttempts) {
-        reconnectAttempts.value++
-        const delay = reconnectDelay * Math.pow(1.5, reconnectAttempts.value - 1)
-        console.log(`[ChatDetail] 将在 ${delay}ms 后尝试重新连接，第 ${reconnectAttempts.value} 次`)
-
-        reconnectTimeout.value = window.setTimeout(() => {
-          if (userStore.isLoggedIn && userId.value) {
-            connectWebSocket()
-          }
-        }, delay)
-      }
     }
   } catch (e: Error | unknown) {
     console.error('[ChatDetail] 私聊WebSocket连接初始化错误:', e)
     connectionStatus.value = 'error'
+    isConnected.value = false
     lastError.value = `连接初始化错误: ${e instanceof Error ? e.message : '未知错误'}`
-
-    if (reconnectAttempts.value < maxReconnectAttempts) {
-      reconnectAttempts.value++
-      const delay = reconnectDelay * Math.pow(1.5, reconnectAttempts.value - 1)
-      console.log(`[ChatDetail] 将在 ${delay}ms 后尝试重新连接，第 ${reconnectAttempts.value} 次`)
-
-      reconnectTimeout.value = window.setTimeout(() => {
-        if (userStore.isLoggedIn && userId.value) {
-          connectWebSocket()
-        }
-      }, delay)
-    }
   }
 }
 
@@ -553,12 +616,6 @@ const getInitials = (username: string) => {
   return username.charAt(0).toUpperCase()
 }
 
-// 格式化时间
-const formatTime = (dateString: string) => {
-  const date = new Date(dateString)
-  return `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`
-}
-
 // 返回消息中心
 const goBack = () => {
   router.push('/messages')
@@ -622,16 +679,16 @@ onUnmounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: #f9f9f9;
+  background-color: var(--bg-tertiary);
 }
 
 .chat-header {
   display: flex;
   align-items: center;
   padding: 15px 20px;
-  background-color: white;
-  border-bottom: 1px solid #f0f0f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color-light);
+  box-shadow: var(--shadow-sm);
 }
 
 .back-btn {
@@ -649,7 +706,7 @@ onUnmounted(() => {
 }
 
 .back-btn:hover {
-  background-color: #f0f0f0;
+  background-color: var(--bg-tertiary);
 }
 
 .back-icon {
@@ -671,7 +728,7 @@ onUnmounted(() => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background-color: #4361ee;
+  background-color: var(--primary-500);
   color: white;
   display: flex;
   align-items: center;
@@ -685,7 +742,7 @@ onUnmounted(() => {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .chat-actions {
@@ -707,7 +764,7 @@ onUnmounted(() => {
 }
 
 .more-btn:hover {
-  background-color: #f0f0f0;
+  background-color: var(--bg-tertiary);
 }
 
 .more-icon {
@@ -733,7 +790,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   flex: 1;
-  color: #888;
+  color: var(--text-tertiary);
 }
 
 .loading-spinner {
@@ -741,7 +798,7 @@ onUnmounted(() => {
   height: 40px;
   border: 3px solid rgba(67, 97, 238, 0.2);
   border-radius: 50%;
-  border-top-color: #4361ee;
+  border-top-color: var(--primary-500);
   animation: spin 1s linear infinite;
   margin-bottom: 10px;
 }
@@ -763,29 +820,62 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 10px;
-  color: #888;
+  color: var(--text-tertiary);
   font-size: 0.85rem;
 }
 
 .empty-messages {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   flex: 1;
-  color: #888;
+  color: var(--text-tertiary);
   font-size: 1.1rem;
+}
+
+.empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--primary-50);
+  color: var(--primary-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-4);
+}
+
+.empty-letter {
+  font-size: 32px;
+  line-height: 1;
 }
 
 .messages-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-2);
+}
+
+.date-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: var(--space-2) 0;
+}
+
+.date-divider span {
+  padding: 4px 12px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-tertiary);
+  border-radius: var(--radius-full);
+  font-size: 12px;
 }
 
 .message-item {
   max-width: 70%;
   display: flex;
-  margin-bottom: 10px;
+  margin-bottom: var(--space-3);
 }
 
 .message-item.sent {
@@ -801,7 +891,7 @@ onUnmounted(() => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background-color: #4361ee;
+  background-color: var(--primary-500);
   color: white;
   display: flex;
   align-items: center;
@@ -818,70 +908,127 @@ onUnmounted(() => {
 
 .message-avatar:hover {
   transform: scale(1.1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
+}
+
+.message-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sent .message-body {
+  align-items: flex-end;
 }
 
 .message-content {
   padding: 10px 15px;
   border-radius: 18px;
   position: relative;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .message-item.sent .message-content {
-  background-color: #4361ee;
-  color: white;
+  background-color: var(--primary-500);
+  color: var(--text-inverse);
   border-bottom-right-radius: 4px;
 }
 
 .message-item.received .message-content {
-  background-color: white;
-  color: #333;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
   border-bottom-left-radius: 4px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .message-text {
-  margin: 0 0 5px 0;
-  line-height: 1.4;
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.75rem;
+  padding: 0 4px;
+}
+
+.sent .message-meta {
+  justify-content: flex-end;
 }
 
 .message-time {
-  font-size: 0.75rem;
-  opacity: 0.7;
-  display: block;
-  text-align: right;
+  color: var(--text-tertiary);
+}
+
+.message-status {
+  color: var(--text-tertiary);
+}
+
+.message-status.sending {
+  color: var(--warning-color);
+}
+
+.message-status.sent {
+  color: var(--text-tertiary);
+}
+
+.message-status.failed {
+  color: var(--error-color);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.sent .message-time {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.sent .message-status {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.sent .message-status.failed {
+  color: #ffccc7;
 }
 
 .chat-input-area {
   display: flex;
   align-items: center;
   padding: 15px 20px;
-  background-color: white;
-  border-top: 1px solid #f0f0f0;
+  background-color: var(--bg-primary);
+  border-top: 1px solid var(--border-color-light);
   gap: 10px;
 }
 
 .message-input {
   flex: 1;
   padding: 12px 15px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 25px;
   font-size: 0.9rem;
   transition: all 0.3s;
   resize: none;
+  min-height: 44px;
+  max-height: 120px;
+  line-height: 1.5;
+  font-family: inherit;
 }
 
 .message-input:focus {
   outline: none;
-  border-color: #4361ee;
-  box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.1);
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
 }
 
 .send-btn {
   width: 40px;
   height: 40px;
   border: none;
-  background-color: #4361ee;
+  background-color: var(--primary-500);
   color: white;
   border-radius: 50%;
   display: flex;
@@ -889,15 +1036,16 @@ onUnmounted(() => {
   justify-content: center;
   cursor: pointer;
   transition: all 0.3s;
+  flex-shrink: 0;
 }
 
 .send-btn:hover:not(:disabled) {
-  background-color: #3a0ca3;
+  background-color: var(--primary-600);
   transform: scale(1.05);
 }
 
 .send-btn:disabled {
-  background-color: #ccc;
+  background-color: var(--text-tertiary);
   cursor: default;
 }
 
@@ -921,51 +1069,51 @@ onUnmounted(() => {
 }
 
 .connection-status-indicator.connecting {
-  background-color: #fff3cd;
+  background-color: var(--warning-bg);
 }
 
 .connection-status-indicator.connecting .status-dot {
-  background-color: #ffc107;
+  background-color: var(--warning-color);
 }
 
 .connection-status-indicator.connecting .status-text {
-  color: #856404;
+  color: var(--warning-color);
 }
 
 .connection-status-indicator.connected {
-  background-color: #d4edda;
+  background-color: var(--success-bg);
 }
 
 .connection-status-indicator.connected .status-dot {
-  background-color: #28a745;
+  background-color: var(--success-color);
 }
 
 .connection-status-indicator.connected .status-text {
-  color: #155724;
+  color: var(--success-color);
 }
 
 .connection-status-indicator.disconnected {
-  background-color: #f8d7da;
+  background-color: var(--error-bg);
 }
 
 .connection-status-indicator.disconnected .status-dot {
-  background-color: #dc3545;
+  background-color: var(--error-color);
 }
 
 .connection-status-indicator.disconnected .status-text {
-  color: #721c24;
+  color: var(--error-color);
 }
 
 .connection-status-indicator.error {
-  background-color: #f8d7da;
+  background-color: var(--error-bg);
 }
 
 .connection-status-indicator.error .status-dot {
-  background-color: #dc3545;
+  background-color: var(--error-color);
 }
 
 .connection-status-indicator.error .status-text {
-  color: #721c24;
+  color: var(--error-color);
 }
 
 .status-dot {
@@ -978,36 +1126,55 @@ onUnmounted(() => {
   font-weight: 500;
 }
 
-.message-content.send-failed {
-  background-color: #f8d7da !important;
-  color: #721c24 !important;
-  border: 1px solid #f5c6cb;
+.reconnect-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--warning-bg);
+  color: var(--warning-color);
+  font-size: 13px;
+  border-top: 1px solid rgba(245, 158, 11, 0.2);
 }
 
-.send-failed-text {
-  font-size: 0.75rem;
-  color: #dc3545;
-  display: block;
-  margin-bottom: 4px;
+.reconnect-btn {
+  padding: 4px 12px;
+  border-radius: var(--radius-md);
+  background: var(--warning-color);
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.reconnect-btn:hover {
+  opacity: 0.9;
+}
+
+.message-content.send-failed {
+  background-color: var(--error-bg) !important;
+  color: var(--error-color) !important;
+  border: 1px solid var(--error-color);
 }
 
 @media (max-width: 768px) {
   .chat-header {
     padding: 12px 15px;
   }
-  
+
   .chat-messages {
     padding: 15px;
   }
-  
+
   .message-item {
     max-width: 85%;
   }
-  
+
   .chat-input-area {
     padding: 12px 15px;
   }
-  
+
   .message-input {
     padding: 10px 12px;
   }

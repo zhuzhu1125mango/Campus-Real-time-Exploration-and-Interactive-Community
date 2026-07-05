@@ -51,8 +51,8 @@
               </div>
             </div>
             <div class="topic-stats">
-              <span><i class="el-icon-view"></i> {{ topic.views || 0 }}</span>
-              <span><i class="el-icon-chat-dot-square"></i> {{ topic.reply_count || 0 }}</span>
+              <span><el-icon><View /></el-icon> {{ topic.views || 0 }}</span>
+              <span><el-icon><ChatDotSquare /></el-icon> {{ topic.reply_count || 0 }}</span>
             </div>
           </div>
         </div>
@@ -74,6 +74,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { View, ChatDotSquare } from '@element-plus/icons-vue'
 import { forumApi } from '@/api/forum'
 import type { Topic } from '@/types/forum'
 

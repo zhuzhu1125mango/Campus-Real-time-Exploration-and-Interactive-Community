@@ -2,30 +2,41 @@
   <div class="messages-container">
     <div class="messages-sidebar">
       <h2 class="sidebar-title">私信</h2>
-      
+
       <!-- 搜索框 -->
       <div class="search-box">
-        <input 
-          v-model="searchQuery" 
-          type="text" 
+        <Search class="search-icon" />
+        <input
+          v-model="searchQuery"
+          type="text"
           placeholder="搜索联系人..."
           class="search-input"
         />
+        <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''">
+          <Close />
+        </button>
       </div>
-      
+
       <!-- 对话列表 -->
       <div class="conversation-list">
-        <div v-if="loading" class="loading-container">
+        <div v-if="loading && conversations.length === 0" class="loading-container">
           <div class="loading-spinner"></div>
           <p>加载中...</p>
         </div>
-        
+
         <div v-else-if="filteredConversations.length === 0" class="empty-conversations">
-          暂无私信
+          <div class="empty-icon">
+            <ChatRound />
+          </div>
+          <p v-if="searchQuery">未找到匹配的联系人</p>
+          <template v-else>
+            <p>暂无私信</p>
+            <button class="add-friend-btn" @click="goToFriends">去添加好友</button>
+          </template>
         </div>
-        
-        <div 
-          v-for="conv in filteredConversations" 
+
+        <div
+          v-for="conv in filteredConversations"
           :key="conv.user.id"
           class="conversation-item"
           @click="goToChat(conv.user.id)"
@@ -33,10 +44,10 @@
           <div class="avatar-wrapper">
             <img
               v-if="conv.user.avatar"
-              :src="getAvatarUrl(conv.user.avatar)"
+              :src="formatAvatar(conv.user.avatar)"
               alt="avatar"
               class="avatar"
-              @error="($event.target as HTMLImageElement).src = `${config.media.baseUrl}${config.media.defaultAvatar}`"
+              @error="($event.target as HTMLImageElement).src = formatAvatar()"
             />
             <div v-else class="avatar-placeholder">{{ conv.user.username.substring(0, 1) }}</div>
             <span v-if="conv.unread_count > 0" class="unread-badge">{{ conv.unread_count }}</span>
@@ -53,10 +64,12 @@
         </div>
       </div>
     </div>
-    
+
     <div class="messages-content">
       <div class="empty-content">
-        <div class="empty-icon"></div>
+        <div class="empty-icon">
+          <ChatRound />
+        </div>
         <p>选择一个对话开始聊天</p>
       </div>
     </div>
@@ -66,9 +79,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { Search, Close, ChatRound } from '@element-plus/icons-vue'
 import { userApi } from '@/api/user'
 import { useToast } from '@/composables/useToast'
-import config from '@/utils/config'
+import { formatAvatar } from '@/utils/image'
 import type { User } from '@/types/user'
 
 interface LastMessage {
@@ -93,7 +107,7 @@ let intervalId: number
 const filteredConversations = computed(() => {
   if (!searchQuery.value) return conversations.value
   const query = searchQuery.value.toLowerCase()
-  return conversations.value.filter(conv => 
+  return conversations.value.filter(conv =>
     conv.user.username.toLowerCase().includes(query)
   )
 })
@@ -125,6 +139,10 @@ const goToChat = async (userId: number) => {
   }
 }
 
+const goToFriends = () => {
+  router.push('/friends')
+}
+
 const getMessagePreview = (content?: string) => {
   if (!content) return ''
   if (content.length > 30) {
@@ -133,22 +151,16 @@ const getMessagePreview = (content?: string) => {
   return content
 }
 
-const getAvatarUrl = (avatar?: string | null) => {
-  if (!avatar) return `${config.media.baseUrl}${config.media.defaultAvatar}`
-  if (avatar.startsWith('http')) return avatar
-  return `${config.media.baseUrl}${avatar}`
-}
-
 const formatTime = (dateStr?: string) => {
   if (!dateStr) return ''
   const date = new Date(dateStr)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
-  
+
   if (diff < 24 * 60 * 60 * 1000) {
     return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
   }
-  
+
   return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
 }
 
@@ -168,43 +180,68 @@ onUnmounted(() => {
   height: calc(100vh - 60px);
   max-width: 1200px;
   margin: 0 auto;
-  background-color: #f5f5f5;
+  background-color: var(--bg-secondary);
 }
 
 .messages-sidebar {
   width: 320px;
-  background-color: white;
-  border-right: 1px solid #e0e0e0;
+  background-color: var(--bg-primary);
+  border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
 }
 
 .sidebar-title {
-  padding: 1.2rem 1rem;
+  padding: var(--space-4) var(--space-4);
   font-size: 1.2rem;
   font-weight: 600;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-color);
   margin: 0;
+  color: var(--text-primary);
 }
 
 .search-box {
-  padding: 0.8rem 1rem;
-  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.search-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
 }
 
 .search-input {
-  width: 100%;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  flex: 1;
+  padding: var(--space-2) 0;
+  border: none;
   font-size: 0.9rem;
-  box-sizing: border-box;
+  outline: none;
+  color: var(--text-primary);
+  background: transparent;
 }
 
-.search-input:focus {
-  outline: none;
-  border-color: #4361ee;
-  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+.search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.clear-btn:hover {
+  color: var(--text-secondary);
 }
 
 .conversation-list {
@@ -217,8 +254,8 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 3rem;
-  color: #888;
+  padding: var(--space-10);
+  color: var(--text-tertiary);
 }
 
 .loading-spinner {
@@ -226,9 +263,9 @@ onUnmounted(() => {
   height: 24px;
   border: 2px solid rgba(67, 97, 238, 0.3);
   border-radius: 50%;
-  border-top-color: #4361ee;
+  border-top-color: var(--primary-500);
   animation: spin 1s linear infinite;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-2);
 }
 
 @keyframes spin {
@@ -236,27 +273,65 @@ onUnmounted(() => {
 }
 
 .empty-conversations {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-10) var(--space-4);
+  color: var(--text-tertiary);
   text-align: center;
-  padding: 3rem;
-  color: #999;
+}
+
+.empty-conversations p {
+  margin-bottom: var(--space-3);
+}
+
+.empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--primary-50);
+  color: var(--primary-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-3);
+}
+
+.empty-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.add-friend-btn {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--primary-500);
+  color: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.add-friend-btn:hover {
+  background: var(--primary-600);
 }
 
 .conversation-item {
   display: flex;
   align-items: center;
-  padding: 1rem;
+  padding: var(--space-3) var(--space-4);
   cursor: pointer;
   transition: background-color 0.2s;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-color-light);
 }
 
 .conversation-item:hover {
-  background-color: #f8f9fa;
+  background-color: var(--bg-secondary);
 }
 
 .avatar-wrapper {
   position: relative;
-  margin-right: 1rem;
+  margin-right: var(--space-3);
   flex-shrink: 0;
 }
 
@@ -269,7 +344,7 @@ onUnmounted(() => {
 }
 
 .avatar-placeholder {
-  background-color: #4361ee;
+  background-color: var(--primary-500);
   color: white;
   display: flex;
   align-items: center;
@@ -282,11 +357,11 @@ onUnmounted(() => {
   position: absolute;
   top: -4px;
   right: -4px;
-  background-color: #ef4444;
+  background-color: var(--error-color);
   color: white;
   font-size: 0.7rem;
   padding: 0.15rem 0.4rem;
-  border-radius: 10px;
+  border-radius: var(--radius-full);
   min-width: 18px;
   text-align: center;
 }
@@ -303,11 +378,12 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--text-primary);
 }
 
 .conversation-preview {
   font-size: 0.85rem;
-  color: #666;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -315,12 +391,12 @@ onUnmounted(() => {
 
 .conversation-meta {
   flex-shrink: 0;
-  margin-left: 0.5rem;
+  margin-left: var(--space-2);
 }
 
 .conversation-time {
   font-size: 0.8rem;
-  color: #999;
+  color: var(--text-tertiary);
   white-space: nowrap;
 }
 
@@ -328,7 +404,7 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: #f5f5f5;
+  background-color: var(--bg-tertiary);
 }
 
 .empty-content {
@@ -337,24 +413,25 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
-.empty-icon {
-  width: 60px;
-  height: 60px;
-  margin-bottom: 1rem;
-  opacity: 0.3;
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>');
-  background-repeat: no-repeat;
-  background-position: center;
+.empty-content .empty-icon {
+  width: 72px;
+  height: 72px;
+  margin-bottom: var(--space-4);
+}
+
+.empty-content .empty-icon svg {
+  width: 36px;
+  height: 36px;
 }
 
 @media (max-width: 768px) {
   .messages-sidebar {
     width: 100%;
   }
-  
+
   .messages-content {
     display: none;
   }

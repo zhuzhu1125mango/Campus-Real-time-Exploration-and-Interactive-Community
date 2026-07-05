@@ -21,11 +21,13 @@
     <!-- 全局搜索框 -->
     <div class="forum-search">
       <div class="search-container">
-        <input 
-          type="text" 
-          v-model="searchQuery" 
-          placeholder="搜索话题、帖子或用户..." 
+        <input
+          type="text"
+          v-model="searchQuery"
+          placeholder="搜索话题、帖子或用户..."
           class="search-input"
+          maxlength="100"
+          @input="performSearch"
           @keyup.enter="performSearch"
         />
         <button class="search-button" @click="performSearch">
@@ -125,7 +127,9 @@
               <div v-if="category && category.id" class="category-section">
                 <div class="category-header">
                   <h2 class="category-title">
-                    <i :class="category.icon || 'el-icon-folder'" class="category-icon"></i>
+                    <el-icon class="category-icon">
+                      <component :is="resolveIcon(category.icon) || Folder" />
+                    </el-icon>
                     {{ category.name }}
                   </h2>
                   <p v-if="category.description" class="category-description">{{ category.description }}</p>
@@ -140,17 +144,19 @@
                       @click="navigateToBoard(board.id)"
                     >
                       <div class="board-header">
-                        <i :class="board.icon || 'el-icon-menu'" class="board-icon"></i>
+                        <el-icon class="board-icon">
+                          <component :is="resolveIcon(board.icon) || Menu" />
+                        </el-icon>
                         <h3 class="board-title">{{ board.name }}</h3>
                       </div>
                       <p v-if="board.description" class="board-description">{{ board.description }}</p>
                       <div class="board-stats">
                         <span class="stat-item">
-                          <i class="el-icon-chat-dot-square"></i>
+                          <el-icon><ChatDotSquare /></el-icon>
                           {{ board.topic_count || 0 }} 主题
                         </span>
                         <span class="stat-item">
-                          <i class="el-icon-document"></i>
+                          <el-icon><Document /></el-icon>
                           {{ board.post_count || 0 }} 帖子
                         </span>
                       </div>
@@ -202,8 +208,8 @@
                 </div>
               </div>
               <div class="topic-stats">
-                <span><i class="el-icon-view"></i> {{ topic.views || 0 }}</span>
-                <span><i class="el-icon-chat-dot-square"></i> {{ topic.reply_count || 0 }}</span>
+                <span><el-icon><View /></el-icon> {{ topic.views || 0 }}</span>
+                <span><el-icon><ChatDotSquare /></el-icon> {{ topic.reply_count || 0 }}</span>
               </div>
             </div>
           </div>
@@ -309,9 +315,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import {
+  Folder, Menu, ChatDotSquare, Document, View
+} from '@element-plus/icons-vue'
+import type { Component as VueComponent } from 'vue'
 import { forumApi } from '@/api/forum'
 import { userApi } from '@/api/user'
 import { useUserStore } from '@/stores/userStore'
+import { stripHtml } from '@/utils/xss'
+import { debounce } from '@/utils/debounce'
 import TagCloud from '@/components/TagCloud.vue'
 import type { Category, Board, Topic, ForumStats } from '@/types/forum'
 import type { User } from '@/types/user'
@@ -320,6 +332,20 @@ interface Tag {
   id: number
   name: string
   count: number
+}
+
+// 旧 Element UI 图标类名映射到 Element Plus 图标组件
+const iconMap: Record<string, VueComponent> = {
+  'el-icon-folder': Folder,
+  'el-icon-menu': Menu,
+  'el-icon-chat-dot-square': ChatDotSquare,
+  'el-icon-document': Document,
+  'el-icon-view': View
+}
+
+const resolveIcon = (iconName?: string) => {
+  if (!iconName) return undefined
+  return iconMap[iconName]
 }
 
 const router = useRouter()
@@ -555,26 +581,18 @@ const toggleLike = async (activityId: number) => {
   }
 }
 
-// 去除 HTML 标签获取纯文本
-const stripHtml = (html: string) => {
-  if (!html) return ''
-  const tmp = document.createElement('div')
-  tmp.innerHTML = html
-  return tmp.textContent || tmp.innerText || ''
-}
-
-// 执行搜索
-const performSearch = async () => {
+// 执行搜索（防抖）
+const performSearch = debounce(async () => {
   const query = searchQuery.value.trim()
   if (!query) {
     showSearchResults.value = false
     searchResults.value = []
     return
   }
-  
+
   searchLoading.value = true
   searchResults.value = []
-  
+
   try {
     const type = searchType.value
     const results: any[] = []
@@ -620,7 +638,7 @@ const performSearch = async () => {
   } finally {
     searchLoading.value = false
   }
-}
+}, 400)
 
 // 获取搜索结果标题
 const getSearchResultTitle = (result: any) => {

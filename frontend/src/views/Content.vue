@@ -3,6 +3,8 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { contentApi } from '../api/content'
 import { useUserStore } from '../stores/userStore'
+import { stripHtml } from '../utils/xss'
+import { debounce } from '../utils/debounce'
 import type { ContentItem, Category } from '../types/content'
 
 const router = useRouter()
@@ -81,10 +83,10 @@ const loadCategories = async () => {
   }
 }
 
-const handleSearch = () => {
+const handleSearch = debounce(() => {
   page.value = 1
   loadContents()
-}
+}, 400)
 
 const setTab = (tab: 'all' | 'mine' | 'draft' | 'pending' | 'rejected') => {
   activeTab.value = tab
@@ -107,13 +109,6 @@ const goCreate = () => {
 
 const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString('zh-CN')
-}
-
-const stripHtml = (html: string) => {
-  if (!html) return ''
-  const tmp = document.createElement('div')
-  tmp.innerHTML = html
-  return tmp.textContent || tmp.innerText || ''
 }
 
 watch([selectedCategory, ordering, activeTab], () => {
@@ -166,6 +161,8 @@ onMounted(() => {
           type="text"
           placeholder="搜索内容"
           class="search-input"
+          maxlength="100"
+          @input="handleSearch"
           @keyup.enter="handleSearch"
         />
         <select v-model="selectedCategory" class="filter-select">

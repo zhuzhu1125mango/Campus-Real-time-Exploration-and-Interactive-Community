@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { ChatLineRound, Warning } from '@element-plus/icons-vue'
 import { useUserStore } from '../stores/userStore'
 import config from '../utils/config'
+import { formatAvatar } from '../utils/image'
 import { messageStorage } from '../utils/messageStorage'
 import { chatApi } from '../api/chat'
 import { ElMessage } from 'element-plus'
@@ -56,16 +58,51 @@ const connectionStatusText = computed(() => {
   }
 })
 
-const getAvatarUrl = (avatar?: string | null) => {
-  if (!avatar) return `${config.media.baseUrl}${config.media.defaultAvatar}`
-  if (avatar.startsWith('http')) return avatar
-  return `${config.media.baseUrl}${avatar}`
-}
-
 const getInitials = (name?: string) => {
   if (!name) return '?'
   return name.slice(0, 2).toUpperCase()
 }
+
+const formatTime = (time: string) => {
+  return new Date(time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+const formatDate = (time: string) => {
+  const date = new Date(time)
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+
+  if (isSameDay(date, today)) return '今天'
+  if (isSameDay(date, yesterday)) return '昨天'
+  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
+
+const groupedMessages = computed(() => {
+  const groups: { date: string; messages: ChatMessageItem[] }[] = []
+  let currentDate = ''
+
+  messages.value.forEach(msg => {
+    if (msg.type === 'system') {
+      groups.push({ date: '', messages: [msg] })
+      return
+    }
+    const date = formatDate(msg.time)
+    if (date !== currentDate) {
+      currentDate = date
+      groups.push({ date, messages: [msg] })
+    } else {
+      groups[groups.length - 1].messages.push(msg)
+    }
+  })
+
+  return groups
+})
 
 // 滚动到底部
 const scrollToBottom = () => {
@@ -274,6 +311,13 @@ const sendMessage = () => {
   saveMessagesToStorage()
 }
 
+const handleInputKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
+    e.preventDefault()
+    sendMessage()
+  }
+}
+
 // 本地存储
 const saveMessagesToStorage = () => {
   messageStorage.saveChatMessages(messages.value.slice(-100))
@@ -336,54 +380,68 @@ onUnmounted(() => {
       </div>
 
       <div v-else-if="messages.length === 0" class="empty-state">
+        <div class="empty-icon">
+          <ChatLineRound />
+        </div>
         <p>还没有消息，来说点什么吧！</p>
       </div>
 
       <div v-else class="messages-list">
-        <div
-          v-for="message in messages"
-          :key="message.id"
-          :class="[
-            'message-item',
-            message.type === 'system' ? 'system-message' : '',
-            message.user.id === currentUserId ? 'self-message' : 'other-message'
-          ]"
-        >
-          <template v-if="message.type === 'system'">
-            <span class="system-text">{{ message.content }}</span>
-          </template>
-          <template v-else>
-            <div
-              class="message-avatar"
-              :style="{ backgroundImage: message.user.avatar ? `url(${getAvatarUrl(message.user.avatar)})` : 'none' }"
-            >
-              <span v-if="!message.user.avatar">{{ getInitials(message.user.username) }}</span>
-            </div>
-            <div class="message-body">
-              <div class="message-info">
-                <span class="message-username">{{ message.user.username }}</span>
-                <span class="message-time">{{ new Date(message.time).toLocaleTimeString() }}</span>
+        <template v-for="(group, groupIndex) in groupedMessages" :key="groupIndex">
+          <div v-if="group.date" class="date-divider">
+            <span>{{ group.date }}</span>
+          </div>
+          <div
+            v-for="message in group.messages"
+            :key="message.id"
+            :class="[
+              'message-item',
+              message.type === 'system' ? 'system-message' : '',
+              message.user.id === currentUserId ? 'self-message' : 'other-message'
+            ]"
+          >
+            <template v-if="message.type === 'system'">
+              <span class="system-text">{{ message.content }}</span>
+            </template>
+            <template v-else>
+              <div
+                class="message-avatar"
+                :style="{ backgroundImage: message.user.avatar ? `url(${formatAvatar(message.user.avatar)})` : 'none' }"
+              >
+                <span v-if="!message.user.avatar">{{ getInitials(message.user.username) }}</span>
               </div>
-              <div class="message-content" :class="{ 'send-failed': message.sendFailed }">
-                <p>{{ message.content }}</p>
-                <span v-if="message.isTemp && !message.sendFailed" class="sending-hint">发送中...</span>
-                <span v-if="message.sendFailed" class="failed-hint">发送失败</span>
+              <div class="message-body">
+                <div class="message-info">
+                  <span class="message-username">{{ message.user.username }}</span>
+                  <span class="message-time">{{ formatTime(message.time) }}</span>
+                </div>
+                <div class="message-content" :class="{ 'send-failed': message.sendFailed }">
+                  <p>{{ message.content }}</p>
+                  <span v-if="message.isTemp && !message.sendFailed" class="sending-hint">发送中...</span>
+                  <span v-if="message.sendFailed" class="failed-hint">发送失败</span>
+                </div>
               </div>
-            </div>
-          </template>
-        </div>
+            </template>
+          </div>
+        </template>
       </div>
     </div>
 
+    <div v-if="!connected && !loading" class="reconnect-bar">
+      <Warning class="reconnect-icon" />
+      <span>连接已断开，消息可能无法实时同步</span>
+      <button class="reconnect-btn" @click="connectWebSocket">重新连接</button>
+    </div>
+
     <div class="chat-input-area">
-      <input
-        type="text"
+      <textarea
         v-model="messageInput"
-        placeholder="输入消息，按回车发送..."
+        placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
         class="message-input"
-        @keyup.enter="sendMessage"
+        rows="1"
         :disabled="!connected"
-      />
+        @keydown="handleInputKeydown"
+      ></textarea>
       <button class="send-btn" @click="sendMessage" :disabled="!messageInput.trim() || !connected">
         发送
       </button>
@@ -398,9 +456,9 @@ onUnmounted(() => {
   height: calc(100vh - 120px);
   max-width: 900px;
   margin: 0 auto;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
@@ -408,55 +466,55 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #e8e8e8;
-  background: #fafafa;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-color-light);
+  background: var(--bg-secondary);
 }
 
 .chat-title {
   margin: 0;
   font-size: 18px;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .header-meta {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
   font-size: 14px;
 }
 
 .online-count {
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .connection-status {
-  padding: 2px 8px;
-  border-radius: 12px;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
   font-size: 12px;
 }
 
 .connection-status.connecting {
-  background: #fff7e6;
-  color: #fa8c16;
+  background: var(--warning-bg);
+  color: var(--warning-color);
 }
 
 .connection-status.connected {
-  background: #f6ffed;
-  color: #52c41a;
+  background: var(--success-bg);
+  color: var(--success-color);
 }
 
 .connection-status.disconnected,
 .connection-status.error {
-  background: #fff1f0;
-  color: #f5222d;
+  background: var(--error-bg);
+  color: var(--error-color);
 }
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px;
-  background: #f5f5f5;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-tertiary);
 }
 
 .loading-container,
@@ -466,17 +524,34 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #999;
+  color: var(--text-tertiary);
+}
+
+.empty-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--primary-50);
+  color: var(--primary-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-4);
+}
+
+.empty-icon svg {
+  width: 32px;
+  height: 32px;
 }
 
 .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid #e8e8e8;
-  border-top-color: #1890ff;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--primary-500);
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 @keyframes spin {
@@ -488,12 +563,27 @@ onUnmounted(() => {
 .messages-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
+}
+
+.date-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: var(--space-2) 0;
+}
+
+.date-divider span {
+  padding: 4px 12px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-tertiary);
+  border-radius: var(--radius-full);
+  font-size: 12px;
 }
 
 .message-item {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
   max-width: 80%;
 }
 
@@ -513,9 +603,9 @@ onUnmounted(() => {
 
 .system-text {
   padding: 4px 12px;
-  background: #e8e8e8;
-  color: #666;
-  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-secondary);
+  border-radius: var(--radius-full);
   font-size: 12px;
 }
 
@@ -524,8 +614,8 @@ onUnmounted(() => {
   height: 40px;
   min-width: 40px;
   border-radius: 50%;
-  background: #1890ff;
-  color: #fff;
+  background: var(--primary-500);
+  color: var(--text-inverse);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -547,40 +637,42 @@ onUnmounted(() => {
 .message-info {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   font-size: 12px;
 }
 
 .message-username {
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .message-time {
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .message-content {
   padding: 10px 14px;
-  border-radius: 12px;
-  background: #fff;
-  color: #333;
+  border-radius: var(--radius-xl);
+  background: var(--bg-primary);
+  color: var(--text-primary);
   word-break: break-word;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-sm);
+  max-width: 100%;
 }
 
 .self-message .message-content {
-  background: #1890ff;
-  color: #fff;
+  background: var(--primary-500);
+  color: var(--text-inverse);
+  border-bottom-right-radius: var(--radius-sm);
 }
 
-.self-message .message-content .message-time,
-.self-message .message-username {
-  color: rgba(255, 255, 255, 0.85);
+.other-message .message-content {
+  border-bottom-left-radius: var(--radius-sm);
 }
 
 .message-content p {
   margin: 0;
   line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .sending-hint,
@@ -592,51 +684,98 @@ onUnmounted(() => {
 }
 
 .failed-hint {
-  color: #ff4d4f;
+  color: var(--error-color);
+}
+
+.self-message .failed-hint {
+  color: #ffccc7;
+}
+
+.message-content.send-failed {
+  background: var(--error-bg);
+  color: var(--error-color);
+}
+
+.reconnect-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--warning-bg);
+  color: var(--warning-color);
+  font-size: 13px;
+  border-top: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.reconnect-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.reconnect-btn {
+  padding: 4px 12px;
+  border-radius: var(--radius-md);
+  background: var(--warning-color);
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.reconnect-btn:hover {
+  opacity: 0.9;
 }
 
 .chat-input-area {
   display: flex;
-  gap: 12px;
-  padding: 12px 20px;
-  border-top: 1px solid #e8e8e8;
-  background: #fff;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border-color-light);
+  background: var(--bg-primary);
 }
 
 .message-input {
   flex: 1;
   padding: 10px 14px;
-  border: 1px solid #d9d9d9;
-  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
   outline: none;
   font-size: 14px;
+  resize: none;
+  min-height: 42px;
+  max-height: 120px;
+  line-height: 1.5;
+  font-family: inherit;
 }
 
 .message-input:focus {
-  border-color: #1890ff;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px var(--primary-50);
 }
 
 .message-input:disabled {
-  background: #f5f5f5;
-  color: #999;
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
 }
 
 .send-btn {
   padding: 0 24px;
   border: none;
-  border-radius: 20px;
-  background: #1890ff;
-  color: #fff;
+  border-radius: var(--radius-xl);
+  background: var(--primary-500);
+  color: var(--text-inverse);
   font-size: 14px;
   cursor: pointer;
+  transition: background-color 0.2s;
 }
 
 .send-btn:hover:not(:disabled) {
-  background: #40a9ff;
+  background: var(--primary-600);
 }
 
 .send-btn:disabled {
-  background: #bfbfbf;
+  background: var(--text-tertiary);
   cursor: not-allowed;
 }
 </style>

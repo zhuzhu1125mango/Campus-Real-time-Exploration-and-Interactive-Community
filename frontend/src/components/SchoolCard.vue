@@ -38,7 +38,9 @@
     <div class="school-footer">
       <el-button type="primary" size="small" @click.stop="goToDetail">查看详情</el-button>
       <el-button v-if="showActions" type="info" size="small" plain @click="toggleFavorite">
-        <i :class="isFavorite ? 'el-icon-star-on' : 'el-icon-star-off'"></i>
+        <el-icon>
+          <component :is="isFavorite ? StarFilled : Star" />
+        </el-icon>
         {{ isFavorite ? '已收藏' : '收藏' }}
       </el-button>
     </div>
@@ -48,6 +50,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { Star, StarFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '../stores/userStore'
 import type { School } from '../types/school'
 import { ElMessage } from 'element-plus'
