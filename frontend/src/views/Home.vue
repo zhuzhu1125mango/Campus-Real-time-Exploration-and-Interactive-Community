@@ -88,17 +88,6 @@
           </button>
         </div>
         
-        <div class="live-chat">
-          <div class="chat-header">
-            <h3>实时聊天室</h3>
-            <span class="online-users">
-              <ChatRoomUserCount ref="userCountRef" />
-            </span>
-          </div>
-          <div class="chat-container">
-            <ChatRoom embedded @online-users-update="updateUserCount" />
-          </div>
-        </div>
       </div>
     </div>
 
@@ -118,8 +107,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useUserStore } from '../stores/userStore'
-import ChatRoom from '../components/ChatRoom.vue'
-import ChatRoomUserCount from '../components/ChatRoomUserCount.vue'
 import RecommendationSection from '../components/RecommendationSection.vue'
 import { userApi } from '../api/user'
 import { formatDate } from '../utils/date'
@@ -127,22 +114,12 @@ import { formatDate } from '../utils/date'
 // 使用用户状态存储
 const userStore = useUserStore()
 
-// 引用在线用户计数组件
-const userCountRef = ref<InstanceType<typeof ChatRoomUserCount> | null>(null)
-
 // 活动数据
 const activities = ref<any[]>([])
 const loading = ref(false)
 const hasMore = ref(true)
 const page = ref(1)
 const activeFilter = ref('all')
-
-// 更新在线用户计数
-const updateUserCount = (count: number) => {
-  if (userCountRef.value) {
-    userCountRef.value.updateUserCount(count)
-  }
-}
 
 // 格式化时间
 const formatTime = (timeString: string) => {
@@ -490,7 +467,7 @@ onMounted(() => {
 
 .activity-container {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 2rem;
   margin-top: 2rem;
 }
@@ -634,84 +611,9 @@ onMounted(() => {
   background-color: #f0f3ff;
 }
 
-/* 实时聊天样式 */
-.live-chat {
-  background-color: white;
-  border-radius: 16px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-  height: auto;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.chat-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid #f0f0f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: white;
-}
-
-.chat-header h3 {
-  margin: 0;
-  font-size: 1.3rem;
-  color: #333;
-}
-
-.online-users {
-  color: #4361ee;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.chat-container {
-  flex: 1;
-  overflow: hidden;
-  min-height: 390px; /* 确保聊天容器有最小高度 */
-  height: 100%;
-}
-
-/* 覆盖ChatRoom组件中的样式 */
-.chat-container :deep(.chat-room) {
-  border-radius: 0;
-  box-shadow: none;
-  height: 100%;
-}
-
-.chat-container :deep(.chat-header h3) {
-  display: none; /* 只隐藏标题文字，保留放大按钮 */
-}
-
-.chat-container :deep(.chat-header .online-users) {
-  display: none; /* 隐藏在线人数显示，避免重复 */
-}
-
-.chat-container :deep(.chat-input button) {
-  background-color: #4361ee;
-}
-
-.chat-container :deep(.chat-input button:hover:not(:disabled)) {
-  background-color: #3a56d4;
-}
-
-.chat-container :deep(.login-tip a), 
-.chat-container :deep(.reconnect-btn) {
-  color: #4361ee;
-}
-
-.chat-container :deep(.message-mine .message-content) {
-  background-color: rgba(67, 97, 238, 0.1);
-}
-
 @media (max-width: 768px) {
   .activity-container {
     grid-template-columns: 1fr;
-  }
-  
-  .live-chat {
-    height: 450px; /* 在移动设备上稍微降低高度 */
   }
 }
 

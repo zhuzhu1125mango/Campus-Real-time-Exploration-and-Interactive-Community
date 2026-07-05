@@ -28,6 +28,8 @@ export interface Tag {
   updated_at?: string
 }
 
+export type ContentStatus = 'draft' | 'pending' | 'published' | 'rejected'
+
 export interface ContentItem {
   id: number
   title: string
@@ -40,6 +42,7 @@ export interface ContentItem {
   summary: string
   featured_image: string | null
   is_published: boolean
+  status: ContentStatus
   publish_date: string | null
   view_count: number
   comment_count: number

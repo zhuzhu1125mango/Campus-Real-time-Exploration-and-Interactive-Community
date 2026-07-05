@@ -38,8 +38,8 @@ const config: Config = {
   wsBaseUrl: import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000',
   media: {
     baseUrl: import.meta.env.VITE_MEDIA_BASE_URL || 'http://localhost:8000',
-    defaultAvatar: '/media/avatars1/默认头像.png',
-    defaultBanner: '/media/banners1/默认背景图.png'
+    defaultAvatar: '/media/avatars/default-avatar.svg',
+    defaultBanner: '/media/banners/default-banner.svg'
   },
   cors: {
     allowedOrigins: [

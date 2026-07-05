@@ -153,6 +153,7 @@
       :course="course"
       :enrollment="enrollment"
       @complete="handleLessonComplete"
+      @next="openNextLesson"
     />
   </div>
 </template>
@@ -208,9 +209,10 @@ const loadCourse = async () => {
     const [courseRes, chaptersRes, resourcesRes, reviewsRes, enrollmentRes] = await Promise.all(requests)
 
     course.value = courseRes
-    chapters.value = chaptersRes.results.sort((a: Chapter, b: Chapter) => a.order - b.order)
-    resources.value = resourcesRes.results
-    reviews.value = reviewsRes.results
+    const chapterList = Array.isArray(chaptersRes) ? chaptersRes : chaptersRes.results
+    chapters.value = chapterList.sort((a: Chapter, b: Chapter) => a.order - b.order)
+    resources.value = Array.isArray(resourcesRes) ? resourcesRes : resourcesRes.results
+    reviews.value = Array.isArray(reviewsRes) ? reviewsRes : reviewsRes.results
     if (enrollmentRes && enrollmentRes.results.length > 0) {
       enrollment.value = enrollmentRes.results[0]
     }
@@ -291,6 +293,25 @@ const enroll = async () => {
 
 const handleLessonComplete = () => {
   // 课时学习完成后的回调，可刷新学习进度
+}
+
+const openNextLesson = () => {
+  if (!currentLesson.value) return
+  const allLessons: Lesson[] = []
+  for (const chapter of chapters.value) {
+    for (const lesson of chapter.lessons) {
+      allLessons.push(lesson)
+    }
+  }
+  const currentIndex = allLessons.findIndex(l => l.id === currentLesson.value?.id)
+  const nextLesson = allLessons[currentIndex + 1]
+  if (nextLesson && canWatchLesson(nextLesson)) {
+    currentLesson.value = nextLesson
+  } else if (nextLesson) {
+    ElMessage.info('已学完当前课时，后续课时需要报名后继续学习')
+  } else {
+    ElMessage.success('恭喜，已完成本课程所有课时')
+  }
 }
 
 const downloadResource = (resource: LearningResource) => {

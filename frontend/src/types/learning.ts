@@ -78,6 +78,7 @@ export interface Progress {
   is_completed: boolean
   last_watched_at: string | null
   watched_duration: number
+  last_position: number
 }
 
 export interface Review {

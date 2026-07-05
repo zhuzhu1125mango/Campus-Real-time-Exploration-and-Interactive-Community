@@ -78,7 +78,6 @@ import { useRouter } from 'vue-router'
 import { useToast } from '../composables/useToast'
 import { userApi } from '../api/user'
 import { useUserStore } from '../stores/userStore'
-import config from '../utils/config'
 
 const { showToast } = useToast()
 const router = useRouter()
@@ -91,7 +90,6 @@ const unreadCount = ref(0)
 const notifications = ref<any[]>([])
 const activeTab = ref('all')
 const dropdownContent = ref<HTMLElement | null>(null)
-const ws = ref<WebSocket | null>(null)
 
 // 通知类型选项卡
 const tabs = [
@@ -307,99 +305,6 @@ const formatTime = (dateString: string) => {
   }
 }
 
-// 初始化WebSocket连接
-const initWebSocket = async () => {
-  // 未登录时不建立连接
-  if (!userStore.isLoggedIn) {
-    return
-  }
-
-  // 关闭现有连接
-  if (ws.value) {
-    ws.value.close()
-  }
-
-  // 在连接前确保 token 有效，避免使用过期的 token 导致后端报错
-  const validToken = await userStore.ensureValidToken()
-  if (!validToken) {
-    console.log('[Notification] 无法获取有效 token，跳过 WebSocket 连接')
-    return
-  }
-
-  // 创建新连接
-  // 使用配置中的后端服务器WebSocket URL
-  const wsUrl = `${config.wsBaseUrl}/ws/chat`;
-
-  // 通过 Sec-WebSocket-Protocol 子协议传递 token，避免 token 暴露在 URL 中
-  const protocols = ['jwt', validToken];
-
-  console.log('[Notification] WebSocket URL:', wsUrl);
-  ws.value = new WebSocket(wsUrl, protocols)
-
-  ws.value.onopen = () => {
-    console.log('[Notification] WebSocket 连接已建立')
-  }
-  
-  ws.value.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
-      
-      // 处理通知消息
-      if (data.type === 'notification') {
-        // 添加新通知到列表顶部
-        notifications.value.unshift(data.notification)
-        // 更新未读通知数
-        if (!data.notification.is_read) {
-          unreadCount.value++
-        }
-        // 显示通知提示
-        showToast(data.notification.title, 'info')
-      }
-      
-      // 处理未读通知数更新
-      if (data.type === 'unread_notifications') {
-        unreadCount.value = data.count
-      }
-      
-      // 处理通知标记已读
-      if (data.type === 'notification_marked_read') {
-        notifications.value = notifications.value.map(n => 
-          n.id === data.notification_id ? { ...n, is_read: true } : n
-        )
-        if (unreadCount.value > 0) {
-          unreadCount.value--
-        }
-      }
-      
-      // 处理所有通知标记已读
-      if (data.type === 'all_notifications_marked_read') {
-        notifications.value = notifications.value.map(n => ({
-          ...n,
-          is_read: true
-        }))
-        unreadCount.value = 0
-      }
-    } catch (error) {
-      console.error('处理WebSocket消息失败:', error)
-    }
-  }
-  
-  ws.value.onclose = (event) => {
-    console.log('[Notification] WebSocket 连接已关闭，代码:', event.code)
-    // 仅因网络原因断开时尝试重连；认证失败(4001)或 token 问题不再盲目重连
-    if (event.code !== 4001 && event.code !== 4002 && userStore.isLoggedIn) {
-      setTimeout(initWebSocket, 5000)
-    }
-  }
-  
-  ws.value.onerror = (_error: Event) => {
-    // 连接异常已在 onclose 中处理，避免重复报错
-    console.warn('通知WebSocket连接异常')
-  }
-}
-
-
-
 // 定期刷新未读通知数
 let intervalId: number
 
@@ -407,10 +312,6 @@ let intervalId: number
 onMounted(() => {
   document.addEventListener('mousedown', handleClickOutside)
   fetchUnreadCount()
-  // 仅在登录时建立通知/聊天 WebSocket 连接
-  if (userStore.isLoggedIn) {
-    initWebSocket()
-  }
 
   // 定期检查未读通知数（每分钟）
   intervalId = window.setInterval(fetchUnreadCount, 60000)
@@ -418,13 +319,8 @@ onMounted(() => {
   // 监听登录状态变化
   watch(() => userStore.isLoggedIn, (newValue) => {
     if (newValue) {
-      initWebSocket()
       fetchUnreadCount()
     } else {
-      if (ws.value) {
-        ws.value.close()
-        ws.value = null
-      }
       unreadCount.value = 0
       notifications.value = []
     }
@@ -434,9 +330,6 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('mousedown', handleClickOutside)
   clearInterval(intervalId)
-  if (ws.value) {
-    ws.value.close()
-  }
 })
 
 // 监听activeTab变化，切换时重新获取通知

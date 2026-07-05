@@ -17,6 +17,7 @@ export const contentApi = {
     category?: number | string
     content_type?: number | string
     is_published?: boolean | string
+    status?: string
   }): Promise<PaginatedResponse<ContentItem>> {
     return request.get('/content/contents/', { params })
   },
@@ -47,8 +48,20 @@ export const contentApi = {
     return request.post(`/content/contents/${id}/unpublish/`)
   },
 
-  getMyContents(): Promise<ContentItem[]> {
-    return request.get('/content/contents/my_contents/')
+  submitContent(id: number | string): Promise<{ status: string; id: number }> {
+    return request.post(`/content/contents/${id}/submit/`)
+  },
+
+  approveContent(id: number | string): Promise<{ status: string; id: number }> {
+    return request.post(`/content/contents/${id}/approve/`)
+  },
+
+  rejectContent(id: number | string): Promise<{ status: string; id: number }> {
+    return request.post(`/content/contents/${id}/reject/`)
+  },
+
+  getMyContents(params?: { status?: string }): Promise<ContentItem[]> {
+    return request.get('/content/contents/my_contents/', { params })
   },
 
   // 内容类型API

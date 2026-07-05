@@ -148,8 +148,13 @@ export const learningApi = {
   },
   
   // 更新进度
-  updateProgress(progressId: number | string, data: { is_completed?: boolean; last_watched_at?: string; watched_duration?: number }): Promise<any> {
+  updateProgress(progressId: number | string, data: { is_completed?: boolean; last_watched_at?: string; watched_duration?: number; last_position?: number }): Promise<any> {
     return request.put(`/learning/progresses/${progressId}/`, data)
+  },
+
+  // 创建或更新课时进度
+  recordProgress(data: { enrollment: number; lesson: number; is_completed?: boolean; last_watched_at?: string; watched_duration?: number; last_position?: number }): Promise<any> {
+    return request.post('/learning/progresses/record/', data)
   },
   
   // 评价相关API

@@ -15,8 +15,27 @@
           :src="lesson.video_url"
           controls
           class="lesson-video"
+          @loadedmetadata="handleLoadedMetadata"
+          @timeupdate="handleTimeUpdate"
           @ended="handleVideoEnded"
+          @ratechange="handleRateChange"
         ></video>
+        <div class="video-controls">
+          <div class="speed-control">
+            <span class="control-label">倍速</span>
+            <select v-model="playbackRate" class="speed-select" @change="applyPlaybackRate">
+              <option :value="0.5">0.5x</option>
+              <option :value="0.75">0.75x</option>
+              <option :value="1">1.0x</option>
+              <option :value="1.25">1.25x</option>
+              <option :value="1.5">1.5x</option>
+              <option :value="2">2.0x</option>
+            </select>
+          </div>
+          <span v-if="progress?.last_position" class="resume-tip">
+            已恢复至上次观看位置 {{ formatSeconds(progress.last_position) }}
+          </span>
+        </div>
       </div>
 
       <!-- 课时内容 -->
@@ -65,6 +84,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void
   (e: 'complete'): void
+  (e: 'next'): void
 }>()
 
 const visible = computed({
@@ -72,12 +92,22 @@ const visible = computed({
   set: (val) => emit('update:visible', val)
 })
 
+const videoRef = ref<HTMLVideoElement | null>(null)
 const progress = ref<Progress | null>(null)
 const loadingProgress = ref(false)
 const completing = ref(false)
+const playbackRate = ref(1)
+const lastSavedPosition = ref(0)
+const saveTimer = ref<number | null>(null)
 
 const handleClose = () => {
+  saveProgress(true)
+  if (saveTimer.value) {
+    clearInterval(saveTimer.value)
+    saveTimer.value = null
+  }
   progress.value = null
+  lastSavedPosition.value = 0
 }
 
 const loadProgress = async () => {
@@ -89,11 +119,31 @@ const loadProgress = async () => {
       lesson: props.lesson.id
     })
     progress.value = res.results[0] || null
+    if (!progress.value) {
+      // 没有进度记录时创建一条
+      const created = await learningApi.recordProgress({
+        enrollment: props.enrollment.id,
+        lesson: props.lesson.id
+      })
+      progress.value = created
+    }
   } catch (error) {
     console.error('加载进度失败:', error)
   } finally {
     loadingProgress.value = false
   }
+}
+
+const restorePosition = () => {
+  const video = videoRef.value
+  if (!video || !progress.value) return
+  if (progress.value.last_position > 0 && progress.value.last_position < video.duration - 5) {
+    video.currentTime = progress.value.last_position
+  }
+}
+
+const handleLoadedMetadata = () => {
+  restorePosition()
 }
 
 const incrementView = async () => {
@@ -102,6 +152,46 @@ const incrementView = async () => {
     await learningApi.incrementLessonView(props.lesson.id)
   } catch (error) {
     console.error('增加观看次数失败:', error)
+  }
+}
+
+const saveProgress = async (force = false) => {
+  const video = videoRef.value
+  if (!video || !props.enrollment || !props.lesson) return
+
+  const currentPosition = Math.floor(video.currentTime)
+  // 每 10 秒保存一次，或关闭时强制保存
+  if (!force && Math.abs(currentPosition - lastSavedPosition.value) < 10) return
+
+  try {
+    const updated = await learningApi.recordProgress({
+      enrollment: props.enrollment.id,
+      lesson: props.lesson.id,
+      last_position: currentPosition,
+      last_watched_at: new Date().toISOString()
+    })
+    progress.value = updated
+    lastSavedPosition.value = currentPosition
+  } catch (error) {
+    console.error('保存进度失败:', error)
+  }
+}
+
+const handleTimeUpdate = () => {
+  saveProgress(false)
+}
+
+const handleRateChange = () => {
+  const video = videoRef.value
+  if (video) {
+    playbackRate.value = video.playbackRate
+  }
+}
+
+const applyPlaybackRate = () => {
+  const video = videoRef.value
+  if (video) {
+    video.playbackRate = playbackRate.value
   }
 }
 
@@ -118,9 +208,12 @@ const markComplete = async () => {
   try {
     await learningApi.updateProgress(progress.value.id, {
       is_completed: true,
-      last_watched_at: new Date().toISOString()
+      last_watched_at: new Date().toISOString(),
+      last_position: Math.floor(videoRef.value?.currentTime || 0)
     })
-    progress.value.is_completed = true
+    if (progress.value) {
+      progress.value.is_completed = true
+    }
     ElMessage.success('已标记为完成')
     emit('complete')
   } catch (error: any) {
@@ -131,10 +224,12 @@ const markComplete = async () => {
   }
 }
 
-const handleVideoEnded = () => {
+const handleVideoEnded = async () => {
   if (props.enrollment && progress.value && !progress.value.is_completed) {
-    markComplete()
+    await markComplete()
   }
+  // 自动跳转下一课时
+  emit('next')
 }
 
 const formatDuration = (duration: string | null): string => {
@@ -147,10 +242,24 @@ const formatDuration = (duration: string | null): string => {
   return duration
 }
 
+const formatSeconds = (seconds: number): string => {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
 watch(() => props.visible, (val) => {
   if (val && props.lesson) {
     loadProgress()
     incrementView()
+    playbackRate.value = 1
+    if (saveTimer.value) clearInterval(saveTimer.value)
+    saveTimer.value = window.setInterval(() => saveProgress(false), 10000)
+  } else {
+    if (saveTimer.value) {
+      clearInterval(saveTimer.value)
+      saveTimer.value = null
+    }
   }
 })
 </script>
@@ -173,6 +282,47 @@ watch(() => props.visible, (val) => {
   width: 100%;
   max-height: 480px;
   display: block;
+}
+
+.video-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+.speed-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.speed-select {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.speed-select option {
+  background: #1a1a1a;
+  color: #fff;
+}
+
+.resume-tip {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .lesson-content {

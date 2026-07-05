@@ -18,16 +18,30 @@ const page = ref(1)
 const total = ref(0)
 const nextUrl = ref<string | null>(null)
 const prevUrl = ref<string | null>(null)
+const activeTab = ref<'all' | 'mine' | 'draft' | 'pending' | 'rejected'>('all')
 
 const isLoggedIn = computed(() => userStore.isLoggedIn)
+
+const statusLabels: Record<string, string> = {
+  draft: '草稿',
+  pending: '待审核',
+  published: '已发布',
+  rejected: '已拒绝'
+}
+
+const statusClass: Record<string, string> = {
+  draft: 'status-draft',
+  pending: 'status-pending',
+  published: 'status-published',
+  rejected: 'status-rejected'
+}
 
 const loadContents = async () => {
   loading.value = true
   try {
     const params: Record<string, any> = {
       page: page.value,
-      ordering: ordering.value,
-      is_published: true
+      ordering: ordering.value
     }
     if (searchQuery.value.trim()) {
       params.search = searchQuery.value.trim()
@@ -35,11 +49,22 @@ const loadContents = async () => {
     if (selectedCategory.value) {
       params.category = selectedCategory.value
     }
-    const response = await contentApi.getContents(params)
-    contents.value = response.results
-    total.value = response.count
-    nextUrl.value = response.next
-    prevUrl.value = response.previous
+
+    if (activeTab.value === 'all') {
+      params.is_published = true
+      const paginatedResponse = await contentApi.getContents(params)
+      contents.value = paginatedResponse.results
+      total.value = paginatedResponse.count
+      nextUrl.value = paginatedResponse.next
+      prevUrl.value = paginatedResponse.previous
+    } else {
+      const status = activeTab.value === 'mine' ? undefined : activeTab.value
+      const listResponse = await contentApi.getMyContents({ status })
+      contents.value = listResponse
+      total.value = listResponse.length
+      nextUrl.value = null
+      prevUrl.value = null
+    }
   } catch (error) {
     console.error('加载内容失败', error)
   } finally {
@@ -57,6 +82,12 @@ const loadCategories = async () => {
 }
 
 const handleSearch = () => {
+  page.value = 1
+  loadContents()
+}
+
+const setTab = (tab: 'all' | 'mine' | 'draft' | 'pending' | 'rejected') => {
+  activeTab.value = tab
   page.value = 1
   loadContents()
 }
@@ -85,7 +116,7 @@ const stripHtml = (html: string) => {
   return tmp.textContent || tmp.innerText || ''
 }
 
-watch([selectedCategory, ordering], () => {
+watch([selectedCategory, ordering, activeTab], () => {
   page.value = 1
   loadContents()
 })
@@ -111,6 +142,24 @@ onMounted(() => {
     </div>
 
     <div class="content-body">
+      <div v-if="isLoggedIn" class="content-tabs">
+        <button
+          v-for="tab in [
+            { key: 'all', label: '全部' },
+            { key: 'mine', label: '我的投稿' },
+            { key: 'draft', label: '草稿' },
+            { key: 'pending', label: '待审核' },
+            { key: 'rejected', label: '已拒绝' }
+          ]"
+          :key="tab.key"
+          class="tab-btn"
+          :class="{ active: activeTab === tab.key }"
+          @click="setTab(tab.key as any)"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+
       <div class="content-filters">
         <input
           v-model="searchQuery"
@@ -162,6 +211,9 @@ onMounted(() => {
               <div class="content-meta-top">
                 <span v-if="item.category" class="category-tag">{{ item.category.name }}</span>
                 <span class="content-type">{{ item.content_type.name }}</span>
+                <span v-if="activeTab !== 'all' && item.status" class="status-tag" :class="statusClass[item.status]">
+                  {{ statusLabels[item.status] }}
+                </span>
               </div>
               <h3 class="content-title">{{ item.title }}</h3>
               <p class="content-summary">{{ stripHtml(item.summary || item.content).substring(0, 120) }}...</p>
@@ -250,6 +302,29 @@ onMounted(() => {
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
+}
+
+.content-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.tab-btn.active {
+  background: #4361ee;
+  color: white;
+  border-color: #4361ee;
 }
 
 .content-filters {
@@ -401,6 +476,33 @@ onMounted(() => {
 .content-type {
   background-color: #f0f0f0;
   color: #666;
+}
+
+.status-tag {
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.status-draft {
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+.status-pending {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.status-published {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-rejected {
+  background-color: #f8d7da;
+  color: #721c24;
 }
 
 .content-title {

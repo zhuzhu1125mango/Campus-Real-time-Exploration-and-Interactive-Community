@@ -154,8 +154,10 @@ const retryBackendCheck = async () => {
           <router-link to="/forum">论坛</router-link>
           <router-link to="/learning">在线学习</router-link>
           <router-link to="/content">内容中心</router-link>
+          <router-link to="/search">搜索</router-link>
           <template v-if="userStore.isLoggedIn">
             <router-link to="/my-favorite-schools">收藏院校</router-link>
+            <router-link to="/chat-room">聊天室</router-link>
             <router-link to="/messages" class="messages-link">
               私信
               <span v-if="unreadMessageCount > 0" class="nav-badge">{{ unreadMessageCount > 99 ? '99+' : unreadMessageCount }}</span>

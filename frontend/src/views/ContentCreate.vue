@@ -14,7 +14,7 @@ const contentTypeId = ref('')
 const categoryId = ref('')
 const selectedTags = ref<number[]>([])
 const featuredImage = ref<File | null>(null)
-const isPublished = ref(true)
+const status = ref<'draft' | 'pending'>('draft')
 const submitting = ref(false)
 const error = ref('')
 
@@ -70,7 +70,7 @@ const submitContent = async () => {
     formData.append('title', title.value.trim())
     formData.append('content_type', contentTypeId.value)
     formData.append('content', content.value)
-    formData.append('is_published', String(isPublished.value))
+    formData.append('status', status.value)
     if (summary.value.trim()) {
       formData.append('summary', summary.value.trim())
     }
@@ -197,10 +197,11 @@ onMounted(() => {
         </div>
 
         <div class="form-group form-inline">
-          <label class="checkbox-label">
-            <input v-model="isPublished" type="checkbox" />
-            立即发布
-          </label>
+          <label for="status">发布方式</label>
+          <select id="status" v-model="status" class="form-select">
+            <option value="draft">保存为草稿</option>
+            <option value="pending">提交审核</option>
+          </select>
         </div>
 
         <div class="form-actions">
