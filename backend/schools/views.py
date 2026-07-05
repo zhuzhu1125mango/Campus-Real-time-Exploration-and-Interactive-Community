@@ -20,6 +20,7 @@ from .serializers import (
 )
 from forum.models import Post as ForumPost
 from forum.serializers import PostSerializer as ForumPostSerializer
+from users.throttles import SearchThrottle, WriteThrottle
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
@@ -48,6 +49,13 @@ class SchoolViewSet(viewsets.ModelViewSet):
             return [permission() for permission in action_permission_classes]
 
         return [permissions.IsAdminUser()]
+
+    def get_throttles(self):
+        if self.action == 'list':
+            return [SearchThrottle()]
+        if self.action in ['rate', 'favorite', 'unfavorite', 'compare']:
+            return [WriteThrottle()]
+        return super().get_throttles()
 
     def perform_create(self, serializer):
         """创建学校时自动为其创建论坛板块"""
@@ -915,9 +923,14 @@ class EventViewSet(viewsets.ModelViewSet):
 
         return [permissions.IsAdminUser()]
 
+    def get_throttles(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'register', 'cancel_registration']:
+            return [WriteThrottle()]
+        return super().get_throttles()
+
     def get_queryset(self):
         queryset = super().get_queryset()
-        
+
         # 筛选条件
         school_id = self.request.query_params.get('school_id')
         if school_id:

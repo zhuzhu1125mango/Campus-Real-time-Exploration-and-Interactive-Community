@@ -22,6 +22,7 @@ from schools.models import School
 from forum.models import Topic, Post
 from forum.serializers import TopicListSerializer, PostSerializer
 from users.permissions import IsOwnerOrAdmin
+from users.throttles import LoginThrottle, CodeSendThrottle, SearchThrottle, WriteThrottle
 
 User = get_user_model()
 
@@ -53,6 +54,17 @@ class UserViewSet(viewsets.ModelViewSet):
             # 积分信息仅本人或管理员可见
             return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
         return super().get_permissions()
+
+    def get_throttles(self):
+        if self.action in ['login', 'email_code_login', 'phone_code_login']:
+            return [LoginThrottle()]
+        elif self.action in ['send_email_code', 'send_phone_code']:
+            return [CodeSendThrottle()]
+        elif self.action == 'search':
+            return [SearchThrottle()]
+        elif self.action in ['create', 'reset_password', 'daily_checkin']:
+            return [WriteThrottle()]
+        return super().get_throttles()
 
     def _is_self_or_admin(self, user):
         request_user = self.request.user
@@ -365,16 +377,33 @@ class UserViewSet(viewsets.ModelViewSet):
     def daily_checkin(self, request):
         """每日签到（带事务与行锁，防止并发重复签到）"""
         from .models import PointsRecord
+        from datetime import datetime, time, timedelta
 
         user = request.user
         today = timezone.now().date()
+        today_start = timezone.make_aware(datetime.combine(today, time.min))
+        tomorrow_start = timezone.make_aware(datetime.combine(today + timedelta(days=1), time.min))
+
+        def has_checkin_on(date):
+            start = timezone.make_aware(datetime.combine(date, time.min))
+            end = timezone.make_aware(datetime.combine(date + timedelta(days=1), time.min))
+            return PointsRecord.objects.filter(
+                user=user,
+                action='daily_checkin',
+                created_at__gte=start,
+                created_at__lt=end
+            ).exists()
 
         with transaction.atomic():
-            # 锁定今天的签到记录（若存在）以及用户行，防止并发重复签到
+            # 锁定用户行并重新加载，防止并发修改积分
+            user = User.objects.select_for_update().get(pk=user.pk)
+
+            # 锁定今天的签到记录（若存在），防止并发重复签到
             has_checked_in = PointsRecord.objects.filter(
                 user=user,
                 action='daily_checkin',
-                created_at__date=today
+                created_at__gte=today_start,
+                created_at__lt=tomorrow_start
             ).select_for_update().exists()
 
             if has_checked_in:
@@ -382,12 +411,8 @@ class UserViewSet(viewsets.ModelViewSet):
 
             # 添加签到积分（连续签到有额外奖励）
             points = 5
-            yesterday = today - timezone.timedelta(days=1)
-            yesterday_checkin = PointsRecord.objects.filter(
-                user=user,
-                action='daily_checkin',
-                created_at__date=yesterday
-            ).exists()
+            yesterday = today - timedelta(days=1)
+            yesterday_checkin = has_checkin_on(yesterday)
 
             consecutive_days = 0
             if yesterday_checkin:
@@ -395,12 +420,8 @@ class UserViewSet(viewsets.ModelViewSet):
                 consecutive_days = 1
                 check_date = yesterday
                 while True:
-                    check_date -= timezone.timedelta(days=1)
-                    if PointsRecord.objects.filter(
-                        user=user,
-                        action='daily_checkin',
-                        created_at__date=check_date
-                    ).exists():
+                    check_date -= timedelta(days=1)
+                    if has_checkin_on(check_date):
                         consecutive_days += 1
                     else:
                         break
@@ -411,19 +432,20 @@ class UserViewSet(viewsets.ModelViewSet):
                 elif consecutive_days >= 3:
                     points += 5
 
-            # 创建积分记录并更新用户积分（使用 F 表达式避免覆盖）
+            # 创建积分记录；post_save signal 会同步更新用户积分与等级
             PointsRecord.objects.create(
                 user=user,
                 action='daily_checkin',
                 points=points,
                 description=f'每日签到{"(连续签到{}天)".format(consecutive_days + 1) if yesterday_checkin else ""}'
             )
-            User.objects.filter(id=user.id).update(points=F('points') + points)
+            # 重新加载以获取 signal 更新后的积分
+            user.refresh_from_db()
 
         return Response({
             'message': '签到成功',
             'points': points,
-            'total_points': user.points + points
+            'total_points': user.points
         })
 
 # 添加调试视图，检查用户头像（仅在 DEBUG 模式下可用）

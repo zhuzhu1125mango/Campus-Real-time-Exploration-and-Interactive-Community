@@ -14,6 +14,7 @@ from .serializers import (
 )
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from users.permissions import IsOwnerOrAdmin, IsInstructorOrAdmin, IsCourseInstructorOrAdmin
+from users.throttles import SearchThrottle, WriteThrottle
 from rest_framework.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.utils import IntegrityError
@@ -45,7 +46,14 @@ class CourseViewSet(viewsets.ModelViewSet):
         if self.action in ['update', 'partial_update', 'destroy', 'publish', 'unpublish']:
             return [IsAuthenticated(), IsInstructorOrAdmin()]
         return [IsAuthenticated()]
-    
+
+    def get_throttles(self):
+        if self.action in ['list', 'retrieve', 'chapters', 'lessons', 'resources', 'reviews']:
+            return [SearchThrottle()]
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'publish', 'unpublish']:
+            return [WriteThrottle()]
+        return super().get_throttles()
+
     def get_queryset(self):
         queryset = super().get_queryset()
         
@@ -179,6 +187,11 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     queryset = Enrollment.objects.all()
     permission_classes = [IsAuthenticated]
 
+    def get_throttles(self):
+        if self.action in ['create', 'complete']:
+            return [WriteThrottle()]
+        return super().get_throttles()
+
     def get_queryset(self):
         return Enrollment.objects.filter(user=self.request.user)
 
@@ -250,6 +263,11 @@ class ProgressViewSet(viewsets.ModelViewSet):
     queryset = Progress.objects.all()
     permission_classes = [IsAuthenticated]
 
+    def get_throttles(self):
+        if self.action in ['create', 'update', 'partial_update', 'record']:
+            return [WriteThrottle()]
+        return super().get_throttles()
+
     def get_queryset(self):
         return Progress.objects.filter(enrollment__user=self.request.user)
 
@@ -309,6 +327,11 @@ class ReviewViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), IsAdminUser()]
         return [IsAuthenticated()]
 
+    def get_throttles(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [WriteThrottle()]
+        return super().get_throttles()
+
     def get_serializer_class(self):
         if self.action == 'create':
             return ReviewCreateSerializer
@@ -348,6 +371,11 @@ class LearningResourceViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve', 'increment_download']:
             return [AllowAny()]
         return [IsAuthenticated(), IsCourseInstructorOrAdmin()]
+
+    def get_throttles(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [WriteThrottle()]
+        return super().get_throttles()
 
     def get_serializer_class(self):
         if self.action == 'create':

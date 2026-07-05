@@ -10,6 +10,7 @@ from .serializers import (
 )
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from users.permissions import IsOwnerOrAdmin
+from users.throttles import SearchThrottle, WriteThrottle
 
 
 class ContentTypeViewSet(viewsets.ModelViewSet):
@@ -55,6 +56,13 @@ class ContentViewSet(viewsets.ModelViewSet):
         if self.action in ['submit', 'create', 'update', 'partial_update', 'destroy', 'my_contents']:
             return [IsAuthenticated(), IsOwnerOrAdmin()]
         return [IsAuthenticated(), IsAdminUser()]
+
+    def get_throttles(self):
+        if self.action in ['list', 'retrieve']:
+            return [SearchThrottle()]
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'submit']:
+            return [WriteThrottle()]
+        return super().get_throttles()
 
     def get_queryset(self):
         user = self.request.user
@@ -177,6 +185,11 @@ class CommentViewSet(viewsets.ModelViewSet):
         if self.action in ['approve', 'disapprove']:
             return [IsAuthenticated(), IsAdminUser()]
         return [IsAuthenticated()]
+
+    def get_throttles(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [WriteThrottle()]
+        return super().get_throttles()
 
     def get_serializer_class(self):
         if self.action == 'create':

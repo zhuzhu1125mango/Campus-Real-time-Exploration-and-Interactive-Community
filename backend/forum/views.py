@@ -22,6 +22,7 @@ from .serializers import (
     NotificationSerializer, CommentSerializer, CommentCreateSerializer
 )
 from users.permissions import IsOwnerOrAdmin
+from users.throttles import SearchThrottle, WriteThrottle
 
 
 # 添加论坛统计功能
@@ -212,7 +213,12 @@ class TopicViewSet(viewsets.ModelViewSet):
             # 关闭主题由视图内部校验作者/版主/管理员
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated()]
-    
+
+    def get_throttles(self):
+        if self.action in ['create', 'bookmark', 'unbookmark', 'close']:
+            return [WriteThrottle()]
+        return super().get_throttles()
+
     def get_queryset(self):
         # 预取作者、板块和标签，减少 N+1 查询
         queryset = Topic.objects.select_related('author', 'board').prefetch_related('tags')
@@ -329,6 +335,11 @@ class PostViewSet(viewsets.ModelViewSet):
             return PostUpdateSerializer
         return PostSerializer
     
+    def get_throttles(self):
+        if self.action in ['create', 'like', 'unlike', 'report']:
+            return [WriteThrottle()]
+        return super().get_throttles()
+
     def get_queryset(self):
         # 预取作者、主题与板块、点赞数据，减少 N+1 查询
         queryset = Post.objects.select_related('author', 'topic', 'topic__board').prefetch_related('likes')
@@ -591,6 +602,11 @@ class BookmarkViewSet(viewsets.ModelViewSet):
     serializer_class = BookmarkSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_throttles(self):
+        if self.action in ['create', 'destroy', 'unbookmark']:
+            return [WriteThrottle()]
+        return super().get_throttles()
+
     def get_queryset(self):
         # 只能查看自己的书签
         return Bookmark.objects.filter(user=self.request.user)
@@ -653,7 +669,12 @@ class CommentViewSet(viewsets.ModelViewSet):
         if self.action in ['approve', 'disapprove']:
             return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
         return [permissions.IsAuthenticated()]
-    
+
+    def get_throttles(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'like']:
+            return [WriteThrottle()]
+        return super().get_throttles()
+
     def get_queryset(self):
         # 预取作者、帖子、点赞和回复，减少 N+1 查询
         queryset = Comment.objects.select_related('author', 'post').prefetch_related('likes', 'replies__author')
