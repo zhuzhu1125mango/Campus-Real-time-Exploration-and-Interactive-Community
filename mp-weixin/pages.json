@@ -1,0 +1,309 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "首页",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"enablePullDownRefresh": true,
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/schools/schools",
+			"style": {
+				"navigationBarTitleText": "院校查询",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"enablePullDownRefresh": true,
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/school-detail/school-detail",
+			"style": {
+				"navigationBarTitleText": "院校详情",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/forum/forum",
+			"style": {
+				"navigationBarTitleText": "论坛",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"enablePullDownRefresh": true,
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/search/search",
+			"style": {
+				"navigationBarTitleText": "搜索",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/post-detail/post-detail",
+			"style": {
+				"navigationBarTitleText": "帖子详情",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/topic-create/topic-create",
+			"style": {
+				"navigationBarTitleText": "发布主题",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/messages/messages",
+			"style": {
+				"navigationBarTitleText": "消息",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"enablePullDownRefresh": true,
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/chat-room/chat-room",
+			"style": {
+				"navigationBarTitleText": "公共聊天室",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/chat-detail/chat-detail",
+			"style": {
+				"navigationBarTitleText": "私信",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/profile/profile",
+			"style": {
+				"navigationBarTitleText": "个人中心",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/login/login",
+			"style": {
+				"navigationBarTitleText": "登录",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/register/register",
+			"style": {
+				"navigationBarTitleText": "注册",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/bookmarks/bookmarks",
+			"style": {
+				"navigationBarTitleText": "我的收藏",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/notifications/notifications",
+			"style": {
+				"navigationBarTitleText": "通知",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/content/content",
+			"style": {
+				"navigationBarTitleText": "内容中心",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"enablePullDownRefresh": true,
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/content-detail/content-detail",
+			"style": {
+				"navigationBarTitleText": "内容详情",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/content-create/content-create",
+			"style": {
+				"navigationBarTitleText": "发布内容",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/learning/learning",
+			"style": {
+				"navigationBarTitleText": "在线学习",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"enablePullDownRefresh": true,
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/course-detail/course-detail",
+			"style": {
+				"navigationBarTitleText": "课程详情",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/my-learning/my-learning",
+			"style": {
+				"navigationBarTitleText": "我的学习",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"enablePullDownRefresh": true,
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/user-profile/user-profile",
+			"style": {
+				"navigationBarTitleText": "用户资料",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/my-favorite-schools/my-favorite-schools",
+			"style": {
+				"navigationBarTitleText": "我的收藏院校",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"enablePullDownRefresh": true,
+				"backgroundColor": "#f5f5f5"
+			}
+		},
+		{
+			"path": "pages/reset-password/reset-password",
+			"style": {
+				"navigationBarTitleText": "重置密码",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"backgroundColor": "#f5f5f5"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "校园实时互动社区",
+		"navigationBarBackgroundColor": "#ffffff",
+		"backgroundColor": "#f5f5f5",
+		"backgroundTextStyle": "dark",
+		"enablePullDownRefresh": false,
+		"app-plus": {
+			"background": "#f5f5f5"
+		},
+		"mp-weixin": {
+			"backgroundTextStyle": "dark",
+			"navigationStyle": "custom"
+		},
+		"mp-alipay": {
+			"backgroundTextStyle": "dark",
+			"navigationStyle": "custom"
+		},
+		"mp-baidu": {
+			"backgroundTextStyle": "dark",
+			"navigationStyle": "custom"
+		},
+		"mp-toutiao": {
+			"backgroundTextStyle": "dark",
+			"navigationStyle": "custom"
+		},
+		"mp-lark": {
+			"backgroundTextStyle": "dark",
+			"navigationStyle": "custom"
+		},
+		"mp-qq": {
+			"backgroundTextStyle": "dark",
+			"navigationStyle": "custom"
+		},
+		"mp-kuaishou": {
+			"backgroundTextStyle": "dark",
+			"navigationStyle": "custom"
+		},
+		"mp-jd": {
+			"backgroundTextStyle": "dark",
+			"navigationStyle": "custom"
+		},
+		"mp-h5": {
+			"backgroundTextStyle": "dark"
+		}
+	},
+	"tabBar": {
+		"color": "#999999",
+		"selectedColor": "#4CAF50",
+		"backgroundColor": "#ffffff",
+		"borderStyle": "black",
+		"list": [
+			{
+				"pagePath": "pages/index/index",
+				"text": "首页"
+			},
+			{
+				"pagePath": "pages/schools/schools",
+				"text": "院校"
+			},
+			{
+				"pagePath": "pages/forum/forum",
+				"text": "论坛"
+			},
+			{
+				"pagePath": "pages/messages/messages",
+				"text": "消息"
+			},
+			{
+				"pagePath": "pages/profile/profile",
+				"text": "我的"
+			}
+		]
+	},
+	"easycom": {
+		"autoscan": true,
+		"custom": {
+			"^uni-(.*)": "@dcloudio/uni-ui/lib/uni-$1/uni-$1.vue"
+		}
+	},
+	"uniIdRouter": {}
+}
