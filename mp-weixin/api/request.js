@@ -1,6 +1,6 @@
-// API 基础配置
-const API_BASE_URL = 'http://192.168.202.1:8000/api'
-const WS_BASE_URL = 'ws://192.168.202.1:8000/ws/chat'
+// API 基础配置：优先读取环境变量，无环境变量时使用本地开发默认值
+const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://192.168.202.1:8000/api'
+const WS_BASE_URL = process.env.VUE_APP_WS_BASE_URL || 'ws://192.168.202.1:8000/ws/chat'
 
 // 超时设置（毫秒）
 const REQUEST_TIMEOUT = 30000

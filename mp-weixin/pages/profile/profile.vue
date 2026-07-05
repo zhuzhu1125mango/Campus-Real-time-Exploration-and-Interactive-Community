@@ -96,7 +96,7 @@ const checkLoginStatus = () => {
 
 const loadUserInfo = async () => {
   try {
-    const result = await userApi.getProfile()
+    const result = await userApi.getUserInfo()
     userInfo.value = result || {}
     uni.setStorageSync('userInfo', result)
   } catch (error) {
