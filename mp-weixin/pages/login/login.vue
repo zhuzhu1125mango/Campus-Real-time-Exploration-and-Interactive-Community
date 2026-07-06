@@ -46,9 +46,11 @@
 
 <script setup>
 import { ref } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
 import userApi from '../../api/user'
 
 const loading = ref(false)
+let loginSuccessTimer = null
 const loginForm = ref({
   username: '',
   password: '',
@@ -80,7 +82,7 @@ const handleLogin = async () => {
       uni.setStorageSync('username', result.user.username)
       uni.showToast({ title: '登录成功', icon: 'success' })
 
-      setTimeout(() => {
+      loginSuccessTimer = setTimeout(() => {
         uni.switchTab({ url: '/pages/index/index' })
       }, 1500)
     } else {
@@ -97,6 +99,13 @@ const handleLogin = async () => {
 const wechatLogin = () => {
   uni.showToast({ title: '微信登录开发中', icon: 'none' })
 }
+
+onUnload(() => {
+  if (loginSuccessTimer) {
+    clearTimeout(loginSuccessTimer)
+    loginSuccessTimer = null
+  }
+})
 
 const forgotPassword = () => {
   uni.navigateTo({ url: '/pages/reset-password/reset-password' })

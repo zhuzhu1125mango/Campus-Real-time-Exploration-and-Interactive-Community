@@ -96,6 +96,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
 import contentApi from '../../api/content'
 import { API_BASE_URL } from '../../api/request'
 
@@ -110,6 +111,7 @@ const featuredImageFile = ref(null)
 const statusIndex = ref(0)
 const submitting = ref(false)
 const error = ref('')
+let publishRedirectTimer = null
 
 const statusOptions = [
   { value: 'draft', label: '保存为草稿' },
@@ -126,6 +128,13 @@ const categoryNames = computed(() => ['请选择分类', ...categories.value.map
 
 onMounted(() => {
   loadOptions()
+})
+
+onUnload(() => {
+  if (publishRedirectTimer) {
+    clearTimeout(publishRedirectTimer)
+    publishRedirectTimer = null
+  }
 })
 
 const loadOptions = async () => {
@@ -230,7 +239,7 @@ const submitContent = async () => {
     }
 
     uni.showToast({ title: '发布成功', icon: 'success' })
-    setTimeout(() => {
+    publishRedirectTimer = setTimeout(() => {
       uni.redirectTo({ url: `/pages/content-detail/content-detail?id=${response.id}` })
     }, 800)
   } catch (err) {

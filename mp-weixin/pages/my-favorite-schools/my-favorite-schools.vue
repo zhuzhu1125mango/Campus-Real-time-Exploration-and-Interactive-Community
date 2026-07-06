@@ -39,22 +39,31 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
 import schoolApi from '../../api/school'
 
 const schools = ref([])
 const loading = ref(false)
 const noMore = ref(false)
 const page = ref(1)
+let loginRedirectTimer = null
 
 onMounted(() => {
   checkAuthAndLoad()
+})
+
+onUnload(() => {
+  if (loginRedirectTimer) {
+    clearTimeout(loginRedirectTimer)
+    loginRedirectTimer = null
+  }
 })
 
 const checkAuthAndLoad = () => {
   const token = uni.getStorageSync('accessToken')
   if (!token) {
     uni.showToast({ title: '请先登录', icon: 'none' })
-    setTimeout(() => {
+    loginRedirectTimer = setTimeout(() => {
       uni.navigateTo({ url: '/pages/login/login' })
     }, 1000)
     return

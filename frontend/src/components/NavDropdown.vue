@@ -10,7 +10,7 @@ import {
 } from 'radix-vue'
 
 export interface NavDropdownItem {
-  label: string
+  label?: string
   icon?: string
   to?: string
   divider?: boolean

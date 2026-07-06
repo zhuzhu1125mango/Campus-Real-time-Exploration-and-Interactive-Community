@@ -104,6 +104,7 @@ const maxReconnectAttempts = 5
 const reconnectDelay = 1000
 const connectionStatus = ref('disconnected')
 const isConnected = ref(false)
+let navigateTimer = null
 
 const isMine = (msg) => {
   return msg.sender?.id === currentUserId.value
@@ -172,13 +173,17 @@ onLoad((options) => {
 
 onUnload(() => {
   closeSocket()
+  if (navigateTimer) {
+    clearTimeout(navigateTimer)
+    navigateTimer = null
+  }
 })
 
 const checkAuthAndLoad = async () => {
   const token = uni.getStorageSync('accessToken')
   if (!token) {
     uni.showToast({ title: '请先登录', icon: 'none' })
-    setTimeout(() => {
+    navigateTimer = setTimeout(() => {
       uni.navigateTo({ url: '/pages/login/login' })
     }, 1000)
     return
@@ -208,7 +213,7 @@ const checkFriendship = async () => {
     const result = await userApi.checkFriendship(userId.value)
     if (!result.is_friend) {
       uni.showToast({ title: '你们还不是好友，无法发起私聊', icon: 'none' })
-      setTimeout(() => {
+      navigateTimer = setTimeout(() => {
         uni.navigateBack()
       }, 1500)
       return false
@@ -217,7 +222,7 @@ const checkFriendship = async () => {
   } catch (error) {
     console.error('检查好友关系失败:', error)
     uni.showToast({ title: '无法验证好友关系', icon: 'none' })
-    setTimeout(() => {
+    navigateTimer = setTimeout(() => {
       uni.navigateBack()
     }, 1500)
     return false
@@ -343,7 +348,7 @@ const initWebSocket = () => {
       if (res?.code === 4004) message = '对方用户不存在'
       uni.showToast({ title: message, icon: 'none' })
       if (res?.code === 4003) {
-        setTimeout(() => {
+        navigateTimer = setTimeout(() => {
           uni.navigateBack()
         }, 1500)
       }

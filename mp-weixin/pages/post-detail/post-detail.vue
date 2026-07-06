@@ -88,6 +88,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
 import forumApi from '../../api/forum'
 import { sanitizeHtml } from '../../utils/xss'
 
@@ -101,6 +102,7 @@ const replyContent = ref('')
 const isBookmarked = ref(false)
 const page = ref(1)
 const noMore = ref(false)
+let loginRedirectTimer = null
 
 const firstPost = computed(() => {
   return posts.value.find(p => p.is_first_post) || posts.value[0] || null
@@ -120,6 +122,13 @@ onMounted(() => {
     loadTopicPosts()
   } else {
     uni.showToast({ title: '参数错误', icon: 'none' })
+  }
+})
+
+onUnload(() => {
+  if (loginRedirectTimer) {
+    clearTimeout(loginRedirectTimer)
+    loginRedirectTimer = null
   }
 })
 
@@ -167,7 +176,7 @@ const togglePostLike = async (post) => {
   const token = uni.getStorageSync('accessToken')
   if (!token) {
     uni.showToast({ title: '请先登录', icon: 'none' })
-    setTimeout(() => uni.navigateTo({ url: '/pages/login/login' }), 1000)
+    loginRedirectTimer = setTimeout(() => uni.navigateTo({ url: '/pages/login/login' }), 1000)
     return
   }
 
@@ -191,7 +200,7 @@ const toggleBookmark = async () => {
   const token = uni.getStorageSync('accessToken')
   if (!token) {
     uni.showToast({ title: '请先登录', icon: 'none' })
-    setTimeout(() => uni.navigateTo({ url: '/pages/login/login' }), 1000)
+    loginRedirectTimer = setTimeout(() => uni.navigateTo({ url: '/pages/login/login' }), 1000)
     return
   }
 
@@ -217,7 +226,7 @@ const submitReply = async () => {
   const token = uni.getStorageSync('accessToken')
   if (!token) {
     uni.showToast({ title: '请先登录', icon: 'none' })
-    setTimeout(() => uni.navigateTo({ url: '/pages/login/login' }), 1000)
+    loginRedirectTimer = setTimeout(() => uni.navigateTo({ url: '/pages/login/login' }), 1000)
     return
   }
 

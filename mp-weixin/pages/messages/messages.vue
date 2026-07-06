@@ -56,7 +56,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { onPullDownRefresh } from '@dcloudio/uni-app'
+import { onPullDownRefresh, onUnload } from '@dcloudio/uni-app'
 import userApi from '../../api/user'
 import { formatAvatar } from '../../utils/image'
 import { formatTime } from '../../utils/date'
@@ -68,6 +68,7 @@ const refreshing = ref(false)
 const noMore = ref(false)
 const page = ref(1)
 const pageSize = 20
+let loginRedirectTimer = null
 
 const filteredConversations = computed(() => {
   if (!searchQuery.value) return conversations.value
@@ -81,6 +82,13 @@ onMounted(() => {
   checkAuthAndLoad()
 })
 
+onUnload(() => {
+  if (loginRedirectTimer) {
+    clearTimeout(loginRedirectTimer)
+    loginRedirectTimer = null
+  }
+})
+
 onPullDownRefresh(() => {
   onRefresh()
 })
@@ -89,7 +97,7 @@ const checkAuthAndLoad = () => {
   const token = uni.getStorageSync('accessToken')
   if (!token) {
     uni.showToast({ title: '请先登录', icon: 'none' })
-    setTimeout(() => {
+    loginRedirectTimer = setTimeout(() => {
       uni.navigateTo({ url: '/pages/login/login' })
     }, 1000)
     return

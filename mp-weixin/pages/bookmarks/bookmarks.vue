@@ -43,6 +43,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
 import forumApi from '../../api/forum'
 
 const bookmarks = ref([])
@@ -51,16 +52,24 @@ const loadingMore = ref(false)
 const page = ref(1)
 const pageSize = 10
 const hasMore = ref(true)
+let loginRedirectTimer = null
 
 onMounted(() => {
   checkLoginAndLoad()
+})
+
+onUnload(() => {
+  if (loginRedirectTimer) {
+    clearTimeout(loginRedirectTimer)
+    loginRedirectTimer = null
+  }
 })
 
 const checkLoginAndLoad = () => {
   const token = uni.getStorageSync('accessToken')
   if (!token) {
     uni.showToast({ title: '请先登录', icon: 'none' })
-    setTimeout(() => {
+    loginRedirectTimer = setTimeout(() => {
       uni.navigateBack()
     }, 1500)
     return

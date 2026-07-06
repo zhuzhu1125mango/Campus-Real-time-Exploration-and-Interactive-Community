@@ -47,6 +47,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
 import forumApi from '../../api/forum'
 
 const title = ref('')
@@ -56,6 +57,7 @@ const boards = ref([])
 const submitting = ref(false)
 const error = ref('')
 const preselectedBoardId = ref(null)
+let publishRedirectTimer = null
 
 const boardNames = computed(() => ['请选择板块', ...boards.value.map(b => b.name)])
 
@@ -67,6 +69,13 @@ onMounted(() => {
     preselectedBoardId.value = Number(options.boardId)
   }
   loadBoards()
+})
+
+onUnload(() => {
+  if (publishRedirectTimer) {
+    clearTimeout(publishRedirectTimer)
+    publishRedirectTimer = null
+  }
 })
 
 const loadBoards = async () => {
@@ -117,7 +126,7 @@ const submitTopic = async () => {
     })
 
     uni.showToast({ title: '发布成功', icon: 'success' })
-    setTimeout(() => {
+    publishRedirectTimer = setTimeout(() => {
       uni.redirectTo({ url: `/pages/post-detail/post-detail?id=${response.id}` })
     }, 800)
   } catch (err) {

@@ -178,6 +178,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
 import learningApi from '../../api/learning'
 import { sanitizeHtml } from '../../utils/xss'
 
@@ -200,6 +201,8 @@ const progressMap = ref({})
 const currentProgress = ref(null)
 const lastSavedPosition = ref(0)
 const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 2]
+let playbackRateTimer = null
+let nextLessonTimer = null
 
 const safeLessonContent = computed(() => sanitizeHtml(currentLesson.value?.content || ''))
 
@@ -209,6 +212,17 @@ onMounted(() => {
   isLoggedIn.value = !!uni.getStorageSync('accessToken')
   courseId.value = getQueryId()
   loadCourse()
+})
+
+onUnload(() => {
+  if (playbackRateTimer) {
+    clearTimeout(playbackRateTimer)
+    playbackRateTimer = null
+  }
+  if (nextLessonTimer) {
+    clearTimeout(nextLessonTimer)
+    nextLessonTimer = null
+  }
 })
 
 const getQueryId = () => {
@@ -285,7 +299,7 @@ const openLesson = async (lesson) => {
   await loadLessonProgress(lesson)
   playerVisible.value = true
   learningApi.incrementLessonView(lesson.id).catch(() => {})
-  setTimeout(() => {
+  playbackRateTimer = setTimeout(() => {
     applyPlaybackRate()
   }, 300)
 }
@@ -414,7 +428,7 @@ const handleLessonComplete = async () => {
     progressMap.value[currentLesson.value.id] = updated
     currentProgress.value = updated
     uni.showToast({ title: '课时完成', icon: 'success' })
-    setTimeout(() => {
+    nextLessonTimer = setTimeout(() => {
       playNextLesson()
     }, 1000)
   } catch (err) {

@@ -42,7 +42,7 @@ def home(request):
         "endpoints": {
             "api": "/api/",
             "admin": "/admin/",
-            "health": "/health/",
+            "health": "/api/health/",
             "websocket_test": "/websocket-test/"
         },
         "documentation": {
@@ -72,7 +72,8 @@ urlpatterns = [
     # path('api/swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     # path('api/redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     
-    # 添加根健康检查
+    # 添加健康检查
+    path('api/health/', health_check, name='api_health_check'),
     path('health/', health_check, name='health_check'),
     
     # WebSocket测试页面

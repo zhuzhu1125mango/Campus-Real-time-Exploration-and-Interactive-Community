@@ -83,6 +83,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
 import schoolApi from '../../api/school'
 
 const schoolId = ref(null)
@@ -91,6 +92,7 @@ const schoolInfo = ref({})
 const scores = ref([])
 const isCollected = ref(false)
 const forumBoard = ref(null)
+let loginRedirectTimer = null
 
 onMounted(() => {
   const pages = getCurrentPages()
@@ -104,6 +106,13 @@ onMounted(() => {
     loadSchoolForum()
   } else {
     uni.showToast({ title: '参数错误', icon: 'none' })
+  }
+})
+
+onUnload(() => {
+  if (loginRedirectTimer) {
+    clearTimeout(loginRedirectTimer)
+    loginRedirectTimer = null
   }
 })
 
@@ -133,7 +142,7 @@ const toggleCollect = async () => {
   const token = uni.getStorageSync('accessToken')
   if (!token) {
     uni.showToast({ title: '请先登录', icon: 'none' })
-    setTimeout(() => {
+    loginRedirectTimer = setTimeout(() => {
       uni.navigateTo({ url: '/pages/login/login' })
     }, 1000)
     return

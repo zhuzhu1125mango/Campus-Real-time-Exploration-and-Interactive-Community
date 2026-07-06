@@ -114,6 +114,7 @@ const reconnectDelay = 1000
 const currentUserId = ref(0)
 const currentUserAvatar = ref('')
 const statusBarHeight = ref(0)
+let navigateTimer = null
 
 const headerStyle = computed(() => {
   return {
@@ -178,13 +179,17 @@ onLoad(() => {
 
 onUnload(() => {
   closeSocket()
+  if (navigateTimer) {
+    clearTimeout(navigateTimer)
+    navigateTimer = null
+  }
 })
 
 const checkAuthAndLoad = () => {
   const token = uni.getStorageSync('accessToken')
   if (!token) {
     uni.showToast({ title: '请先登录', icon: 'none' })
-    setTimeout(() => {
+    navigateTimer = setTimeout(() => {
       uni.navigateTo({ url: '/pages/login/login' })
     }, 1000)
     return
@@ -282,7 +287,7 @@ const initWebSocket = () => {
     // 认证失败不重连
     if (event?.code === 4001) {
       uni.showToast({ title: '登录已过期，请重新登录', icon: 'none' })
-      setTimeout(() => {
+      navigateTimer = setTimeout(() => {
         uni.navigateTo({ url: '/pages/login/login' })
       }, 1000)
       return

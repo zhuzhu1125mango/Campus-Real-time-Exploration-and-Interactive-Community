@@ -107,6 +107,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
 import contentApi from '../../api/content'
 import userApi from '../../api/user'
 import { sanitizeHtml } from '../../utils/xss'
@@ -126,6 +127,7 @@ const commentText = ref('')
 const error = ref('')
 const isLoggedIn = ref(false)
 const currentUserId = ref(null)
+let deleteRedirectTimer = null
 
 const safeContent = computed(() => sanitizeHtml(content.value?.content || ''))
 
@@ -153,6 +155,13 @@ onMounted(() => {
     loadCurrentUser()
   }
   loadContent()
+})
+
+onUnload(() => {
+  if (deleteRedirectTimer) {
+    clearTimeout(deleteRedirectTimer)
+    deleteRedirectTimer = null
+  }
 })
 
 const loadCurrentUser = async () => {
@@ -240,7 +249,7 @@ const deleteContent = () => {
         try {
           await contentApi.deleteContent(content.value.id)
           uni.showToast({ title: '删除成功', icon: 'success' })
-          setTimeout(() => {
+          deleteRedirectTimer = setTimeout(() => {
             uni.navigateBack({ delta: 1 })
           }, 800)
         } catch (err) {
