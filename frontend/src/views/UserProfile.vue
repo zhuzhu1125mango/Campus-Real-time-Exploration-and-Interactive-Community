@@ -23,6 +23,13 @@
           </div>
           <div class="user-bio" v-if="user.bio">{{ user.bio }}</div>
         </div>
+        <FollowButton
+          v-if="showFollowButton"
+          :user-id="user.id"
+          :following="user.is_following"
+          size="md"
+          @update="handleFollowUpdate"
+        />
       </div>
       
       <!-- 用户统计信息 -->
@@ -38,6 +45,14 @@
         <div class="stat-item">
           <div class="stat-value">{{ stats.reply_count }}</div>
           <div class="stat-label">回复</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">{{ user.following_count ?? 0 }}</div>
+          <div class="stat-label">关注</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">{{ user.follower_count ?? 0 }}</div>
+          <div class="stat-label">粉丝</div>
         </div>
       </div>
       
@@ -189,15 +204,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { userApi } from '@/api/user'
 import { stripHtml } from '@/utils/xss'
+import { useUserStore } from '@/stores/userStore'
+import FollowButton from '@/components/FollowButton.vue'
 import type { User } from '@/types/user'
 import type { Topic, Post } from '@/types/forum'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
 // 状态
 const loading = ref(true)
@@ -231,6 +249,18 @@ const loadingPosts = ref(false)
 const postPage = ref(1)
 const postTotalCount = ref(0)
 const postTotalPages = ref(1)
+
+const userId = computed(() => {
+  return Array.isArray(route.params.id) ? route.params.id[0] : route.params.id || 'me'
+})
+
+const isCurrentUser = computed(() => {
+  return userId.value === 'me' || Number(userId.value) === Number(userStore.user?.id)
+})
+
+const showFollowButton = computed(() => {
+  return userStore.isLoggedIn && !isCurrentUser.value && user.value.id
+})
 
 // 获取用户资料
 const fetchUserProfile = async () => {
@@ -288,6 +318,18 @@ const fetchUserPosts = async () => {
     console.error('获取用户帖子失败:', error)
   } finally {
     loadingPosts.value = false
+  }
+}
+
+// 关注状态更新回调
+const handleFollowUpdate = (following: boolean) => {
+  if (!user.value.id) return
+  const prev = user.value.is_following
+  user.value.is_following = following
+  if (prev && !following) {
+    user.value.follower_count = Math.max(0, (user.value.follower_count ?? 1) - 1)
+  } else if (!prev && following) {
+    user.value.follower_count = (user.value.follower_count ?? 0) + 1
   }
 }
 
@@ -475,6 +517,38 @@ onMounted(() => {
 
 .stat-item:last-child {
   border-right: none;
+}
+
+.follow-btn {
+  margin-left: auto;
+  padding: 8px 20px;
+  background-color: #4361ee;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.follow-btn:hover {
+  background-color: #3a56d4;
+}
+
+.follow-btn.following {
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+.follow-btn.following:hover {
+  background-color: #e0e0e0;
+}
+
+.follow-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .stat-value {

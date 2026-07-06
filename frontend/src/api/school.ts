@@ -114,7 +114,7 @@ export const schoolApi = {
   },
 
   // 获取活动列表
-  getEvents(params?: { school_id?: number, start_date?: string, end_date?: string, status?: string, page?: number, pageSize?: number }) {
+  getEvents(params?: { school_id?: number, start_date?: string, end_date?: string, status?: string, page?: number, pageSize?: number, lat?: number, lng?: number, radius?: number }) {
     return request.get<EventListResponse>('/schools/events/', { params })
   },
 

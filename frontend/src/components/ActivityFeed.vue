@@ -43,7 +43,7 @@
     <div class="activities-list">
       <div v-for="activity in activities" :key="activity.id" class="activity-item">
         <div class="activity-header">
-          <div class="user-info">
+          <div class="user-info" @click="goToUserProfile(activity.user?.id)">
             <img :src="activity.user.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'" :alt="activity.user.username" class="avatar">
             <div class="user-details">
               <h4 class="username">{{ activity.user.username }}</h4>
@@ -51,6 +51,15 @@
               <span class="time">{{ formatTime(activity.created_at) }}</span>
             </div>
           </div>
+          <button
+            v-if="showFollowButton(activity.user)"
+            class="follow-btn"
+            :class="{ following: activity.user.is_following }"
+            :disabled="followLoadingIds.has(activity.id)"
+            @click.stop="toggleFollow(activity)"
+          >
+            {{ followLoadingIds.has(activity.id) ? '处理中...' : (activity.user.is_following ? '已关注' : '+ 关注') }}
+          </button>
         </div>
         <div class="activity-content">
           <p>{{ activity.content }}</p>
@@ -124,6 +133,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { userApi } from '../api/user'
 import { useUserStore } from '../stores/userStore'
+import { useRouter } from 'vue-router'
 
 const props = defineProps<{
   title?: string
@@ -136,7 +146,9 @@ const activities = ref<any[]>([])
 const showCreateForm = ref(false)
 const showComments = ref<number | null>(null)
 const userStore = useUserStore()
+const router = useRouter()
 const currentUser = computed(() => userStore.user)
+const followLoadingIds = ref<Set<number>>(new Set())
 
 const activityForm = ref({
   activity_type: 'custom',
@@ -176,6 +188,36 @@ const formatTime = (timeStr: string): string => {
   if (hours < 24) return `${hours}小时前`
   if (days < 7) return `${days}天前`
   return date.toLocaleDateString()
+}
+
+const showFollowButton = (user: any) => {
+  return userStore.isLoggedIn && user?.id && Number(user.id) !== Number(currentUser.value?.id)
+}
+
+const goToUserProfile = (userId: number) => {
+  if (!userId) return
+  router.push(`/user-profile/${userId}`)
+}
+
+const toggleFollow = async (activity: any) => {
+  const user = activity.user
+  if (!user?.id || followLoadingIds.value.has(activity.id)) return
+  followLoadingIds.value.add(activity.id)
+  try {
+    if (user.is_following) {
+      await userApi.unfollowUser(user.id)
+      user.is_following = false
+      user.follower_count = Math.max(0, (user.follower_count ?? 1) - 1)
+    } else {
+      await userApi.followUser(user.id)
+      user.is_following = true
+      user.follower_count = (user.follower_count ?? 0) + 1
+    }
+  } catch (error) {
+    console.error('关注操作失败:', error)
+  } finally {
+    followLoadingIds.value.delete(activity.id)
+  }
 }
 
 const loadActivities = async () => {
@@ -426,6 +468,38 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  cursor: pointer;
+}
+
+.follow-btn {
+  padding: 4px 12px;
+  background-color: #4361ee;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.follow-btn:hover {
+  background-color: #3a56d4;
+}
+
+.follow-btn.following {
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+.follow-btn.following:hover {
+  background-color: #e0e0e0;
+}
+
+.follow-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .avatar {

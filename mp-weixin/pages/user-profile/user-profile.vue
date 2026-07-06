@@ -17,7 +17,12 @@
         </view>
         <text class="user-bio" v-if="user.bio">{{ user.bio }}</text>
       </view>
-      <button v-if="canSendMessage" class="msg-btn" @click="goToChat">发私信</button>
+      <view class="header-actions">
+        <button v-if="showFollowButton" class="follow-btn" :class="{ following: user.is_following }" :disabled="followLoading" @click="toggleFollow">
+          {{ followLoading ? '处理中...' : (user.is_following ? '已关注' : '+ 关注') }}
+        </button>
+        <button v-if="canSendMessage" class="msg-btn" @click="goToChat">发私信</button>
+      </view>
     </view>
 
       <!-- 用户统计 -->
@@ -33,6 +38,14 @@
         <view class="stat-item">
           <text class="stat-value">{{ stats.reply_count || 0 }}</text>
           <text class="stat-label">回复</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-value">{{ user.following_count || 0 }}</text>
+          <text class="stat-label">关注</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-value">{{ user.follower_count || 0 }}</text>
+          <text class="stat-label">粉丝</text>
         </view>
       </view>
 
@@ -122,6 +135,7 @@ const userId = ref('me')
 const currentUserId = ref(null)
 const loading = ref(true)
 const isFriend = ref(false)
+const followLoading = ref(false)
 const user = ref({})
 const stats = ref({
   topic_count: 0,
@@ -148,6 +162,11 @@ const canSendMessage = computed(() => {
   return userId.value !== 'me' &&
     Number(userId.value) !== Number(currentUserId.value) &&
     isFriend.value
+})
+
+const showFollowButton = computed(() => {
+  const token = uni.getStorageSync('accessToken')
+  return token && userId.value !== 'me' && Number(userId.value) !== Number(currentUserId.value)
 })
 
 onMounted(() => {
@@ -265,6 +284,27 @@ const goToChat = () => {
   })
 }
 
+const toggleFollow = async () => {
+  if (!user.value.id || followLoading.value) return
+  followLoading.value = true
+  try {
+    if (user.value.is_following) {
+      await userApi.unfollowUser(user.value.id)
+      user.value.is_following = false
+      user.value.follower_count = Math.max(0, (user.value.follower_count || 1) - 1)
+    } else {
+      await userApi.followUser(user.value.id)
+      user.value.is_following = true
+      user.value.follower_count = (user.value.follower_count || 0) + 1
+    }
+  } catch (error) {
+    console.error('关注操作失败:', error)
+    uni.showToast({ title: '操作失败', icon: 'none' })
+  } finally {
+    followLoading.value = false
+  }
+}
+
 const getPostPreview = (content) => {
   if (!content) return ''
   const plainText = content.replace(/<[^>]+>/g, '')
@@ -344,15 +384,39 @@ const formatDate = (dateStr) => {
   flex-direction: column;
 }
 
-.msg-btn {
+.header-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
   margin-left: 20rpx;
+}
+
+.msg-btn,
+.follow-btn {
   padding: 12rpx 30rpx;
-  background-color: #4361ee;
-  color: #fff;
   font-size: 26rpx;
   border-radius: 30rpx;
   border: none;
   white-space: nowrap;
+}
+
+.msg-btn {
+  background-color: #4361ee;
+  color: #fff;
+}
+
+.follow-btn {
+  background-color: #4361ee;
+  color: #fff;
+}
+
+.follow-btn.following {
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+.follow-btn[disabled] {
+  opacity: 0.7;
 }
 
 .username {

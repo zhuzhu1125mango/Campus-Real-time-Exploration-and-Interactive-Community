@@ -331,6 +331,16 @@ export const userApi = {
   getActivityFeed(params?: { page?: number }): Promise<{ count: number; next: string | null; previous: string | null; results: any[] }> {
     return request.get('/users/activities/feed/', { params })
   },
+
+  // 关注用户
+  followUser(userId: number | string): Promise<{ status: string }> {
+    return request.post(`/users/users/${userId}/follow/`)
+  },
+
+  // 取消关注用户
+  unfollowUser(userId: number | string): Promise<{ status: string }> {
+    return request.post(`/users/users/${userId}/unfollow/`)
+  },
   
   // 获取我的动态
   getMyActivities(params?: { page?: number }): Promise<{ count: number; next: string | null; previous: string | null; results: any[] }> {

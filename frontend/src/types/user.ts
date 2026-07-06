@@ -17,6 +17,9 @@ export interface User {
   is_staff?: boolean
   is_superuser?: boolean
   favorite_schools?: number[]
+  follower_count?: number
+  following_count?: number
+  is_following?: boolean
 }
 
 // 用户名密码登录表单

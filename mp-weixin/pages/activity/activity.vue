@@ -38,16 +38,27 @@
         class="activity-item"
       >
         <view class="activity-header">
-          <image
-            class="author-avatar"
-            :src="activity.user?.avatar || '/static/logo.png'"
-            mode="aspectFill"
-          />
-          <view class="author-info">
-            <text class="author-name">{{ activity.user?.username || '匿名用户' }}</text>
-            <text class="activity-type">{{ getActivityTypeText(activity.activity_type) }}</text>
-            <text class="activity-time">{{ formatTime(activity.created_at) }}</text>
+          <view class="author-meta" @click="goToUserProfile(activity.user?.id)">
+            <image
+              class="author-avatar"
+              :src="activity.user?.avatar || '/static/logo.png'"
+              mode="aspectFill"
+            />
+            <view class="author-info">
+              <text class="author-name">{{ activity.user?.username || '匿名用户' }}</text>
+              <text class="activity-type">{{ getActivityTypeText(activity.activity_type) }}</text>
+              <text class="activity-time">{{ formatTime(activity.created_at) }}</text>
+            </view>
           </view>
+          <button
+            v-if="showFollowButton(activity.user)"
+            class="follow-btn"
+            :class="{ following: activity.user.is_following }"
+            :disabled="followLoadingIds.has(activity.id)"
+            @click="toggleFollow(activity)"
+          >
+            {{ followLoadingIds.has(activity.id) ? '处理中...' : (activity.user.is_following ? '已关注' : '+ 关注') }}
+          </button>
         </view>
 
         <view class="activity-body">
@@ -160,6 +171,8 @@ const hasMore = ref(true)
 const showCreateForm = ref(false)
 const creating = ref(false)
 const expandedActivity = ref(null)
+const currentUserId = ref(null)
+const followLoadingIds = ref(new Set())
 
 const activityForm = ref({
   activity_type: 'custom',
@@ -173,6 +186,15 @@ const commentForm = ref({
 })
 
 onMounted(() => {
+  const storedUserInfo = uni.getStorageSync('userInfo')
+  if (storedUserInfo) {
+    try {
+      const info = typeof storedUserInfo === 'string' ? JSON.parse(storedUserInfo) : storedUserInfo
+      currentUserId.value = info.id
+    } catch (e) {
+      console.error('解析用户信息失败', e)
+    }
+  }
   loadActivities(true)
 })
 
@@ -356,6 +378,38 @@ const goToTarget = (activity) => {
   }
 }
 
+const showFollowButton = (user) => {
+  const token = uni.getStorageSync('accessToken')
+  return token && user?.id && Number(user.id) !== Number(currentUserId.value)
+}
+
+const goToUserProfile = (userId) => {
+  if (!userId) return
+  uni.navigateTo({ url: `/pages/user-profile/user-profile?id=${userId}` })
+}
+
+const toggleFollow = async (activity) => {
+  const user = activity.user
+  if (!user?.id || followLoadingIds.value.has(activity.id)) return
+  followLoadingIds.value.add(activity.id)
+  try {
+    if (user.is_following) {
+      await userApi.unfollowUser(user.id)
+      user.is_following = false
+      user.follower_count = Math.max(0, (user.follower_count || 1) - 1)
+    } else {
+      await userApi.followUser(user.id)
+      user.is_following = true
+      user.follower_count = (user.follower_count || 0) + 1
+    }
+  } catch (error) {
+    console.error('关注操作失败:', error)
+    uni.showToast({ title: '操作失败', icon: 'none' })
+  } finally {
+    followLoadingIds.value.delete(activity.id)
+  }
+}
+
 const formatTime = (time) => {
   if (!time) return ''
   const date = new Date(time)
@@ -480,8 +534,33 @@ const formatTime = (time) => {
 .activity-header {
   display: flex;
   align-items: center;
-  gap: 16rpx;
+  justify-content: space-between;
   margin-bottom: 16rpx;
+}
+
+.author-meta {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.follow-btn {
+  padding: 8rpx 20rpx;
+  background-color: #4361ee;
+  color: #fff;
+  font-size: 24rpx;
+  border-radius: 24rpx;
+  border: none;
+  white-space: nowrap;
+}
+
+.follow-btn.following {
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+.follow-btn[disabled] {
+  opacity: 0.7;
 }
 
 .author-avatar {

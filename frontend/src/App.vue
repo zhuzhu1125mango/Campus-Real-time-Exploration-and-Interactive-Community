@@ -6,6 +6,9 @@ import Toast from './components/Toast.vue'
 import NotificationDropdown from './components/NotificationDropdown.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
 import NavDropdown from './components/NavDropdown.vue'
+import Breadcrumb from './components/Breadcrumb.vue'
+import BackToTop from './components/BackToTop.vue'
+import AppFooter from './components/AppFooter.vue'
 import { userApi } from './api/user'
 import { useUserStore } from './stores/userStore'
 import config from './utils/config'
@@ -131,14 +134,20 @@ const retryBackendCheck = async () => {
   await checkBackendStatus()
 }
 
-// 导航链接配置
+// 主导航链接配置
 const navLinks = computed(() => [
-  { to: '/explore', label: '校园探索' },
-  { to: '/schools', label: '院校查询' },
+  { to: '/', label: '首页' },
+  { to: '/explore', label: '探索' },
+  { to: '/schools', label: '院校' },
   { to: '/forum', label: '论坛' },
-  { to: '/learning', label: '在线学习' },
-  { to: '/content', label: '内容中心' },
-  { to: '/search', label: '搜索' },
+  { to: '/learning', label: '学习' },
+])
+
+// 更多下拉菜单
+const moreMenuItems = computed<NavDropdownItem[]>(() => [
+  { label: '内容中心', icon: 'i-ep-document', to: '/content' },
+  { label: '校园活动', icon: 'i-ep-calendar', to: '/events' },
+  { label: '搜索', icon: 'i-ep-search', to: '/search' },
 ])
 
 // 用户下拉菜单项
@@ -195,6 +204,11 @@ const guestMenuItems = computed<NavDropdownItem[]>(() => [
             >
               {{ link.label }}
             </router-link>
+
+            <NavDropdown :items="moreMenuItems" class="more-dropdown">
+              <span class="nav-link more-trigger">更多</span>
+              <span class="i-ep-arrow-down nav-chevron" />
+            </NavDropdown>
           </div>
 
           <!-- 右侧工具区 -->
@@ -254,6 +268,16 @@ const guestMenuItems = computed<NavDropdownItem[]>(() => [
             >
               {{ link.label }}
             </router-link>
+            <router-link
+              v-for="item in moreMenuItems"
+              :key="item.to"
+              :to="item.to || '/'"
+              class="mobile-nav-link"
+              @click="mobileMenuOpen = false"
+            >
+              <span v-if="item.icon" class="mobile-nav-icon" :class="item.icon" />
+              {{ item.label }}
+            </router-link>
             <template v-if="userStore.isLoggedIn">
               <router-link to="/profile" class="mobile-nav-link" @click="mobileMenuOpen = false">
                 个人中心
@@ -281,12 +305,14 @@ const guestMenuItems = computed<NavDropdownItem[]>(() => [
       </nav>
 
       <main class="main-content">
+        <div class="container-wide">
+          <Breadcrumb />
+        </div>
         <router-view></router-view>
       </main>
 
-      <footer class="footer">
-        <p>&copy; 2025 校园实时互动社区. All rights reserved.</p>
-      </footer>
+      <AppFooter />
+      <BackToTop />
     </template>
 
     <!-- 全局Toast通知组件 -->
@@ -429,6 +455,16 @@ const guestMenuItems = computed<NavDropdownItem[]>(() => [
   margin-right: var(--space-4);
 }
 
+.more-dropdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.more-trigger {
+  cursor: pointer;
+}
+
 .nav-links::-webkit-scrollbar {
   display: none;
 }
@@ -562,11 +598,17 @@ const guestMenuItems = computed<NavDropdownItem[]>(() => [
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
   color: var(--text-secondary);
   font-weight: 500;
   transition: all 0.2s ease;
+}
+
+.mobile-nav-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .mobile-nav-link:hover,
@@ -604,13 +646,9 @@ const guestMenuItems = computed<NavDropdownItem[]>(() => [
   background-color: var(--bg-secondary);
 }
 
-.footer {
-  background-color: var(--bg-primary);
-  padding: var(--space-6);
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  border-top: 1px solid var(--border-color-light);
+.main-content > .container-wide:first-child {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 @media (max-width: 1024px) {

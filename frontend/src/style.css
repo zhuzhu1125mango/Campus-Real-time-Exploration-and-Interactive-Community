@@ -199,6 +199,45 @@ img {
   padding: 0 var(--space-4);
 }
 
+.container-narrow {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+.container-medium {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+.container-wide {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+.page-padding {
+  padding-top: var(--space-6);
+  padding-bottom: var(--space-10);
+}
+
+@media (max-width: 640px) {
+  .container,
+  .container-narrow,
+  .container-medium,
+  .container-wide,
+  .page-padding {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
+  .page-padding {
+    padding-top: var(--space-4);
+    padding-bottom: var(--space-8);
+  }
+}
+
 .text-center {
   text-align: center;
 }

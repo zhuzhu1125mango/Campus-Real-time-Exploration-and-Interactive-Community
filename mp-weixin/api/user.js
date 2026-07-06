@@ -215,6 +215,24 @@ const userApi = {
   },
 
   /**
+   * 关注用户
+   * @param {number|string} userId - 用户ID
+   * @returns {Promise} 关注结果
+   */
+  followUser: (userId) => {
+    return request.post(`/users/users/${userId}/follow/`)
+  },
+
+  /**
+   * 取消关注用户
+   * @param {number|string} userId - 用户ID
+   * @returns {Promise} 取消关注结果
+   */
+  unfollowUser: (userId) => {
+    return request.post(`/users/users/${userId}/unfollow/`)
+  },
+
+  /**
    * 获取我的动态
    * @returns {Promise} 动态列表
    */

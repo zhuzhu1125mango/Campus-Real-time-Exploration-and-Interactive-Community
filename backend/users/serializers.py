@@ -18,13 +18,18 @@ User = get_user_model()
 class UserPublicSerializer(serializers.ModelSerializer):
     """用户公开信息序列化器，不暴露邮箱、手机号等敏感字段"""
     favorite_schools = serializers.SerializerMethodField()
+    follower_count = serializers.SerializerMethodField()
+    following_count = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ('id', 'username', 'avatar', 'banner', 'bio',
                   'is_student', 'grade', 'major', 'school', 'is_verified',
-                  'favorite_schools', 'date_joined')
-        read_only_fields = ('id', 'date_joined', 'is_verified', 'favorite_schools')
+                  'favorite_schools', 'date_joined',
+                  'follower_count', 'following_count', 'is_following')
+        read_only_fields = ('id', 'date_joined', 'is_verified', 'favorite_schools',
+                            'follower_count', 'following_count', 'is_following')
 
     def get_favorite_schools(self, obj):
         """从通用收藏模型中返回用户收藏的学校ID列表"""
@@ -37,18 +42,35 @@ class UserPublicSerializer(serializers.ModelSerializer):
                 user=obj, content_type=school_ct
             ).order_by('-created_at').values_list('object_id', flat=True)
         )
+
+    def get_follower_count(self, obj):
+        return obj.followers.count()
+
+    def get_following_count(self, obj):
+        return obj.following.count()
+
+    def get_is_following(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        return obj.followers.filter(pk=request.user.pk).exists()
 
 
 class UserSerializer(serializers.ModelSerializer):
     """用户基本信息序列化器（本人或管理员可见完整字段）"""
     favorite_schools = serializers.SerializerMethodField()
+    follower_count = serializers.SerializerMethodField()
+    following_count = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'phone', 'avatar', 'banner', 'bio',
                   'is_student', 'grade', 'major', 'school', 'is_verified',
-                  'favorite_schools', 'date_joined', 'last_login')
-        read_only_fields = ('id', 'date_joined', 'last_login', 'is_verified', 'favorite_schools')
+                  'favorite_schools', 'date_joined', 'last_login',
+                  'follower_count', 'following_count', 'is_following')
+        read_only_fields = ('id', 'date_joined', 'last_login', 'is_verified', 'favorite_schools',
+                            'follower_count', 'following_count', 'is_following')
 
     def get_favorite_schools(self, obj):
         """从通用收藏模型中返回用户收藏的学校ID列表"""
@@ -61,6 +83,18 @@ class UserSerializer(serializers.ModelSerializer):
                 user=obj, content_type=school_ct
             ).order_by('-created_at').values_list('object_id', flat=True)
         )
+
+    def get_follower_count(self, obj):
+        return obj.followers.count()
+
+    def get_following_count(self, obj):
+        return obj.following.count()
+
+    def get_is_following(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        return obj.followers.filter(pk=request.user.pk).exists()
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
