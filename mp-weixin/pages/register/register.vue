@@ -33,10 +33,10 @@
           <input type="text" v-model="emailForm.email" placeholder="邮箱" class="form-input" />
         </view>
         <view class="form-item">
-          <input type="password" v-model="emailForm.password" placeholder="密码（至少8位）" class="form-input" />
+          <input type="text" password v-model="emailForm.password" placeholder="密码（至少8位）" class="form-input" />
         </view>
         <view class="form-item">
-          <input type="password" v-model="emailForm.confirmPassword" placeholder="确认密码" class="form-input" />
+          <input type="text" password v-model="emailForm.confirmPassword" placeholder="确认密码" class="form-input" />
         </view>
         <view class="form-item verification">
           <input type="text" v-model="emailForm.code" placeholder="验证码" class="form-input code-input" />
@@ -56,10 +56,10 @@
           <input type="text" v-model="phoneForm.phone" placeholder="手机号" class="form-input" />
         </view>
         <view class="form-item">
-          <input type="password" v-model="phoneForm.password" placeholder="密码（至少8位）" class="form-input" />
+          <input type="text" password v-model="phoneForm.password" placeholder="密码（至少8位）" class="form-input" />
         </view>
         <view class="form-item">
-          <input type="password" v-model="phoneForm.confirmPassword" placeholder="确认密码" class="form-input" />
+          <input type="text" password v-model="phoneForm.confirmPassword" placeholder="确认密码" class="form-input" />
         </view>
         <view class="form-item verification">
           <input type="text" v-model="phoneForm.code" placeholder="验证码" class="form-input code-input" />
@@ -80,12 +80,25 @@
 
 <script setup>
 import { ref } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
 import userApi from '../../api/user'
 
 const registerType = ref('email')
 const countdown = ref(0)
 let countdownTimer = null
+let navigateTimer = null
 const loading = ref(false)
+
+onUnload(() => {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+  if (navigateTimer) {
+    clearTimeout(navigateTimer)
+    navigateTimer = null
+  }
+})
 
 const emailForm = ref({
   username: '',
@@ -140,11 +153,15 @@ const sendPhoneCode = async () => {
 }
 
 const startCountdown = () => {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+  }
   countdown.value = 60
   countdownTimer = setInterval(() => {
     countdown.value--
     if (countdown.value <= 0) {
       clearInterval(countdownTimer)
+      countdownTimer = null
     }
   }, 1000)
 }
@@ -177,7 +194,7 @@ const handleEmailRegister = async () => {
       code
     })
     uni.showToast({ title: '注册成功', icon: 'success' })
-    setTimeout(() => {
+    navigateTimer = setTimeout(() => {
       uni.navigateTo({ url: '/pages/login/login' })
     }, 1500)
   } catch (error) {
@@ -216,7 +233,7 @@ const handlePhoneRegister = async () => {
       code
     })
     uni.showToast({ title: '注册成功', icon: 'success' })
-    setTimeout(() => {
+    navigateTimer = setTimeout(() => {
       uni.navigateTo({ url: '/pages/login/login' })
     }, 1500)
   } catch (error) {

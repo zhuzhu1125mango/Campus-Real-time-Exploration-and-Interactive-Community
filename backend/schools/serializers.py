@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import (
     School, Major, SchoolMajor,
-    SchoolRating, MajorRating, AdmissionScore, Event, EventRegistration
+    SchoolRating, MajorRating, AdmissionScore, Event, EventRegistration,
+    Place, CheckIn
 )
 from users.serializers import UserSerializer
 
@@ -185,3 +186,46 @@ class EventRegistrationSerializer(serializers.ModelSerializer):
             'registered_at', 'updated_at'
         ]
         read_only_fields = ['user', 'registered_at', 'updated_at']
+
+
+class PlaceSerializer(serializers.ModelSerializer):
+    """校园地点序列化器"""
+    school = serializers.StringRelatedField()
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    is_checked_in_today = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Place
+        fields = [
+            'id', 'name', 'school', 'category', 'category_display',
+            'latitude', 'longitude', 'description', 'address',
+            'icon', 'is_active', 'checkin_count', 'is_checked_in_today',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['checkin_count', 'created_at', 'updated_at']
+
+    def get_is_checked_in_today(self, obj):
+        """检查当前用户今天是否在该地点打卡"""
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return False
+        from django.utils import timezone
+        today = timezone.now().date()
+        return obj.checkins.filter(
+            user=request.user,
+            created_at__date=today
+        ).exists()
+
+
+class CheckInSerializer(serializers.ModelSerializer):
+    """打卡记录序列化器"""
+    place = PlaceSerializer(read_only=True)
+    user = UserSerializer(read_only=True)
+
+    class Meta:
+        model = CheckIn
+        fields = [
+            'id', 'user', 'place', 'latitude', 'longitude',
+            'note', 'created_at'
+        ]
+        read_only_fields = ['user', 'created_at']

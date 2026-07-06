@@ -46,7 +46,8 @@
         <view class="form-group">
           <text class="label">新密码</text>
           <input
-            :type="showPhonePassword ? 'text' : 'password'"
+            type="text"
+            :password="!showPhonePassword"
             v-model="phoneForm.password"
             placeholder="请输入新密码（至少8位）"
             class="input"
@@ -57,7 +58,8 @@
         <view class="form-group">
           <text class="label">确认密码</text>
           <input
-            :type="showPhonePassword ? 'text' : 'password'"
+            type="text"
+            :password="!showPhonePassword"
             v-model="phoneForm.password_confirm"
             placeholder="请再次输入新密码"
             class="input"
@@ -106,7 +108,8 @@
         <view class="form-group">
           <text class="label">新密码</text>
           <input
-            :type="showEmailPassword ? 'text' : 'password'"
+            type="text"
+            :password="!showEmailPassword"
             v-model="emailForm.password"
             placeholder="请输入新密码（至少8位）"
             class="input"
@@ -117,7 +120,8 @@
         <view class="form-group">
           <text class="label">确认密码</text>
           <input
-            :type="showEmailPassword ? 'text' : 'password'"
+            type="text"
+            :password="!showEmailPassword"
             v-model="emailForm.password_confirm"
             placeholder="请再次输入新密码"
             class="input"
@@ -142,10 +146,29 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
 import userApi from '../../api/user'
 
 const loading = ref(false)
 const activeTab = ref('phone')
+const phoneTimer = ref(null)
+const emailTimer = ref(null)
+let navigateTimer = null
+
+onUnload(() => {
+  if (phoneTimer.value) {
+    clearInterval(phoneTimer.value)
+    phoneTimer.value = null
+  }
+  if (emailTimer.value) {
+    clearInterval(emailTimer.value)
+    emailTimer.value = null
+  }
+  if (navigateTimer) {
+    clearTimeout(navigateTimer)
+    navigateTimer = null
+  }
+})
 
 const phoneForm = ref({
   phone: '',
@@ -193,11 +216,16 @@ const isValidEmailForm = computed(() => {
 
 const startCountDown = (type) => {
   const target = type === 'phone' ? phoneCountDown : emailCountDown
+  const timerRef = type === 'phone' ? phoneTimer : emailTimer
+  if (timerRef.value) {
+    clearInterval(timerRef.value)
+  }
   target.value = 60
-  const timer = setInterval(() => {
+  timerRef.value = setInterval(() => {
     target.value--
     if (target.value <= 0) {
-      clearInterval(timer)
+      clearInterval(timerRef.value)
+      timerRef.value = null
     }
   }, 1000)
 }
@@ -265,7 +293,7 @@ const handlePhoneReset = async () => {
       password_confirm: phoneForm.value.password_confirm
     })
     uni.showToast({ title: '密码重置成功', icon: 'success' })
-    setTimeout(() => {
+    navigateTimer = setTimeout(() => {
       uni.navigateTo({ url: '/pages/login/login' })
     }, 1500)
   } catch (error) {
@@ -301,7 +329,7 @@ const handleEmailReset = async () => {
       password_confirm: emailForm.value.password_confirm
     })
     uni.showToast({ title: '密码重置成功', icon: 'success' })
-    setTimeout(() => {
+    navigateTimer = setTimeout(() => {
       uni.navigateTo({ url: '/pages/login/login' })
     }, 1500)
   } catch (error) {

@@ -23,7 +23,7 @@
       <view class="empty-icon">💬</view>
       <text>{{ searchQuery ? '未找到匹配的联系人' : '暂无消息' }}</text>
       <text v-if="!searchQuery" class="sub-tip">添加好友后开始聊天</text>
-      <button v-if="!searchQuery" class="add-friend-btn" @click="goToFriends">去添加好友</button>
+      <button v-if="!searchQuery" class="add-friend-btn" @click="goToForum">去论坛认识朋友</button>
     </view>
 
     <scroll-view v-else class="conversation-list" scroll-y refresher-enabled :refresher-triggered="refreshing"
@@ -137,8 +137,8 @@ const goToChat = (userId, username) => {
   uni.navigateTo({ url: `/pages/chat-detail/chat-detail?userId=${userId}&username=${encodeURIComponent(username)}` })
 }
 
-const goToFriends = () => {
-  uni.navigateTo({ url: '/pages/friends/friends' })
+const goToForum = () => {
+  uni.switchTab({ url: '/pages/forum/forum' })
 }
 </script>
 

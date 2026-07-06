@@ -144,3 +144,62 @@ export interface RecommendationResponse {
   recommendations: any[]
   reasoning: string[]
 }
+
+export type PlaceCategory =
+  | 'landmark'
+  | 'building'
+  | 'dormitory'
+  | 'canteen'
+  | 'library'
+  | 'sport'
+  | 'activity'
+  | 'scenic'
+  | 'other'
+
+export interface Place {
+  id: number
+  name: string
+  school: string | number
+  category: PlaceCategory
+  category_display: string
+  latitude: number
+  longitude: number
+  description?: string
+  address?: string
+  icon?: string
+  is_active?: boolean
+  checkin_count: number
+  is_checked_in_today?: boolean
+  distance?: number
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CheckIn {
+  id: number
+  place: Place
+  latitude: number
+  longitude: number
+  note?: string
+  created_at: string
+}
+
+export interface NearbyPlaceParams {
+  lat: number
+  lng: number
+  radius?: number
+  school_id?: number
+  category?: PlaceCategory
+}
+
+export interface NearbyEventParams {
+  lat?: number
+  lng?: number
+  radius?: number
+  school_id?: number
+}
+
+export interface PlaceParams {
+  school_id?: number
+  category?: PlaceCategory
+}

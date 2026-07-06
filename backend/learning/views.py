@@ -18,6 +18,7 @@ from users.throttles import SearchThrottle, WriteThrottle
 from rest_framework.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.utils import IntegrityError
+from django.db.models import F, Avg
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -132,6 +133,13 @@ class ChapterViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         return [IsAuthenticated(), IsCourseInstructorOrAdmin()]
 
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Chapter.objects.all()
+        if user.is_authenticated and (user.is_staff or Course.objects.filter(instructor=user).exists()):
+            return queryset
+        return queryset.filter(course__is_published=True)
+
     def get_serializer_class(self):
         if self.action == 'create':
             return ChapterCreateSerializer
@@ -161,6 +169,13 @@ class LessonViewSet(viewsets.ModelViewSet):
             return [AllowAny()]
         return [IsAuthenticated(), IsCourseInstructorOrAdmin()]
 
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Lesson.objects.all()
+        if user.is_authenticated and (user.is_staff or Course.objects.filter(instructor=user).exists()):
+            return queryset
+        return queryset.filter(chapter__course__is_published=True)
+
     def get_serializer_class(self):
         if self.action == 'create':
             return LessonCreateSerializer
@@ -178,8 +193,8 @@ class LessonViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def increment_view(self, request, pk=None):
         lesson = self.get_object()
-        lesson.view_count += 1
-        lesson.save()
+        # 使用 F() 表达式原子更新浏览次数，避免并发覆盖
+        Lesson.objects.filter(pk=lesson.pk).update(view_count=F('view_count') + 1)
         return Response({'status': 'view_count_incremented'})
 
 
@@ -230,8 +245,8 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         enrollment = serializer.save(user=self.request.user)
         if course is None:
             course = enrollment.course
-        course.enroll_count = course.enrollments.count()
-        course.save()
+        # 使用 F() 表达式原子更新报名人数，避免并发覆盖
+        Course.objects.filter(pk=course.pk).update(enroll_count=F('enroll_count') + 1)
 
         # 为课程的所有课时创建进度记录
         lessons = Lesson.objects.filter(chapter__course=course)
@@ -280,10 +295,13 @@ class ProgressViewSet(viewsets.ModelViewSet):
         # 保存进度并更新报名的总体进度
         progress = serializer.save()
         enrollment = progress.enrollment
-        total_lessons = Lesson.objects.filter(chapter__course=enrollment.course).count()
-        completed_lessons = enrollment.progresses.filter(is_completed=True).count()
-        enrollment.progress = (completed_lessons / total_lessons) * 100 if total_lessons > 0 else 0
-        enrollment.save()
+        with transaction.atomic():
+            # 锁定报名行，防止并发进度更新覆盖
+            enrollment = Enrollment.objects.select_for_update().get(pk=enrollment.pk)
+            total_lessons = Lesson.objects.filter(chapter__course=enrollment.course).count()
+            completed_lessons = Progress.objects.filter(enrollment=enrollment, is_completed=True).count()
+            enrollment.progress = (completed_lessons / total_lessons) * 100 if total_lessons > 0 else 0
+            enrollment.save(update_fields=['progress'])
 
     @action(detail=False, methods=['post'])
     def record(self, request):
@@ -337,14 +355,16 @@ class ReviewViewSet(viewsets.ModelViewSet):
             return ReviewCreateSerializer
         return ReviewSerializer
 
+    def _update_course_rating(self, course):
+        """使用聚合计算课程平均评分，避免并发下的统计错误"""
+        result = course.reviews.filter(is_approved=True).aggregate(avg_rating=Avg('rating'))
+        course.average_rating = result['avg_rating'] or 0.0
+        course.save(update_fields=['average_rating'])
+
     def perform_create(self, serializer):
         # 保存评价并更新课程的平均评分
         review = serializer.save(user=self.request.user)
-        course = review.course
-        reviews = course.reviews.filter(is_approved=True)
-        total_rating = sum(review.rating for review in reviews)
-        course.average_rating = total_rating / reviews.count() if reviews.count() > 0 else 0
-        course.save()
+        self._update_course_rating(review.course)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
     def approve(self, request, pk=None):
@@ -352,6 +372,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
         review = self.get_object()
         review.is_approved = True
         review.save()
+        self._update_course_rating(review.course)
         return Response({'status': 'review_approved'})
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
@@ -360,6 +381,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
         review = self.get_object()
         review.is_approved = False
         review.save()
+        self._update_course_rating(review.course)
         return Response({'status': 'review_disapproved'})
 
 
@@ -371,6 +393,13 @@ class LearningResourceViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve', 'increment_download']:
             return [AllowAny()]
         return [IsAuthenticated(), IsCourseInstructorOrAdmin()]
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = LearningResource.objects.all()
+        if user.is_authenticated and (user.is_staff or Course.objects.filter(instructor=user).exists()):
+            return queryset
+        return queryset.filter(course__is_published=True)
 
     def get_throttles(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -393,6 +422,6 @@ class LearningResourceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def increment_download(self, request, pk=None):
         resource = self.get_object()
-        resource.download_count += 1
-        resource.save()
+        # 使用 F() 表达式原子更新下载次数，避免并发覆盖
+        LearningResource.objects.filter(pk=resource.pk).update(download_count=F('download_count') + 1)
         return Response({'status': 'download_count_incremented'})

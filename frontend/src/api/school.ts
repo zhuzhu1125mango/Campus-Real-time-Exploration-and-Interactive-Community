@@ -1,5 +1,8 @@
 import request from '@/utils/request'
-import type { School, SchoolRating, SchoolQueryParams, SchoolListResponse, ImportCsvResponse, EventListResponse } from '@/types/school'
+import type {
+  School, SchoolRating, SchoolQueryParams, SchoolListResponse, ImportCsvResponse,
+  EventListResponse, Event as SchoolEvent, Place, CheckIn, NearbyPlaceParams, NearbyEventParams, PlaceParams
+} from '@/types/school'
 import type { Board } from '@/types/forum'
 
 export interface SchoolFilterOptions {
@@ -158,5 +161,30 @@ export const schoolApi = {
   // 获取仪表盘综合统计数据
   getDashboardStats() {
     return request.get('/schools/stats/dashboard/')
+  },
+
+  // 探索：获取附近地点
+  getNearbyPlaces(params: NearbyPlaceParams) {
+    return request.get<Place[]>('/schools/explore/nearby_places/', { params })
+  },
+
+  // 探索：获取附近活动
+  getNearbyEvents(params: NearbyEventParams) {
+    return request.get<SchoolEvent[]>('/schools/explore/nearby_events/', { params })
+  },
+
+  // 探索：获取地点列表
+  getPlaces(params?: PlaceParams) {
+    return request.get<Place[]>('/schools/explore/places/', { params })
+  },
+
+  // 探索：在指定地点打卡
+  checkIn(placeId: number, data?: { latitude?: number; longitude?: number; note?: string }) {
+    return request.post<CheckIn>('/schools/explore/checkin/', { place_id: placeId, ...data })
+  },
+
+  // 探索：获取我的打卡记录
+  getMyCheckIns() {
+    return request.get<CheckIn[]>('/schools/explore/my_checkins/')
   }
 } 

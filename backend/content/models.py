@@ -91,6 +91,8 @@ class Content(models.Model):
             models.Index(fields=['status', '-created_at'], name='content_status_created_idx'),
             models.Index(fields=['author', 'status'], name='content_author_status_idx'),
             models.Index(fields=['content_type', 'status'], name='content_type_status_idx'),
+            models.Index(fields=['title'], name='content_title_idx'),
+            models.Index(fields=['status', 'title'], name='content_status_title_idx'),
         ]
 
     def __str__(self):

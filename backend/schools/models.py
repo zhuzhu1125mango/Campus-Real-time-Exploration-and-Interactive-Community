@@ -266,3 +266,67 @@ class EventRegistration(models.Model):
         verbose_name = '活动报名'
         verbose_name_plural = '活动报名'
         unique_together = ('event', 'user')
+
+
+class Place(models.Model):
+    """校园地点模型
+    用于地图探索页展示学校内的热门打卡点、教学楼、食堂等地点
+    """
+    PLACE_CATEGORIES = [
+        ('landmark', '地标'),
+        ('building', '教学楼'),
+        ('dormitory', '宿舍'),
+        ('canteen', '食堂'),
+        ('library', '图书馆'),
+        ('sport', '体育场馆'),
+        ('activity', '活动场所'),
+        ('scenic', '景点'),
+        ('other', '其他'),
+    ]
+
+    name = models.CharField(max_length=128, verbose_name='地点名称')
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name='places', verbose_name='所属学校')
+    category = models.CharField(max_length=20, choices=PLACE_CATEGORIES, default='other', verbose_name='地点类型')
+    latitude = models.FloatField(verbose_name='纬度')
+    longitude = models.FloatField(verbose_name='经度')
+    description = models.TextField(blank=True, verbose_name='地点描述')
+    address = models.CharField(max_length=200, blank=True, verbose_name='详细地址')
+    icon = models.CharField(max_length=50, blank=True, verbose_name='图标标识')
+    is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    checkin_count = models.PositiveIntegerField(default=0, verbose_name='打卡次数')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        verbose_name = '校园地点'
+        verbose_name_plural = '校园地点'
+        ordering = ['-checkin_count', 'name']
+        indexes = [
+            models.Index(fields=['school', 'category'], name='schools_place_sch_cat_idx'),
+            models.Index(fields=['latitude', 'longitude'], name='schools_place_lat_lng_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.school.name} - {self.name}"
+
+
+class CheckIn(models.Model):
+    """用户打卡记录模型"""
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='checkins', verbose_name='用户')
+    place = models.ForeignKey(Place, on_delete=models.CASCADE, related_name='checkins', verbose_name='地点')
+    latitude = models.FloatField(verbose_name='打卡时纬度')
+    longitude = models.FloatField(verbose_name='打卡时经度')
+    note = models.CharField(max_length=200, blank=True, verbose_name='打卡备注')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='打卡时间')
+
+    class Meta:
+        verbose_name = '打卡记录'
+        verbose_name_plural = '打卡记录'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at'], name='schools_checkin_user_crt_idx'),
+            models.Index(fields=['place', '-created_at'], name='schools_checkin_place_crt_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} 打卡 {self.place.name}"

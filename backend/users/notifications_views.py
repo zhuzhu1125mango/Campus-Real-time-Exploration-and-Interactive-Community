@@ -12,16 +12,21 @@ class NotificationViewSet(viewsets.ModelViewSet):
     """通知视图集"""
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+
+    def get_permissions(self):
+        if self.action == 'create':
+            return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
+        return super().get_permissions()
+
     def get_queryset(self):
         # 只返回当前用户的通知
         return Notification.objects.filter(recipient=self.request.user)
-    
+
     def get_serializer_class(self):
         if self.action == 'create' or self.action == 'send_notification':
             return NotificationCreateSerializer
         return self.serializer_class
-    
+
     def perform_create(self, serializer):
         notification = serializer.save(sender=self.request.user)
         # 发送实时通知

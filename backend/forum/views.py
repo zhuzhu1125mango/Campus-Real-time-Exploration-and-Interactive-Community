@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Q, Sum, F, OuterRef, Subquery, Exists
 from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
@@ -23,6 +23,20 @@ from .serializers import (
 )
 from users.permissions import IsOwnerOrAdmin
 from users.throttles import SearchThrottle, WriteThrottle
+
+
+def annotate_topic_list(queryset):
+    """为主题列表查询集添加帖子数与最后回复信息的 annotate，减少 N+1。
+    注意：字段名避免与模型 property 重名（Topic.post_count 等）。"""
+    last_post = Post.objects.filter(topic=OuterRef('pk')).order_by('-created_at')
+    return queryset.annotate(
+        topic_post_count=Count('posts', distinct=True),
+        last_post_id=Subquery(last_post.values('id')[:1]),
+        last_post_created_at=Subquery(last_post.values('created_at')[:1]),
+        last_post_author_id=Subquery(last_post.values('author__id')[:1]),
+        last_post_author_username=Subquery(last_post.values('author__username')[:1]),
+        last_post_is_first_post=Subquery(last_post.values('is_first_post')[:1]),
+    )
 
 
 # 添加论坛统计功能
@@ -54,24 +68,24 @@ def forum_stats(request):
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def hot_topics(request):
-    """获取热门话题"""
+    """获取热门话题（支持分页）"""
     days = int(request.query_params.get('days', 7))
-    limit = int(request.query_params.get('limit', 10))
     
     # 计算时间范围
     now = timezone.now()
     date_from = now - timedelta(days=days)
     
-    # 获取时间范围内的热门话题
-    topics = Topic.objects.filter(
-        created_at__gte=date_from
+    # 获取时间范围内的热门话题，使用 distinct 避免多对多关联导致重复计数
+    topics = annotate_topic_list(
+        Topic.objects.filter(created_at__gte=date_from)
     ).annotate(
-        post_count=Count('posts'),
-        like_count=Count('posts__likes')
-    ).order_by('-views', '-post_count', '-like_count')[:limit]
+        like_count=Count('posts__likes', distinct=True)
+    ).order_by('-views', '-post_count', '-like_count')
     
-    serializer = TopicListSerializer(topics, many=True, context={'request': request})
-    return Response(serializer.data)
+    paginator = StandardResultsSetPagination()
+    page = paginator.paginate_queryset(topics, request)
+    serializer = TopicListSerializer(page, many=True, context={'request': request})
+    return paginator.get_paginated_response(serializer.data)
 
 
 # 添加获取用户收藏主题功能
@@ -80,12 +94,12 @@ def hot_topics(request):
 def my_bookmarks(request):
     """获取用户收藏的主题"""
     user = request.user
-    bookmarks = Bookmark.objects.filter(user=user).select_related('topic')
-    topics = [bookmark.topic for bookmark in bookmarks]
+    # 直接以 Topic 为查询目标并预取关联，避免 N+1
+    topics = annotate_topic_list(
+        Topic.objects.filter(bookmarks__user=user).select_related('author', 'board').prefetch_related('tags').order_by('-created_at')
+    )
     
-    # 分页
-    paginator = PageNumberPagination()
-    paginator.page_size = 10
+    paginator = StandardResultsSetPagination()
     page = paginator.paginate_queryset(topics, request)
     serializer = TopicListSerializer(page, many=True, context={'request': request})
     return paginator.get_paginated_response(serializer.data)
@@ -134,15 +148,29 @@ class BoardViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Board.objects.all()
         if self.action == 'list':
-            # 预取分类与主题，减少 N+1 查询
-            return queryset.select_related('category').prefetch_related('topics')
+            # 预取分类，并通过 annotate 聚合主题数、帖子数、最后发帖信息，减少 N+1
+            # 字段名避免与模型 property 重名
+            last_post = Post.objects.filter(topic__board=OuterRef('pk')).order_by('-created_at')
+            return queryset.select_related('category').annotate(
+                board_topic_count=Count('topics', distinct=True),
+                board_post_count=Count('topics__posts', distinct=True),
+                last_post_id=Subquery(last_post.values('id')[:1]),
+                last_post_created_at=Subquery(last_post.values('created_at')[:1]),
+                last_post_topic_id=Subquery(last_post.values('topic__id')[:1]),
+                last_post_topic_title=Subquery(last_post.values('topic__title')[:1]),
+                last_post_author_id=Subquery(last_post.values('author__id')[:1]),
+                last_post_author_username=Subquery(last_post.values('author__username')[:1]),
+            )
         return queryset
     
     @action(detail=True, methods=['get'])
     def topics(self, request, pk=None):
         """获取板块内的主题列表"""
         board = self.get_object()
-        queryset = Topic.objects.filter(board=board)
+        # 预取作者、板块、标签，并 annotate 帖子数/最后回复，减少 N+1
+        queryset = annotate_topic_list(
+            Topic.objects.filter(board=board).select_related('author', 'board').prefetch_related('tags')
+        )
         
         # 过滤和排序
         status_filter = request.query_params.get('status')
@@ -169,13 +197,15 @@ class BoardViewSet(viewsets.ModelViewSet):
         now = timezone.now()
         date_from = now - timedelta(days=days)
         
-        # 获取最近活跃的主题
-        queryset = Topic.objects.filter(
-            board=board,
-            posts__created_at__gte=date_from
+        # 获取最近活跃的主题，预取关联并使用 distinct 去重
+        queryset = annotate_topic_list(
+            Topic.objects.filter(
+                board=board,
+                posts__created_at__gte=date_from
+            ).select_related('author', 'board').prefetch_related('tags')
         ).annotate(
-            recent_posts=Count('posts', filter=Q(posts__created_at__gte=date_from))
-        ).order_by('-recent_posts', '-views')
+            recent_posts=Count('posts', filter=Q(posts__created_at__gte=date_from), distinct=True)
+        ).order_by('-recent_posts', '-views').distinct()
         
         # 分页
         page = self.paginate_queryset(queryset)
@@ -220,8 +250,10 @@ class TopicViewSet(viewsets.ModelViewSet):
         return super().get_throttles()
 
     def get_queryset(self):
-        # 预取作者、板块和标签，减少 N+1 查询
-        queryset = Topic.objects.select_related('author', 'board').prefetch_related('tags')
+        # 预取作者、板块和标签，并 annotate 帖子数/最后回复信息，减少 N+1 查询
+        queryset = annotate_topic_list(
+            Topic.objects.select_related('author', 'board').prefetch_related('tags')
+        )
 
         # 过滤
         board_id = self.request.query_params.get('board')
@@ -248,9 +280,9 @@ class TopicViewSet(viewsets.ModelViewSet):
     
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        # 增加浏览量
-        instance.views += 1
-        instance.save(update_fields=['views'])
+        # 使用 F() 表达式原子更新浏览量，避免并发覆盖
+        Topic.objects.filter(pk=instance.pk).update(views=F('views') + 1)
+        instance.refresh_from_db(fields=['views'])
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
     
@@ -258,7 +290,8 @@ class TopicViewSet(viewsets.ModelViewSet):
     def posts(self, request, pk=None):
         """获取主题内的帖子列表"""
         topic = self.get_object()
-        queryset = Post.objects.filter(topic=topic)
+        # 预取作者、主题、板块、点赞，减少 N+1
+        queryset = Post.objects.filter(topic=topic).select_related('author', 'topic', 'topic__board', 'edited_by', 'reviewed_by').prefetch_related('likes')
         
         # 分页
         page = self.paginate_queryset(queryset)
@@ -341,11 +374,21 @@ class PostViewSet(viewsets.ModelViewSet):
         return super().get_throttles()
 
     def get_queryset(self):
-        # 预取作者、主题与板块、点赞数据，减少 N+1 查询
-        queryset = Post.objects.select_related('author', 'topic', 'topic__board').prefetch_related('likes')
+        # 预取作者、主题与板块、编辑/审核人，减少 N+1 查询
+        queryset = Post.objects.select_related(
+            'author', 'topic', 'topic__board', 'edited_by', 'reviewed_by'
+        ).annotate(
+            like_count=Count('likes', distinct=True)
+        )
+
+        # 当前用户是否点赞使用 Exists 子查询，避免拉取全部点赞记录
+        user = self.request.user
+        if user.is_authenticated:
+            queryset = queryset.annotate(
+                is_liked=Exists(Like.objects.filter(post=OuterRef('pk'), user=user))
+            )
 
         # 非管理员和版主只能看到已审核通过的帖子
-        user = self.request.user
         if not user.is_authenticated or (not user.is_staff and not self.is_moderator(user)):
             queryset = queryset.filter(content_status='approved')
 
@@ -557,8 +600,8 @@ class AttachmentViewSet(viewsets.ModelViewSet):
     def download(self, request, pk=None):
         """下载附件并增加下载次数"""
         attachment = self.get_object()
-        attachment.download_count += 1
-        attachment.save(update_fields=['download_count'])
+        # 使用 F() 表达式原子更新下载次数，避免并发覆盖
+        Attachment.objects.filter(pk=attachment.pk).update(download_count=F('download_count') + 1)
         return Response({"file_url": attachment.file.url}, status=status.HTTP_200_OK)
 
 
@@ -589,11 +632,15 @@ class TagViewSet(viewsets.ModelViewSet):
     def topics(self, request, pk=None):
         """获取标签下的主题列表"""
         tag = self.get_object()
-        page = self.paginate_queryset(tag.topics.all().order_by('-created_at'))
+        # 预取关联并 annotate 列表字段，减少 N+1
+        queryset = annotate_topic_list(
+            tag.topics.select_related('author', 'board').prefetch_related('tags').order_by('-created_at')
+        )
+        page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = TopicListSerializer(page, many=True, context={'request': request})
             return self.get_paginated_response(serializer.data)
-        serializer = TopicListSerializer(tag.topics.all().order_by('-created_at'), many=True, context={'request': request})
+        serializer = TopicListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
 
@@ -633,8 +680,8 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
-        # 只能查看自己的通知
-        return Notification.objects.filter(user=self.request.user)
+        # 只能查看自己的通知，并预取发送者、主题、帖子，减少 N+1
+        return Notification.objects.filter(user=self.request.user).select_related('sender', 'topic', 'post')
 
     @action(detail=True, methods=['post'])
     def mark_read(self, request, pk=None):
@@ -677,7 +724,16 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         # 预取作者、帖子、点赞和回复，减少 N+1 查询
-        queryset = Comment.objects.select_related('author', 'post').prefetch_related('likes', 'replies__author')
+        queryset = Comment.objects.select_related('author', 'post').prefetch_related('likes', 'replies__author').annotate(
+            like_count=Count('likes', distinct=True)
+        )
+
+        # 当前用户是否点赞
+        user = self.request.user
+        if user.is_authenticated:
+            queryset = queryset.annotate(
+                is_liked=Exists(CommentLike.objects.filter(comment=OuterRef('pk'), user=user))
+            )
 
         # 根据帖子筛选
         post_id = self.request.query_params.get('post')

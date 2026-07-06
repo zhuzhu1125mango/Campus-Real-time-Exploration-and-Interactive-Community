@@ -100,6 +100,8 @@ class Topic(models.Model):
             models.Index(fields=['board', '-created_at'], name='forum_topic_board_crt_idx'),
             models.Index(fields=['author', '-created_at'], name='forum_topic_author_crt_idx'),
             models.Index(fields=['status', '-created_at'], name='forum_topic_status_crt_idx'),
+            models.Index(fields=['title'], name='forum_topic_title_idx'),
+            models.Index(fields=['board', 'status', '-created_at'], name='forum_topic_brd_st_crt_idx'),
         ]
 
     def __str__(self):
@@ -153,6 +155,7 @@ class Post(models.Model):
             models.Index(fields=['topic', 'created_at'], name='forum_post_topic_crt_idx'),
             models.Index(fields=['author', 'created_at'], name='forum_post_author_crt_idx'),
             models.Index(fields=['content_status', 'created_at'], name='forum_post_status_crt_idx'),
+            models.Index(fields=['topic', 'content_status', 'created_at'], name='forum_post_topic_st_crt_idx'),
         ]
 
     def __str__(self):

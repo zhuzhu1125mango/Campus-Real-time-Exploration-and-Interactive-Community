@@ -7,6 +7,7 @@ import chatApi from './chat'
 import contentApi from './content'
 import learningApi from './learning'
 import notificationApi from './notification'
+import feedApi from './feed'
 
 export {
   request,
@@ -16,7 +17,8 @@ export {
   chatApi,
   contentApi,
   learningApi,
-  notificationApi
+  notificationApi,
+  feedApi
 }
 
 export default {
@@ -27,5 +29,6 @@ export default {
   chat: chatApi,
   content: contentApi,
   learning: learningApi,
-  notification: notificationApi
+  notification: notificationApi,
+  feed: feedApi
 }

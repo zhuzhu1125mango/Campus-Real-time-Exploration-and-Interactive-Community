@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
+import request from './utils/request'
 import { userApi } from './api/user'
 import Toast from './components/Toast.vue'
 import NotificationDropdown from './components/NotificationDropdown.vue'
@@ -27,12 +27,12 @@ const checkBackendStatus = async (retries = 2) => {
     const controller = new AbortController()
     const timeoutId = window.setTimeout(() => controller.abort(), 5000)
     try {
-      // 使用相对路径，利用Vite的代理配置
-      const response = await axios.get('/health/', {
+      // 使用统一 request 封装（响应拦截器已返回 response.data）
+      const data = await request.get('/health/', {
         signal: controller.signal,
         timeout: 5000
       })
-      if (response.status === 200 && response.data?.status === 'ok') {
+      if (data?.status === 'ok') {
         console.log('后端服务器可用')
         backendStatus.value = 'online'
         appInitialized.value = true
@@ -40,7 +40,7 @@ const checkBackendStatus = async (retries = 2) => {
       }
       throw new Error('健康检查失败')
     } catch (error: any) {
-      const isAbort = error.name === 'AbortError' || axios.isCancel(error)
+      const isAbort = error.name === 'AbortError'
       if (isAbort) {
         console.warn(`健康检查超时（尝试 ${attempt + 1}/${retries + 1}）`)
       } else if (attempt >= retries) {
@@ -150,6 +150,7 @@ const retryBackendCheck = async () => {
           <router-link to="/">校园实时互动社区</router-link>
         </div>
         <div class="nav-links">
+          <router-link to="/explore">校园探索</router-link>
           <router-link to="/schools">院校查询</router-link>
           <router-link to="/forum">论坛</router-link>
           <router-link to="/learning">在线学习</router-link>

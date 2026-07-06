@@ -204,7 +204,15 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
 import searchApi from '../../api/search'
+
+onUnload(() => {
+  if (suggestionTimer.value) {
+    clearTimeout(suggestionTimer.value)
+    suggestionTimer.value = null
+  }
+})
 
 const props = defineProps({
   type: {

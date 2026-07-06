@@ -448,6 +448,22 @@ class UserViewSet(viewsets.ModelViewSet):
             'total_points': user.points
         })
 
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def follow(self, request, pk=None):
+        """关注指定用户"""
+        target = self.get_object()
+        if target == request.user:
+            return Response({'error': '不能关注自己'}, status=status.HTTP_400_BAD_REQUEST)
+        request.user.following.add(target)
+        return Response({'status': 'followed'})
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def unfollow(self, request, pk=None):
+        """取消关注指定用户"""
+        target = self.get_object()
+        request.user.following.remove(target)
+        return Response({'status': 'unfollowed'})
+
 # 添加调试视图，检查用户头像（仅在 DEBUG 模式下可用）
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
@@ -655,11 +671,17 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
+        if self.action == 'retrieve':
             return [permissions.AllowAny()]
         if self.action in ['update', 'partial_update', 'destroy']:
             return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
         return super().get_permissions()
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return UserProfile.objects.all()
+        return UserProfile.objects.filter(user=user)
 
     def get_object(self):
         pk = self.kwargs.get('pk')

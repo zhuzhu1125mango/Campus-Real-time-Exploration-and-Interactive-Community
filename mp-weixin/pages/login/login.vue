@@ -10,7 +10,7 @@
         <input type="text" v-model="loginForm.username" placeholder="用户名/邮箱/手机号" class="form-input" />
       </view>
       <view class="form-item">
-        <input type="password" v-model="loginForm.password" placeholder="密码" class="form-input" />
+        <input type="text" password v-model="loginForm.password" placeholder="密码" class="form-input" />
       </view>
 
       <view class="form-options">

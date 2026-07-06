@@ -1,689 +1,719 @@
-<template>
-  <div class="home-container">
-    <div class="hero-section">
-      <div class="hero-content">
-        <h1 class="hero-title">欢迎来到<span class="highlight">校园实时互动社区</span></h1>
-        <p class="hero-subtitle">连接校园, 分享知识, 共同成长</p>
-        <div class="cta-buttons">
-          <router-link v-if="userStore.isLoggedIn" to="/profile" class="btn btn-primary">进入个人中心</router-link>
-          <router-link v-else to="/login" class="btn btn-primary">立即加入</router-link>
-          <router-link to="/forum" class="btn btn-secondary">浏览社区</router-link>
-        </div>
-      </div>
-      <div class="hero-image">
-        <div class="abstract-shape shape-1"></div>
-        <div class="abstract-shape shape-2"></div>
-        <div class="abstract-shape shape-3"></div>
-      </div>
-    </div>
-
-    <div class="features-section">
-      <h2 class="section-title">探索我们的功能</h2>
-      <div class="features-grid">
-        <router-link to="/events" class="feature-card">
-          <div class="feature-icon news-icon"></div>
-          <h3>校园动态</h3>
-          <p>了解最新校园活动和公告信息</p>
-        </router-link>
-        <router-link to="/forum" class="feature-card">
-          <div class="feature-icon community-icon"></div>
-          <h3>互动交流</h3>
-          <p>与校友分享经验，建立人脉关系</p>
-        </router-link>
-        <router-link to="/learning" class="feature-card">
-          <div class="feature-icon resources-icon"></div>
-          <h3>在线学习</h3>
-          <p>探索课程与学习资料，提升知识技能</p>
-        </router-link>
-      </div>
-    </div>
-
-    <div class="activity-section">
-      <h2 class="section-title">社区实时动态</h2>
-      <div class="activity-container">
-        <div class="activity-feed">
-          <div class="feed-header">
-            <h3>最新动态</h3>
-            <div class="filter-tabs">
-              <button class="tab active" @click="activeFilter = 'all'">全部</button>
-              <button class="tab" @click="activeFilter = 'qa'">问答</button>
-              <button class="tab" @click="activeFilter = 'share'">分享</button>
-            </div>
-          </div>
-          
-          <div class="feed-items">
-            <div v-if="loading" class="loading-state">
-              <div class="loading-spinner"></div>
-              <p>加载中...</p>
-            </div>
-            <div v-else-if="activities.length === 0" class="no-activities">
-              <p>暂无动态，快来发布第一条动态吧！</p>
-            </div>
-            <div v-else v-for="activity in activities" :key="activity.id" class="feed-item">
-              <div class="feed-avatar">
-                <img :src="activity.user?.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'" :alt="activity.user?.username">
-              </div>
-              <div class="feed-content">
-                <div class="feed-header">
-                  <span class="feed-author">{{ activity.user?.username }}</span>
-                  <span class="feed-time">{{ formatTime(activity.created_at) }}</span>
-                </div>
-                <p class="feed-text">{{ activity.content }}</p>
-                <div class="feed-actions">
-                  <button class="action-btn like-btn" @click="toggleLike(activity.id)">
-                    <span class="action-icon" :class="{ 'liked': activity.is_liked }">{{ activity.is_liked ? '♥' : '♡' }}</span>
-                    <span>{{ activity.likes_count }}</span>
-                  </button>
-                  <button class="action-btn comment-btn">
-                    <span class="action-icon">💬</span>
-                    <span>{{ activity.comments_count }}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <button class="load-more-btn" @click="loadMore" :disabled="loading || !hasMore">
-            {{ loading ? '加载中...' : hasMore ? '加载更多' : '没有更多了' }}
-          </button>
-        </div>
-        
-      </div>
-    </div>
-
-    <div class="recommendation-section">
-      <RecommendationSection title="为你推荐" :limit="6" />
-    </div>
-
-    <div class="social-proof">
-      <div class="testimonial">
-        <p class="quote">"这个平台帮我结识了许多志同道合的朋友，让校园生活更加丰富多彩！"</p>
-        <p class="author">— 计算机学院 小王</p>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useUserStore } from '../stores/userStore'
-import RecommendationSection from '../components/RecommendationSection.vue'
-import { userApi } from '../api/user'
-import { formatDate } from '../utils/date'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { ChatDotSquare, View, Star, Calendar, Location } from '@element-plus/icons-vue'
+import { useUserStore } from '@/stores/userStore'
+import { feedApi } from '@/api/feed'
+import type { FeedItem, FeedType, TrendingTopic } from '@/types/feed'
+import { formatDate } from '@/utils/date'
+import { stripHtml, sanitizeHtml } from '@/utils/xss'
 
-// 使用用户状态存储
+const router = useRouter()
 const userStore = useUserStore()
 
-// 活动数据
-const activities = ref<any[]>([])
+const DEFAULT_LOCATION = { lat: 39.9042, lng: 116.4074 }
+
+const feedType = ref<FeedType>('recommend')
+const items = ref<FeedItem[]>([])
 const loading = ref(false)
 const hasMore = ref(true)
 const page = ref(1)
-const activeFilter = ref('all')
+const pageSize = 10
+const userLocation = ref<{ lat: number; lng: number } | null>(null)
+const locating = ref(false)
+const trendingTopics = ref<TrendingTopic[]>([])
+const loadingTrending = ref(false)
 
-// 格式化时间
+const isLoggedIn = computed(() => userStore.isLoggedIn)
+
+const typeOptions: { label: string; value: FeedType }[] = [
+  { label: '推荐', value: 'recommend' },
+  { label: '关注', value: 'following' },
+  { label: '附近', value: 'nearby' }
+]
+
 const formatTime = (timeString: string) => {
   return formatDate(timeString)
 }
 
-// 加载活动数据
-const loadActivities = async (reset = false) => {
+const getTypeLabel = (type: FeedType) => {
+  return typeOptions.find(o => o.value === type)?.label || type
+}
+
+const getTypeBadge = (objectType: string) => {
+  const map: Record<string, { label: string; color: string }> = {
+    topic: { label: '话题', color: '#4361ee' },
+    content: { label: '文章', color: '#10b981' },
+    activity: { label: '动态', color: '#f59e0b' },
+    event: { label: '活动', color: '#ef4444' }
+  }
+  return map[objectType] || { label: '其他', color: '#6b7280' }
+}
+
+const fetchFeed = async (reset = false) => {
   if (loading.value) return
-  
   if (reset) {
     page.value = 1
-    activities.value = []
+    items.value = []
     hasMore.value = true
   }
-  
+  if (!hasMore.value && !reset) return
+
   loading.value = true
   try {
-    const response = await userApi.getActivities({
+    const params: Record<string, any> = {
+      type: feedType.value,
       page: page.value,
-      page_size: 10,
-      type: activeFilter.value === 'all' ? undefined : activeFilter.value
-    })
-    
-    if (reset) {
-      activities.value = response.results
-    } else {
-      activities.value = [...activities.value, ...response.results]
+      page_size: pageSize
     }
-    
-    hasMore.value = response.results.length === 10
+    if (feedType.value === 'nearby') {
+      const loc = userLocation.value || DEFAULT_LOCATION
+      params.lat = loc.lat
+      params.lng = loc.lng
+      params.radius = 10
+    }
+    const response = await feedApi.getFeed(params)
+    const results = response.results || []
+    items.value = reset ? results : [...items.value, ...results]
+    hasMore.value = results.length === pageSize
     page.value++
-  } catch (error) {
-    console.error('加载活动失败:', error)
-    // 处理未登录的情况，显示友好的提示信息
-    if (error instanceof Error && 'response' in error && error.response && (error.response as any).status === 401) {
-      console.log('用户未登录，显示默认活动数据')
-      // 可以在这里添加一些默认的活动数据，或者显示提示信息
-    }
+  } catch (error: any) {
+    console.error('加载 Feed 失败:', error)
+    ElMessage.error('加载 Feed 失败')
   } finally {
     loading.value = false
   }
 }
 
-// 加载更多
+const onTypeChange = (type: FeedType) => {
+  feedType.value = type
+  if (type === 'nearby' && !userLocation.value) {
+    locateUser(() => fetchFeed(true))
+  } else {
+    fetchFeed(true)
+  }
+}
+
 const loadMore = () => {
   if (!loading.value && hasMore.value) {
-    loadActivities()
+    fetchFeed()
   }
 }
 
-// 切换点赞
-const toggleLike = async (activityId: number) => {
+const locateUser = (callback?: () => void) => {
+  locating.value = true
+  if (!navigator.geolocation) {
+    ElMessage.warning('浏览器不支持定位，使用默认位置')
+    userLocation.value = DEFAULT_LOCATION
+    locating.value = false
+    callback?.()
+    return
+  }
+  navigator.geolocation.getCurrentPosition(
+    position => {
+      userLocation.value = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude
+      }
+      locating.value = false
+      callback?.()
+    },
+    error => {
+      console.error('定位失败:', error)
+      ElMessage.warning('无法获取当前位置，使用默认位置')
+      userLocation.value = DEFAULT_LOCATION
+      locating.value = false
+      callback?.()
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+  )
+}
+
+const fetchTrendingTopics = async () => {
+  loadingTrending.value = true
   try {
-    const activity = activities.value.find(a => a.id === activityId)
-    if (!activity) return
-    
-    if (activity.is_liked) {
-      await userApi.unlikeActivity(activityId)
-    } else {
-      await userApi.likeActivity(activityId)
-    }
-    
-    // 更新本地状态
-    activity.is_liked = !activity.is_liked
-    activity.likes_count += activity.is_liked ? 1 : -1
+    const data = await feedApi.getTrendingTopics()
+    trendingTopics.value = data || []
   } catch (error) {
-    console.error('切换点赞失败:', error)
+    console.error('加载热门话题失败:', error)
+    trendingTopics.value = []
+  } finally {
+    loadingTrending.value = false
   }
 }
 
-// 组件挂载时加载数据
+const goToItem = (item: FeedItem) => {
+  switch (item.object_type) {
+    case 'topic':
+      router.push(`/forum/topic/${item.object_id}`)
+      break
+    case 'content':
+      router.push(`/content/${item.object_id}`)
+      break
+    case 'activity':
+      if (item.meta.target_url) {
+        router.push(item.meta.target_url)
+      } else {
+        router.push('/activity')
+      }
+      break
+    case 'event':
+      router.push('/events')
+      break
+  }
+}
+
+const goToTrending = (topic: TrendingTopic) => {
+  if (topic.type === 'forum_tag') {
+    router.push(`/forum/tag/${topic.id.replace('forum_tag_', '')}?name=${encodeURIComponent(topic.name)}`)
+  } else {
+    router.push(`/content?tag=${encodeURIComponent(topic.name)}`)
+  }
+}
+
+const promptLogin = () => {
+  ElMessageBox.confirm('关注功能需要登录，是否前往登录？', '提示', { type: 'info' })
+    .then(() => router.push('/login'))
+    .catch(() => {})
+}
+
+const handleScroll = () => {
+  const scrollTop = window.scrollY || document.documentElement.scrollTop
+  const windowHeight = window.innerHeight
+  const docHeight = document.documentElement.scrollHeight
+  if (docHeight - scrollTop - windowHeight < 200) {
+    loadMore()
+  }
+}
+
 onMounted(() => {
-  loadActivities(true)
+  fetchFeed(true)
+  fetchTrendingTopics()
+  window.addEventListener('scroll', handleScroll)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll)
 })
 </script>
 
-<style scoped>
-/* 现有样式 */
+<template>
+  <div class="home-container">
+    <div class="home-header">
+      <div class="hero-section">
+        <div class="hero-content">
+          <h1 class="hero-title">欢迎来到<span class="highlight">校园实时互动社区</span></h1>
+          <p class="hero-subtitle">连接校园，分享知识，共同成长</p>
+        </div>
+        <div class="hero-actions">
+          <router-link v-if="isLoggedIn" to="/profile" class="btn btn-primary">进入个人中心</router-link>
+          <router-link v-else to="/login" class="btn btn-primary">立即加入</router-link>
+          <router-link to="/explore" class="btn btn-secondary">校园探索</router-link>
+        </div>
+      </div>
+    </div>
 
-/* 新增样式 */
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 2rem;
-  color: #666;
-}
+    <div class="home-layout">
+      <main class="feed-main">
+        <div class="feed-tabs">
+          <button
+            v-for="opt in typeOptions"
+            :key="opt.value"
+            class="tab-btn"
+            :class="{ active: feedType === opt.value }"
+            @click="onTypeChange(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+          <button v-if="feedType === 'nearby'" class="locate-btn" @click="locateUser(() => fetchFeed(true))" :disabled="locating">
+            {{ locating ? '定位中...' : '重新定位' }}
+          </button>
+        </div>
 
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(67, 97, 238, 0.3);
-  border-radius: 50%;
-  border-top-color: #4361ee;
-  animation: spin 1s ease-in-out infinite;
-  margin-bottom: 1rem;
-}
+        <div v-if="feedType === 'following' && !isLoggedIn" class="login-prompt">
+          <p>登录后查看关注好友的动态</p>
+          <button class="btn btn-primary" @click="promptLogin">去登录</button>
+        </div>
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+        <div v-else>
+          <div v-if="loading && items.length === 0" class="feed-loading">
+            <el-skeleton :rows="5" animated />
+          </div>
 
-.no-activities {
-  text-align: center;
-  padding: 3rem;
-  color: #999;
-}
+          <div v-else-if="items.length === 0" class="feed-empty">
+            <el-empty :description="`暂无${getTypeLabel(feedType)}内容`" />
+          </div>
 
-.action-btn.liked {
-  color: #4361ee;
-}
+          <div v-else class="feed-list">
+            <article
+              v-for="item in items"
+              :key="item.id"
+              class="feed-card"
+              @click="goToItem(item)"
+            >
+              <div class="feed-card-header">
+                <img
+                  class="author-avatar"
+                  :src="item.author.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'"
+                  :alt="item.author.username"
+                />
+                <div class="author-info">
+                  <span class="author-name">{{ item.author.username }}</span>
+                  <span class="feed-time">{{ formatTime(item.created_at) }}</span>
+                </div>
+                <span class="type-badge" :style="{ backgroundColor: getTypeBadge(item.object_type).color + '20', color: getTypeBadge(item.object_type).color }">
+                  {{ getTypeBadge(item.object_type).label }}
+                </span>
+              </div>
 
-.action-btn.liked .action-icon {
-  color: #4361ee;
-}
-</style>
+              <div class="feed-card-body">
+                <h3 class="feed-title">{{ item.title }}</h3>
+                <div class="feed-summary" v-html="sanitizeHtml(stripHtml(item.content).slice(0, 200))"></div>
+                <div v-if="item.images && item.images.length > 0" class="feed-images">
+                  <img v-for="(img, index) in item.images.slice(0, 3)" :key="index" :src="img" alt="" />
+                </div>
+              </div>
+
+              <div class="feed-card-footer">
+                <template v-if="item.object_type === 'topic'">
+                  <span v-if="item.meta.board_name" class="meta-item">{{ item.meta.board_name }}</span>
+                  <span class="meta-item"><el-icon><ChatDotSquare /></el-icon> {{ item.meta.reply_count || 0 }}</span>
+                  <span class="meta-item"><el-icon><View /></el-icon> {{ item.meta.view_count || 0 }}</span>
+                </template>
+                <template v-else-if="item.object_type === 'content'">
+                  <span v-if="item.meta.content_type" class="meta-item">{{ item.meta.content_type }}</span>
+                  <span class="meta-item"><el-icon><View /></el-icon> {{ item.meta.view_count || 0 }}</span>
+                  <span class="meta-item"><el-icon><ChatDotSquare /></el-icon> {{ item.meta.comment_count || 0 }}</span>
+                  <span class="meta-item"><el-icon><Star /></el-icon> {{ item.meta.like_count || 0 }}</span>
+                </template>
+                <template v-else-if="item.object_type === 'activity'">
+                  <span class="meta-item"><el-icon><Star /></el-icon> {{ item.meta.likes_count || 0 }}</span>
+                  <span class="meta-item"><el-icon><ChatDotSquare /></el-icon> {{ item.meta.comments_count || 0 }}</span>
+                </template>
+                <template v-else-if="item.object_type === 'event'">
+                  <span v-if="item.meta.location" class="meta-item"><el-icon><Location /></el-icon> {{ item.meta.location }}</span>
+                  <span v-if="item.meta.start_time" class="meta-item"><el-icon><Calendar /></el-icon> {{ formatTime(item.meta.start_time) }}</span>
+                </template>
+              </div>
+            </article>
+          </div>
+
+          <div v-if="items.length > 0" class="feed-loadmore">
+            <button v-if="loading" class="load-btn" disabled>加载中...</button>
+            <button v-else-if="hasMore" class="load-btn" @click="loadMore">加载更多</button>
+            <span v-else class="no-more">没有更多了</span>
+          </div>
+        </div>
+      </main>
+
+      <aside class="home-sidebar">
+        <div class="sidebar-card">
+          <h3>热门话题</h3>
+          <div v-if="loadingTrending" class="sidebar-loading">
+            <el-skeleton :rows="4" animated />
+          </div>
+          <div v-else-if="trendingTopics.length === 0" class="sidebar-empty">
+            暂无热门话题
+          </div>
+          <ul v-else class="topic-list">
+            <li v-for="topic in trendingTopics" :key="topic.id" @click="goToTrending(topic)">
+              <span class="topic-name"># {{ topic.name }}</span>
+              <span class="topic-count">{{ topic.count }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="sidebar-card">
+          <h3>快速入口</h3>
+          <div class="quick-links">
+            <router-link to="/forum">校园论坛</router-link>
+            <router-link to="/learning">在线学习</router-link>
+            <router-link to="/content">内容中心</router-link>
+            <router-link to="/events">校园活动</router-link>
+            <router-link to="/schools">院校查询</router-link>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</template>
 
 <style scoped>
 .home-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: var(--space-6);
+}
+
+.home-header {
+  margin-bottom: var(--space-6);
 }
 
 .hero-section {
+  background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  color: var(--text-inverse);
   display: flex;
   align-items: center;
-  min-height: 80vh;
-  padding: 2rem 0;
-  position: relative;
-  overflow: hidden;
-}
-
-.hero-content {
-  flex: 1;
-  z-index: 2;
+  justify-content: space-between;
+  gap: var(--space-6);
+  flex-wrap: wrap;
 }
 
 .hero-title {
-  font-size: 3rem;
+  font-size: 2rem;
   font-weight: 700;
-  margin-bottom: 1rem;
-  line-height: 1.2;
-  color: #333;
+  margin-bottom: var(--space-2);
 }
 
 .highlight {
-  color: #4361ee;
-  position: relative;
-}
-
-.highlight::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 6px;
-  background-color: rgba(67, 97, 238, 0.3);
-  transform: translateY(4px);
-  border-radius: 4px;
+  color: #fde047;
 }
 
 .hero-subtitle {
-  font-size: 1.5rem;
-  color: #555;
-  margin-bottom: 2rem;
+  font-size: 1.1rem;
+  opacity: 0.9;
 }
 
-.cta-buttons {
+.hero-actions {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-3);
 }
 
 .btn {
-  padding: 0.8rem 1.8rem;
-  border-radius: 8px;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
   font-weight: 600;
-  transition: all 0.3s ease;
   text-decoration: none;
-}
-
-.btn-primary {
-  background-color: #4361ee;
-  color: white;
-  box-shadow: 0 4px 6px rgba(67, 97, 238, 0.3);
-}
-
-.btn-primary:hover {
-  background-color: #3a56d4;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 8px rgba(67, 97, 238, 0.4);
-}
-
-.btn-secondary {
-  background-color: white;
-  color: #4361ee;
-  border: 2px solid #4361ee;
-}
-
-.btn-secondary:hover {
-  background-color: #f0f3ff;
-  transform: translateY(-2px);
-}
-
-.hero-image {
-  flex: 1;
-  position: relative;
-  min-height: 400px;
-}
-
-.abstract-shape {
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0.8;
-}
-
-.shape-1 {
-  background: linear-gradient(135deg, #4361ee, #3a56d4);
-  width: 300px;
-  height: 300px;
-  top: 10%;
-  right: 10%;
-  animation: float 8s ease-in-out infinite;
-}
-
-.shape-2 {
-  background: linear-gradient(135deg, #4cc9f0, #4895ef);
-  width: 200px;
-  height: 200px;
-  top: 50%;
-  right: 25%;
-  animation: float 6s ease-in-out infinite 1s;
-}
-
-.shape-3 {
-  background: linear-gradient(135deg, #560bad, #7209b7);
-  width: 150px;
-  height: 150px;
-  bottom: 15%;
-  right: 15%;
-  animation: float 7s ease-in-out infinite 0.5s;
-}
-
-@keyframes float {
-  0% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-20px);
-  }
-  100% {
-    transform: translateY(0px);
-  }
-}
-
-.features-section {
-  padding: 4rem 0;
-}
-
-.section-title {
-  text-align: center;
-  font-size: 2rem;
-  margin-bottom: 3rem;
-  color: #333;
-  position: relative;
-}
-
-.section-title::after {
-  content: '';
-  position: absolute;
-  width: 80px;
-  height: 4px;
-  background-color: #4361ee;
-  bottom: -12px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-radius: 2px;
-}
-
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-}
-
-.feature-card {
-  background: white;
-  border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-  text-align: center;
-}
-
-.feature-card:hover {
-  transform: translateY(-10px);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
-}
-
-.feature-icon {
-  width: 70px;
-  height: 70px;
-  margin: 0 auto 1.5rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-position: center;
-  background-size: 40px;
-  background-repeat: no-repeat;
-}
-
-.news-icon {
-  background-color: rgba(67, 97, 238, 0.1);
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>');
-}
-
-.community-icon {
-  background-color: rgba(76, 201, 240, 0.1);
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234895ef"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>');
-}
-
-.resources-icon {
-  background-color: rgba(114, 9, 183, 0.1);
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%237209b7"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg>');
-}
-
-.feature-card h3 {
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
-  color: #333;
-}
-
-.feature-card p {
-  color: #666;
-  line-height: 1.6;
-}
-
-.activity-section {
-  padding: 4rem 0;
-  margin-top: 2rem;
-}
-
-.activity-container {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 2rem;
-  margin-top: 2rem;
-}
-
-/* 动态信息流样式 */
-.activity-feed {
-  background-color: white;
-  border-radius: 16px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-}
-
-.feed-header {
-  padding: 1.5rem;
-  border-bottom: 1px solid #f0f0f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.feed-header h3 {
-  margin: 0;
-  font-size: 1.3rem;
-  color: #333;
-}
-
-.filter-tabs {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.tab {
-  background: none;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.9rem;
-  cursor: pointer;
   transition: all 0.2s;
 }
 
-.tab.active {
-  background-color: rgba(67, 97, 238, 0.1);
-  color: #4361ee;
-  font-weight: 600;
+.btn-primary {
+  background: var(--text-inverse);
+  color: var(--primary-600);
 }
 
-.tab:hover:not(.active) {
-  background-color: #f5f5f5;
+.btn-primary:hover {
+  background: #f3f4f6;
 }
 
-.feed-items {
-  padding: 1rem 1.5rem;
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-inverse);
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
-.feed-item {
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.home-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--space-6);
+}
+
+.feed-main {
+  min-width: 0;
+}
+
+.feed-tabs {
   display: flex;
-  padding: 1.2rem 0;
-  border-bottom: 1px solid #f0f0f0;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
 }
 
-.feed-item:last-child {
-  border-bottom: none;
+.tab-btn {
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  transition: all 0.2s;
 }
 
-.feed-avatar {
-  width: 50px;
-  height: 50px;
-  margin-right: 1rem;
-  border-radius: 50%;
-  overflow: hidden;
+.tab-btn.active {
+  background: var(--primary-500);
+  color: var(--text-inverse);
 }
 
-.feed-avatar img {
-  width: 100%;
-  height: 100%;
+.locate-btn {
+  margin-left: auto;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--primary-600);
+  font-weight: 500;
+  border: 1px solid var(--primary-200);
+}
+
+.locate-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.login-prompt {
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.login-prompt p {
+  color: var(--text-secondary);
+  margin-bottom: var(--space-4);
+}
+
+.feed-loading,
+.feed-empty {
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-sm);
+}
+
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.feed-card {
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.feed-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.feed-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.author-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
   object-fit: cover;
 }
 
-.feed-content {
+.author-info {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.feed-content .feed-header {
-  padding: 0;
-  margin-bottom: 0.5rem;
-  border: none;
-}
-
-.feed-author {
+.author-name {
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .feed-time {
   font-size: 0.8rem;
-  color: #888;
+  color: var(--text-tertiary);
 }
 
-.feed-text {
-  margin-bottom: 1rem;
-  color: #444;
-  line-height: 1.5;
+.type-badge {
+  font-size: 0.75rem;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  font-weight: 500;
 }
 
-.feed-actions {
+.feed-card-body {
+  margin-bottom: var(--space-3);
+}
+
+.feed-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+  line-height: 1.4;
+}
+
+.feed-summary {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.feed-summary :deep(p) {
+  margin: 0;
+}
+
+.feed-images {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
-.action-btn {
-  background: none;
-  border: none;
+.feed-images img {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+}
+
+.feed-card-footer {
+  display: flex;
+  gap: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-color-light);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.meta-item {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  color: #777;
-  cursor: pointer;
-  font-size: 0.9rem;
-  padding: 0.3rem 0.5rem;
-  border-radius: 4px;
-  transition: all 0.2s;
+  gap: var(--space-1);
 }
 
-.action-btn:hover {
-  background-color: #f5f5f5;
+.feed-loadmore {
+  text-align: center;
+  padding: var(--space-6);
 }
 
-.load-more-btn {
-  width: 100%;
-  padding: 1rem;
-  border: none;
-  background-color: #f8f9ff;
-  color: #4361ee;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
+.load-btn,
+.no-more {
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-full);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
 }
 
-.load-more-btn:hover {
-  background-color: #f0f3ff;
+.load-btn:hover:not(:disabled) {
+  color: var(--primary-500);
 }
 
-@media (max-width: 768px) {
-  .activity-container {
-    grid-template-columns: 1fr;
-  }
+.home-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
-.recommendation-section {
-  padding: 4rem 0;
+.sidebar-card {
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
 }
 
-.social-proof {
-  padding: 3rem 0 5rem;
+.sidebar-card h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: var(--space-4);
+  color: var(--text-primary);
+}
+
+.sidebar-loading,
+.sidebar-empty {
+  color: var(--text-tertiary);
   text-align: center;
 }
 
-.testimonial {
-  max-width: 800px;
-  margin: 0 auto;
-  background-color: white;
-  padding: 2rem;
-  border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+.topic-list {
+  list-style: none;
 }
 
-.quote {
-  font-size: 1.4rem;
-  font-style: italic;
-  color: #555;
-  position: relative;
-  margin-bottom: 1.5rem;
+.topic-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2) 0;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-color-light);
 }
 
-.quote::before, .quote::after {
-  content: '"';
-  font-size: 2rem;
-  color: #4361ee;
-  font-family: serif;
+.topic-list li:last-child {
+  border-bottom: none;
 }
 
-.author {
-  font-weight: 600;
-  color: #333;
+.topic-list li:hover .topic-name {
+  color: var(--primary-500);
 }
 
-@media (max-width: 768px) {
+.topic-name {
+  color: var(--text-primary);
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.topic-count {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.quick-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.quick-links a {
+  color: var(--text-secondary);
+  padding: var(--space-2) 0;
+  transition: color 0.2s;
+}
+
+.quick-links a:hover {
+  color: var(--primary-500);
+}
+
+@media (max-width: 1024px) {
+  .home-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .home-sidebar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .home-container {
+    padding: var(--space-4);
+  }
+
   .hero-section {
     flex-direction: column;
-    text-align: center;
-  }
-  
-  .hero-content {
-    order: 2;
-    margin-top: 2rem;
-  }
-  
-  .hero-image {
-    order: 1;
-  }
-  
-  .cta-buttons {
-    justify-content: center;
-  }
-  
-  .hero-title {
-    font-size: 2.5rem;
-  }
-  
-  .hero-subtitle {
-    font-size: 1.2rem;
+    align-items: flex-start;
   }
 
-  .shape-1, .shape-2, .shape-3 {
-    transform: scale(0.7);
+  .hero-title {
+    font-size: 1.5rem;
+  }
+
+  .feed-tabs {
+    justify-content: space-between;
+  }
+
+  .locate-btn {
+    margin-left: 0;
   }
 }
 </style>

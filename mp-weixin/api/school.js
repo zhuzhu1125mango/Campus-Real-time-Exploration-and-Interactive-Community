@@ -138,6 +138,67 @@ const schoolApi = {
    */
   rateSchool: (schoolId, data) => {
     return request.post(`/schools/${schoolId}/rate/`, data)
+  },
+
+  /**
+   * 获取附近地点
+   * @param {Object} params - 查询参数
+   * @param {number} params.lat - 纬度
+   * @param {number} params.lng - 经度
+   * @param {number} [params.radius] - 半径（km）
+   * @param {string} [params.category] - 地点分类
+   * @returns {Promise} 地点列表
+   */
+  getNearbyPlaces: (params) => {
+    return request.get('/schools/explore/nearby_places/', params)
+  },
+
+  /**
+   * 获取附近活动
+   * @param {Object} params - 查询参数
+   * @param {number} params.lat - 纬度
+   * @param {number} params.lng - 经度
+   * @param {number} [params.radius] - 半径（km）
+   * @param {number} [params.school_id] - 学校ID
+   * @returns {Promise} 活动列表
+   */
+  getNearbyEvents: (params) => {
+    return request.get('/schools/explore/nearby_events/', params)
+  },
+
+  /**
+   * 获取地点列表
+   * @param {Object} params - 查询参数
+   * @param {number} [params.school_id] - 学校ID
+   * @param {string} [params.category] - 地点分类
+   * @returns {Promise} 地点列表
+   */
+  getPlaces: (params) => {
+    return request.get('/schools/explore/places/', params)
+  },
+
+  /**
+   * 地点打卡
+   * @param {number} placeId - 地点ID
+   * @param {Object} data - 打卡数据
+   * @param {number} [data.latitude] - 纬度
+   * @param {number} [data.longitude] - 经度
+   * @param {string} [data.note] - 备注
+   * @returns {Promise} 打卡结果
+   */
+  checkIn: (placeId, data) => {
+    return request.post('/schools/explore/checkin/', {
+      place_id: placeId,
+      ...data
+    })
+  },
+
+  /**
+   * 获取我的打卡记录
+   * @returns {Promise} 打卡记录列表
+   */
+  getMyCheckIns: () => {
+    return request.get('/schools/explore/my_checkins/')
   }
 }
 

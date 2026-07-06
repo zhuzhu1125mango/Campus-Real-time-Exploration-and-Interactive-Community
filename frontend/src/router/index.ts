@@ -35,6 +35,11 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/explore',
+    name: 'Explore',
+    component: () => import('@/views/Explore.vue')
+  },
+  {
     path: '/schools',
     name: 'Schools',
     component: () => import('@/views/Schools.vue')
@@ -124,7 +129,8 @@ const routes = [
   {
     path: '/dashboard',
     name: 'Dashboard',
-    component: () => import('../views/Dashboard.vue')
+    component: () => import('../views/Dashboard.vue'),
+    meta: { requiresAuth: true }
   },
   {
     path: '/friends',

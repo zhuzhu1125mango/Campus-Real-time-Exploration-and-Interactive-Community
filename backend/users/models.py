@@ -43,6 +43,9 @@ class User(AbstractUser):
     
     # 收藏的学校
     favorite_schools = models.ManyToManyField('schools.School', blank=True, related_name='favorited_by')
+
+    # 关注关系
+    following = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='followers')
     
     @property
     def level_name(self):

@@ -47,24 +47,42 @@ class BoardListSerializer(serializers.ModelSerializer):
         )
     
     def get_topic_count(self, obj):
+        # 优先使用视图 annotate 的字段，避免 N+1
+        if hasattr(obj, 'board_topic_count'):
+            return obj.board_topic_count
         return obj.topic_count
 
     def get_post_count(self, obj):
+        if hasattr(obj, 'board_post_count'):
+            return obj.board_post_count
         return obj.post_count
 
     def get_last_post_time(self, obj):
+        # 优先使用视图 annotate 的字段，避免 N+1
+        if hasattr(obj, 'last_post_created_at'):
+            return obj.last_post_created_at
         last_post = obj.last_post
         if last_post:
             return last_post.created_at
         return None
 
     def get_last_post_topic(self, obj):
+        if hasattr(obj, 'last_post_topic_id'):
+            topic_id = obj.last_post_topic_id
+            if topic_id:
+                return {'id': topic_id, 'title': obj.last_post_topic_title}
+            return None
         last_post = obj.last_post
         if last_post:
             return {'id': last_post.topic.id, 'title': last_post.topic.title}
         return None
     
     def get_last_post_author(self, obj):
+        if hasattr(obj, 'last_post_author_id'):
+            author_id = obj.last_post_author_id
+            if author_id:
+                return {'id': author_id, 'username': obj.last_post_author_username}
+            return None
         last_post = obj.last_post
         if last_post and last_post.author:
             return {'id': last_post.author.id, 'username': last_post.author.username}
@@ -124,17 +142,29 @@ class TopicListSerializer(serializers.ModelSerializer):
         )
     
     def get_reply_count(self, obj):
-        # 减去首贴
-        count = obj.post_count
+        # 优先使用视图 annotate 的 topic_post_count，避免 N+1
+        if hasattr(obj, 'topic_post_count'):
+            count = obj.topic_post_count
+        else:
+            count = obj.post_count
         return count - 1 if count > 0 else 0
     
     def get_last_reply_time(self, obj):
+        # 优先使用视图 annotate 的最后回复字段
+        if hasattr(obj, 'last_post_created_at') and hasattr(obj, 'last_post_is_first_post'):
+            if obj.last_post_created_at and not obj.last_post_is_first_post:
+                return obj.last_post_created_at
+            return None
         last_post = obj.last_post
         if last_post and not last_post.is_first_post:
             return last_post.created_at
         return None
     
     def get_last_reply_user(self, obj):
+        if hasattr(obj, 'last_post_author_id') and hasattr(obj, 'last_post_is_first_post'):
+            if obj.last_post_author_id and not obj.last_post_is_first_post:
+                return {'id': obj.last_post_author_id, 'username': obj.last_post_author_username}
+            return None
         last_post = obj.last_post
         if last_post and not last_post.is_first_post and last_post.author:
             return {'id': last_post.author.id, 'username': last_post.author.username}
@@ -239,11 +269,17 @@ class PostSerializer(serializers.ModelSerializer):
         return obj.topic.title if obj.topic else None
     
     def get_like_count(self, obj):
+        # 优先使用视图 annotate 的点赞数，避免 N+1
+        if hasattr(obj, 'like_count'):
+            return obj.like_count
         return obj.likes.count()
     
     def get_is_liked(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
+            # 优先使用视图 annotate 的是否点赞字段
+            if hasattr(obj, 'is_liked'):
+                return obj.is_liked
             return obj.likes.filter(user=request.user).exists()
         return False
     
@@ -390,17 +426,22 @@ class CommentSerializer(serializers.ModelSerializer):
         read_only_fields = ('author', 'created_at', 'updated_at')
     
     def get_like_count(self, obj):
-        return obj.like_count
+        # 优先使用视图 annotate 的点赞数，避免 N+1
+        if hasattr(obj, 'like_count'):
+            return obj.like_count
+        return CommentLike.objects.filter(comment=obj).count()
     
     def get_is_liked(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
+            if hasattr(obj, 'is_liked'):
+                return obj.is_liked
             return obj.likes.filter(user=request.user).exists()
         return False
     
     def get_replies(self, obj):
         request = self.context.get('request')
-        replies = obj.replies.all()
+        replies = obj.replies.select_related('author').prefetch_related('likes')
         return CommentSerializer(replies, many=True, context={'request': request}).data
 
 

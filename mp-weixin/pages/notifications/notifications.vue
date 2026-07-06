@@ -1,108 +1,142 @@
 <template>
   <view class="container">
     <view class="header">
-      <text class="title">通知</text>
+      <text class="title">论坛通知</text>
+      <view v-if="notifications.length > 0" class="mark-all-btn" @click="markAllAsRead">
+        <text>全部标为已读</text>
+      </view>
     </view>
 
-    <!-- 通知列表 -->
-    <scroll-view class="notification-list" scroll-y>
-      <view class="loading" v-if="loading">
+    <scroll-view class="notification-list" scroll-y @scrolltolower="loadMore">
+      <view v-if="loading" class="loading">
+        <view class="spinner"></view>
         <text>加载中...</text>
       </view>
-      <template v-else>
-      <view
-        class="notification-item"
-        :class="{ unread: !notification.is_read }"
-        v-for="notification in notifications"
-        :key="notification.id"
-        @click="handleNotification(notification)"
-      >
-        <view class="notification-icon">
-          <text>{{ getNotificationIcon(notification.notification_type || notification.type) }}</text>
-        </view>
-        <view class="notification-content">
-          <view class="notification-header">
-            <text class="notification-title">{{ notification.title }}</text>
-            <text class="notification-time">{{ formatTime(notification.created_at) }}</text>
-          </view>
-          <text class="notification-text">{{ notification.content || notification.message }}</text>
-        </view>
-        <view class="unread-dot" v-if="!notification.is_read"></view>
+
+      <view v-else-if="notifications.length === 0" class="empty">
+        <text class="empty-icon">🔔</text>
+        <text>暂无通知</text>
+        <view class="to-forum" @click="goToForum">浏览论坛</view>
       </view>
 
-      <view class="empty" v-if="!loading && notifications.length === 0">
-        <text>暂无通知</text>
+      <view
+        v-else
+        v-for="notification in notifications"
+        :key="notification.id"
+        class="notification-item"
+        :class="{ unread: !notification.is_read }"
+        @click="viewNotification(notification)"
+      >
+        <view v-if="!notification.is_read" class="unread-dot"></view>
+        <view class="notification-content">
+          <rich-text class="notification-text" :nodes="sanitizeHtml(notification.content)"></rich-text>
+          <text class="notification-time">{{ formatTime(notification.created_at) }}</text>
+        </view>
+        <view
+          v-if="!notification.is_read"
+          class="mark-read-btn"
+          @click.stop="markAsRead(notification.id)"
+        >
+          <text>标为已读</text>
+        </view>
       </view>
-      </template>
+
+      <view v-if="notifications.length > 0" class="load-more">
+        <text v-if="loadingMore" class="load-text">加载中...</text>
+        <text v-else-if="hasMore" class="load-text" @click="loadMore">加载更多</text>
+        <text v-else class="load-text no-more">没有更多了</text>
+      </view>
     </scroll-view>
   </view>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import notificationApi from '../../api/notification'
+import forumApi from '../../api/forum'
+import { sanitizeHtml } from '../../utils/xss'
 
 const notifications = ref([])
 const loading = ref(false)
+const loadingMore = ref(false)
+const page = ref(1)
+const pageSize = 10
+const hasMore = ref(true)
 
 onMounted(() => {
-  loadNotifications()
+  loadNotifications(true)
 })
 
-const loadNotifications = async () => {
-  loading.value = true
+const loadNotifications = async (reset = false) => {
+  if (reset) {
+    page.value = 1
+    notifications.value = []
+    hasMore.value = true
+  }
+  if (loading.value || loadingMore.value) return
+  if (!hasMore.value && !reset) return
+
+  if (reset) {
+    loading.value = true
+  } else {
+    loadingMore.value = true
+  }
+
   try {
-    const result = await notificationApi.getNotifications()
-    if (result && result.results) {
-      notifications.value = result.results
-    } else if (Array.isArray(result)) {
-      notifications.value = result
-    } else {
-      notifications.value = []
-    }
+    const result = await forumApi.getNotifications()
+    const list = Array.isArray(result) ? result : (result.results || [])
+    notifications.value = reset ? list : [...notifications.value, ...list]
+    hasMore.value = list.length === pageSize
+    page.value++
   } catch (error) {
     console.error('加载通知失败:', error)
-    notifications.value = []
+    uni.showToast({ title: '加载通知失败', icon: 'none' })
   } finally {
     loading.value = false
+    loadingMore.value = false
   }
 }
 
-const getNotificationIcon = (type) => {
-  const icons = {
-    system: '🔔',
-    forum: '💬',
-    chat: '✉️',
-    friend: '👥',
-    activity: '📅'
-  }
-  return icons[type] || '🔔'
+const loadMore = () => {
+  loadNotifications(false)
 }
 
-const handleNotification = async (notification) => {
+const viewNotification = (notification) => {
   if (!notification.is_read) {
-    try {
-      await notificationApi.markAsRead(notification.id)
-      notification.is_read = true
-    } catch (error) {
-      console.error('标记已读失败:', error)
-    }
+    markAsRead(notification.id)
   }
+  if (notification.notification_type === 'reply' && notification.post) {
+    uni.navigateTo({ url: `/pages/post-detail/post-detail?id=${notification.post}` })
+  }
+}
 
-  if (notification.target_id) {
-    switch (notification.notification_type || notification.type) {
-      case 'forum':
-      case 'comment':
-        uni.navigateTo({ url: `/pages/post-detail/post-detail?id=${notification.target_id}` })
-        break
-      case 'chat':
-      case 'message':
-        uni.navigateTo({ url: `/pages/chat-detail/chat-detail?userId=${notification.target_id}` })
-        break
-      default:
-        break
+const markAsRead = async (notificationId) => {
+  try {
+    await forumApi.markNotificationAsRead(notificationId)
+    const notification = notifications.value.find(n => n.id === notificationId)
+    if (notification) {
+      notification.is_read = true
     }
+  } catch (error) {
+    console.error('标记通知已读失败:', error)
+    uni.showToast({ title: '标记失败', icon: 'none' })
   }
+}
+
+const markAllAsRead = async () => {
+  try {
+    await forumApi.markAllNotificationsAsRead()
+    notifications.value.forEach(notification => {
+      notification.is_read = true
+    })
+    uni.showToast({ title: '已全部标为已读', icon: 'success' })
+  } catch (error) {
+    console.error('标记所有通知已读失败:', error)
+    uni.showToast({ title: '操作失败', icon: 'none' })
+  }
+}
+
+const goToForum = () => {
+  uni.switchTab({ url: '/pages/forum/forum' })
 }
 
 const formatTime = (time) => {
@@ -113,7 +147,7 @@ const formatTime = (time) => {
   if (diff < 60000) return '刚刚'
   if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前'
   if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前'
-  return Math.floor(diff / 86400000) + '天前'
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 </script>
 
@@ -121,12 +155,16 @@ const formatTime = (time) => {
 .container {
   min-height: 100vh;
   background-color: #f5f5f5;
+  display: flex;
+  flex-direction: column;
 }
 
 .header {
   background-color: #fff;
   padding: 30rpx;
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .title {
@@ -135,79 +173,40 @@ const formatTime = (time) => {
   color: #333;
 }
 
+.mark-all-btn {
+  padding: 10rpx 20rpx;
+  font-size: 24rpx;
+  color: #4361ee;
+  background-color: #eef1ff;
+  border-radius: 8rpx;
+}
+
 .notification-list {
-  height: calc(100vh - 100rpx);
+  flex: 1;
   padding: 20rpx 30rpx;
 }
 
 .loading {
-  text-align: center;
-  padding: 100rpx;
-  color: #999;
-}
-
-.notification-item {
-  background-color: #fff;
-  border-radius: 16rpx;
-  padding: 30rpx;
-  margin-bottom: 20rpx;
   display: flex;
-  align-items: flex-start;
-  position: relative;
-}
-
-.notification-item.unread {
-  background-color: #f0f9f0;
-}
-
-.notification-icon {
-  width: 80rpx;
-  height: 80rpx;
-  background-color: #f5f5f5;
-  border-radius: 50%;
-  display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  margin-right: 20rpx;
-  font-size: 40rpx;
-}
-
-.notification-content {
-  flex: 1;
-}
-
-.notification-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10rpx;
-}
-
-.notification-title {
-  font-size: 28rpx;
-  font-weight: 500;
-  color: #333;
-}
-
-.notification-time {
-  font-size: 22rpx;
+  padding: 100rpx 0;
+  gap: 16rpx;
   color: #999;
-}
-
-.notification-text {
   font-size: 26rpx;
-  color: #666;
-  line-height: 1.5;
 }
 
-.unread-dot {
-  position: absolute;
-  top: 30rpx;
-  right: 30rpx;
-  width: 16rpx;
-  height: 16rpx;
-  background-color: #4361ee;
+.spinner {
+  width: 40rpx;
+  height: 40rpx;
+  border: 4rpx solid rgba(67, 97, 238, 0.3);
   border-radius: 50%;
+  border-top-color: #4361ee;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .empty {
@@ -215,5 +214,87 @@ const formatTime = (time) => {
   padding: 100rpx 0;
   color: #999;
   font-size: 28rpx;
+}
+
+.empty-icon {
+  display: block;
+  font-size: 80rpx;
+  margin-bottom: 20rpx;
+  opacity: 0.5;
+}
+
+.to-forum {
+  display: inline-block;
+  margin-top: 30rpx;
+  padding: 16rpx 40rpx;
+  background-color: #4361ee;
+  color: #fff;
+  font-size: 28rpx;
+  border-radius: 12rpx;
+}
+
+.notification-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  background-color: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+}
+
+.notification-item.unread {
+  background-color: #ebf7ff;
+}
+
+.unread-dot {
+  width: 16rpx;
+  height: 16rpx;
+  background-color: #4361ee;
+  border-radius: 50%;
+  margin-right: 16rpx;
+  margin-top: 8rpx;
+  flex-shrink: 0;
+}
+
+.notification-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-text {
+  font-size: 28rpx;
+  color: #333;
+  line-height: 1.5;
+  margin-bottom: 10rpx;
+}
+
+.notification-time {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.mark-read-btn {
+  margin-left: 16rpx;
+  padding: 10rpx 18rpx;
+  font-size: 22rpx;
+  color: #666;
+  border: 1rpx solid #ddd;
+  border-radius: 8rpx;
+  flex-shrink: 0;
+}
+
+.load-more {
+  text-align: center;
+  padding: 30rpx 0;
+}
+
+.load-text {
+  font-size: 26rpx;
+  color: #999;
+}
+
+.load-text.no-more {
+  color: #bbb;
 }
 </style>

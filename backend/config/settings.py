@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'content',
     'learning',
     'search',
+    'feed',
 ]
 
 # Channels配置

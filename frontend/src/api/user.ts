@@ -1,6 +1,4 @@
 import request from '../utils/request'
-import axios from 'axios'
-import config from '../utils/config'
 import type { 
   LoginForm, 
   RegisterForm, 
@@ -67,36 +65,14 @@ export const userApi = {
     return request.get<User>('/users/users/me/')
   },
 
-  // 更新用户信息
+  // 更新用户信息（统一走 request 封装，支持 multipart 文件上传）
   updateProfile(data: FormData | Record<string, any>) {
-    // 如果是FormData类型（包含文件上传）
     if (data instanceof FormData) {
-      // 获取本地存储的token
-      const token = localStorage.getItem(config.jwt.accessTokenKey)
-      
-      const fullUrl = `/api/users/users/update_me/`
-      
-      // 添加超时设置
-      return axios.patch(
-        fullUrl,
-        data,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          timeout: 30000 // 30秒超时
-        }
-      )
-      .then(response => {
-        return response.data
-      })
-      .catch(error => {
-        throw error
+      return request.patch<User>('/users/users/update_me/', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 30000
       })
     }
-    
-    // 如果是普通对象（不包含文件上传）
     return request.patch<User>('/users/users/update_me/', data)
   },
 

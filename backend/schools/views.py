@@ -11,12 +11,14 @@ import csv
 import io
 from .models import (
     School, Major, SchoolMajor,
-    SchoolRating, MajorRating, AdmissionScore, Event, EventRegistration
+    SchoolRating, MajorRating, AdmissionScore, Event, EventRegistration,
+    Place, CheckIn
 )
 from .serializers import (
     SchoolSerializer, MajorSerializer,
     SchoolMajorSerializer, SchoolRatingSerializer,
-    MajorRatingSerializer, AdmissionScoreSerializer, EventSerializer, EventRegistrationSerializer
+    MajorRatingSerializer, AdmissionScoreSerializer, EventSerializer, EventRegistrationSerializer,
+    PlaceSerializer, CheckInSerializer
 )
 from forum.models import Post as ForumPost
 from forum.serializers import PostSerializer as ForumPostSerializer
@@ -1084,3 +1086,229 @@ def get_dashboard_stats(request):
         return Response(stats, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"detail": f"获取统计数据失败: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+def _parse_location_param(request, param_name):
+    """解析经纬度查询参数"""
+    value = request.query_params.get(param_name)
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _haversine_distance(lat1, lng1, lat2, lng2):
+    """计算两个经纬度坐标之间的距离（单位：千米）"""
+    from math import radians, sin, cos, sqrt, atan2
+    R = 6371.0
+    lat1_rad = radians(lat1)
+    lat2_rad = radians(lat2)
+    dlat = radians(lat2 - lat1)
+    dlng = radians(lng2 - lng1)
+    a = sin(dlat / 2) ** 2 + cos(lat1_rad) * cos(lat2_rad) * sin(dlng / 2) ** 2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    return R * c
+
+
+class ExploreViewSet(viewsets.ViewSet):
+    """校园探索视图集
+    提供地图探索相关的地点查询、附近活动、打卡等功能
+    """
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @action(detail=False, methods=['get'])
+    def nearby_places(self, request):
+        """获取附近的校园地点"""
+        lat = _parse_location_param(request, 'lat')
+        lng = _parse_location_param(request, 'lng')
+        radius = request.query_params.get('radius', '5')
+        school_id = request.query_params.get('school_id')
+        category = request.query_params.get('category')
+
+        if lat is None or lng is None:
+            return Response(
+                {"detail": "缺少 lat 或 lng 参数"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            radius_km = max(0.1, min(float(radius), 50))
+        except (ValueError, TypeError):
+            radius_km = 5
+
+        queryset = Place.objects.filter(is_active=True)
+        if school_id:
+            queryset = queryset.filter(school_id=school_id)
+        if category:
+            queryset = queryset.filter(category=category)
+
+        # 使用近似矩形过滤减少计算量
+        from math import degrees, radians, sin, cos, asin
+        delta_lat = degrees(radius_km / 6371.0)
+        delta_lng = degrees(radius_km / (6371.0 * cos(radians(lat))))
+
+        queryset = queryset.filter(
+            latitude__gte=lat - delta_lat,
+            latitude__lte=lat + delta_lat,
+            longitude__gte=lng - delta_lng,
+            longitude__lte=lng + delta_lng
+        )
+
+        places = []
+        for place in queryset:
+            distance = _haversine_distance(lat, lng, place.latitude, place.longitude)
+            if distance <= radius_km:
+                place_data = PlaceSerializer(place, context={'request': request}).data
+                place_data['distance'] = round(distance, 2)
+                places.append(place_data)
+
+        places.sort(key=lambda x: x['distance'])
+        return Response(places)
+
+    @action(detail=False, methods=['get'])
+    def nearby_events(self, request):
+        """获取附近的校园活动
+        活动模型目前没有经纬度字段，因此按学校关联的地点间接匹配，
+        或返回指定学校/城市范围内的活动。
+        """
+        lat = _parse_location_param(request, 'lat')
+        lng = _parse_location_param(request, 'lng')
+        radius = request.query_params.get('radius', '10')
+        school_id = request.query_params.get('school_id')
+
+        if school_id:
+            events = Event.objects.filter(
+                school_id=school_id,
+                status__in=['upcoming', 'ongoing'],
+                is_public=True
+            ).order_by('start_time')
+        elif lat is not None and lng is not None:
+            try:
+                radius_km = max(0.1, min(float(radius), 50))
+            except (ValueError, TypeError):
+                radius_km = 10
+
+            # 先找到半径内的学校，再返回这些学校的活动
+            from math import degrees, radians, sin, cos
+            delta_lat = degrees(radius_km / 6371.0)
+            delta_lng = degrees(radius_km / (6371.0 * cos(radians(lat))))
+
+            # School 模型目前没有经纬度字段，这里通过 Place 间接找到学校
+            nearby_school_ids = Place.objects.filter(
+                is_active=True,
+                latitude__gte=lat - delta_lat,
+                latitude__lte=lat + delta_lat,
+                longitude__gte=lng - delta_lng,
+                longitude__lte=lng + delta_lng
+            ).values_list('school_id', flat=True).distinct()
+
+            events = Event.objects.filter(
+                school_id__in=list(nearby_school_ids),
+                status__in=['upcoming', 'ongoing'],
+                is_public=True
+            ).order_by('start_time')
+        else:
+            return Response(
+                {"detail": "需要提供 lat/lng 或 school_id 参数"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = EventSerializer(events, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def places(self, request):
+        """按学校获取地点列表"""
+        school_id = request.query_params.get('school_id')
+        category = request.query_params.get('category')
+
+        queryset = Place.objects.filter(is_active=True)
+        if school_id:
+            queryset = queryset.filter(school_id=school_id)
+        if category:
+            queryset = queryset.filter(category=category)
+
+        serializer = PlaceSerializer(
+            queryset.order_by('-checkin_count', 'name'),
+            many=True,
+            context={'request': request}
+        )
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def checkin(self, request):
+        """在指定地点打卡"""
+        place_id = request.data.get('place_id')
+        lat = request.data.get('latitude')
+        lng = request.data.get('longitude')
+        note = request.data.get('note', '')
+
+        if not place_id:
+            return Response(
+                {"detail": "缺少 place_id 参数"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            place = Place.objects.get(id=place_id, is_active=True)
+        except Place.DoesNotExist:
+            return Response(
+                {"detail": "地点不存在"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # 同用户同地点每天只能打卡一次
+        # 不使用 created_at__date，避免 MySQL 时区表未加载导致 CONVERT_TZ 返回 NULL
+        from datetime import datetime, time as dt_time, timedelta
+        today = timezone.now().date()
+        start_of_day = timezone.make_aware(datetime.combine(today, dt_time.min))
+        end_of_day = timezone.make_aware(datetime.combine(today + timedelta(days=1), dt_time.min))
+        if CheckIn.objects.filter(
+            user=request.user,
+            place=place,
+            created_at__range=(start_of_day, end_of_day)
+        ).exists():
+            return Response(
+                {"detail": "今天已经在此地点打卡"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            latitude = float(lat) if lat is not None else place.latitude
+            longitude = float(lng) if lng is not None else place.longitude
+        except (ValueError, TypeError):
+            latitude = place.latitude
+            longitude = place.longitude
+
+        checkin = CheckIn.objects.create(
+            user=request.user,
+            place=place,
+            latitude=latitude,
+            longitude=longitude,
+            note=note
+        )
+
+        # 更新地点打卡次数
+        place.checkin_count = CheckIn.objects.filter(place=place).count()
+        place.save(update_fields=['checkin_count', 'updated_at'])
+
+        # 增加用户积分（PointsRecord 信号会自动更新 user.points）
+        from users.models import PointsRecord
+        PointsRecord.objects.create(
+            user=request.user,
+            action='daily_checkin',
+            points=5,
+            description=f'打卡 {place.name}'
+        )
+
+        serializer = CheckInSerializer(checkin, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def my_checkins(self, request):
+        """获取当前用户的打卡记录"""
+        checkins = CheckIn.objects.filter(user=request.user).order_by('-created_at')[:50]
+        serializer = CheckInSerializer(checkins, many=True, context={'request': request})
+        return Response(serializer.data)

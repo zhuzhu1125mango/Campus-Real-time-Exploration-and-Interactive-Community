@@ -106,6 +106,7 @@ const connectionStatus = ref('disconnected')
 const socketTask = ref(null)
 const reconnectTimer = ref(null)
 const heartbeatTimer = ref(null)
+const ackTimers = ref(new Set())
 const reconnectAttempts = ref(0)
 const maxReconnectAttempts = 5
 const reconnectDelay = 1000
@@ -374,6 +375,8 @@ const closeSocket = () => {
     reconnectTimer.value = null
   }
   stopHeartbeat()
+  ackTimers.value.forEach((timer) => clearTimeout(timer))
+  ackTimers.value.clear()
   if (socketTask.value) {
     socketTask.value.close()
     socketTask.value = null
@@ -415,7 +418,8 @@ const sendMessage = () => {
   }
 
   // 2 秒内未收到确认则标记失败
-  setTimeout(() => {
+  const ackTimer = setTimeout(() => {
+    ackTimers.value.delete(ackTimer)
     const index = messages.value.findIndex(msg => msg.id === tempMsg.id)
     if (index !== -1 && messages.value[index].isTemp) {
       messages.value[index].sendFailed = true
@@ -423,6 +427,7 @@ const sendMessage = () => {
     }
     sending.value = false
   }, 2000)
+  ackTimers.value.add(ackTimer)
 }
 
 const resendMessage = (msg) => {
@@ -442,13 +447,15 @@ const resendMessage = (msg) => {
     })
   }
 
-  setTimeout(() => {
+  const ackTimer = setTimeout(() => {
+    ackTimers.value.delete(ackTimer)
     const index = messages.value.findIndex(item => item.id === msg.id)
     if (index !== -1 && messages.value[index].isTemp) {
       messages.value[index].sendFailed = true
       messages.value[index].isTemp = false
     }
   }, 2000)
+  ackTimers.value.add(ackTimer)
 }
 
 const scrollToBottom = () => {

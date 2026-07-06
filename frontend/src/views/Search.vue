@@ -3,7 +3,7 @@ import { ref, watch, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Search, Clock, Top, Close, ArrowRight } from '@element-plus/icons-vue'
 import { searchApi, type SearchType, type SearchResults, type SearchSuggestion } from '../api/search'
-import { stripHtml } from '../utils/xss'
+import { stripHtml, escapeHtml } from '../utils/xss'
 
 const route = useRoute()
 const router = useRouter()
@@ -170,9 +170,10 @@ const formatDate = (date: string) => {
 
 const highlightText = (text: string, keyword: string) => {
   if (!keyword || !text) return text
+  const safeText = escapeHtml(text)
   const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const regex = new RegExp(`(${safeKeyword})`, 'gi')
-  return text.replace(regex, '<mark>$1</mark>')
+  return safeText.replace(regex, '<mark>$1</mark>')
 }
 
 watch(() => route.query, () => {

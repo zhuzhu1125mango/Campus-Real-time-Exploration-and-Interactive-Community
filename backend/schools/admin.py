@@ -1,7 +1,10 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
-from .models import School, Major, SchoolMajor, SchoolRating, MajorRating, AdmissionScore
+from .models import (
+    School, Major, SchoolMajor, SchoolRating, MajorRating, AdmissionScore,
+    Event, EventRegistration, Place, CheckIn
+)
 
 
 @admin.register(School)
@@ -62,5 +65,34 @@ class AdmissionScoreAdmin(admin.ModelAdmin):
     list_display = ('school', 'major', 'province', 'year', 'score_type', 'min_score')
     list_filter = ('year', 'province', 'score_type', 'school')
     search_fields = ('school__name', 'major__name', 'province')
+
+
+@admin.register(Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = ('title', 'school', 'start_time', 'end_time', 'status', 'is_public')
+    list_filter = ('status', 'is_public', 'school')
+    search_fields = ('title', 'school__name', 'location')
+
+
+@admin.register(EventRegistration)
+class EventRegistrationAdmin(admin.ModelAdmin):
+    list_display = ('event', 'user', 'status', 'registered_at')
+    list_filter = ('status',)
+    search_fields = ('event__title', 'user__username')
+
+
+@admin.register(Place)
+class PlaceAdmin(admin.ModelAdmin):
+    list_display = ('name', 'school', 'category', 'latitude', 'longitude', 'checkin_count', 'is_active')
+    list_filter = ('category', 'is_active', 'school')
+    search_fields = ('name', 'school__name', 'address')
+
+
+@admin.register(CheckIn)
+class CheckInAdmin(admin.ModelAdmin):
+    list_display = ('user', 'place', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = ('user__username', 'place__name')
+    readonly_fields = ('created_at',)
 
 

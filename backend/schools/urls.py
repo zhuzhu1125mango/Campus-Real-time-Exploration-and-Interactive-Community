@@ -8,6 +8,7 @@ router.register(r'majors', views.MajorViewSet)
 router.register(r'admission-scores', views.AdmissionScoreViewSet)
 router.register(r'events', views.EventViewSet)
 router.register(r'event-registrations', views.EventRegistrationViewSet)
+router.register(r'explore', views.ExploreViewSet, basename='explore')
 # 最后注册根路径视图集
 router.register(r'', views.SchoolViewSet)
 

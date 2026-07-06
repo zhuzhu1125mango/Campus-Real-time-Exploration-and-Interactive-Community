@@ -193,6 +193,84 @@ const userApi = {
    */
   getUnreadMessagesCount: () => {
     return request.get('/users/messages/unread_count/')
+  },
+
+  /**
+   * 获取全部公开动态
+   * @param {Object} params - 查询参数
+   * @param {number} params.page - 页码
+   * @param {number} params.page_size - 每页数量
+   * @returns {Promise} 动态列表
+   */
+  getActivities: (params) => {
+    return request.get('/activities/', params)
+  },
+
+  /**
+   * 获取关注动态
+   * @returns {Promise} 动态列表
+   */
+  getActivityFeed: () => {
+    return request.get('/activities/feed/')
+  },
+
+  /**
+   * 获取我的动态
+   * @returns {Promise} 动态列表
+   */
+  getMyActivities: () => {
+    return request.get('/activities/my_activities/')
+  },
+
+  /**
+   * 创建动态
+   * @param {Object} data - 动态数据
+   * @param {string} data.activity_type - 动态类型
+   * @param {string} data.content - 内容
+   * @param {boolean} data.is_public - 是否公开
+   * @returns {Promise} 创建结果
+   */
+  createActivity: (data) => {
+    return request.post('/activities/', data)
+  },
+
+  /**
+   * 点赞动态
+   * @param {number} activityId - 动态ID
+   * @returns {Promise} 点赞结果
+   */
+  likeActivity: (activityId) => {
+    return request.post(`/activities/${activityId}/like/`)
+  },
+
+  /**
+   * 取消点赞动态
+   * @param {number} activityId - 动态ID
+   * @returns {Promise} 取消点赞结果
+   */
+  unlikeActivity: (activityId) => {
+    return request.post(`/activities/${activityId}/unlike/`)
+  },
+
+  /**
+   * 获取动态评论
+   * @param {number} activityId - 动态ID
+   * @returns {Promise} 评论列表
+   */
+  getActivityComments: (activityId) => {
+    return request.get(`/activities/${activityId}/comments/`)
+  },
+
+  /**
+   * 创建动态评论
+   * @param {Object} data - 评论数据
+   * @param {number} data.activity - 动态ID
+   * @param {string} data.content - 内容
+   * @param {number} [data.parent] - 父评论ID
+   * @returns {Promise} 创建结果
+   */
+  createActivityComment: (data) => {
+    return request.post('/activity-comments/', data)
   }
 }
 
