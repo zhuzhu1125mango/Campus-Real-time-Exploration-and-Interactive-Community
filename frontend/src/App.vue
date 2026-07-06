@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import request from './utils/request'
-import { userApi } from './api/user'
 import Toast from './components/Toast.vue'
 import NotificationDropdown from './components/NotificationDropdown.vue'
+import ThemeToggle from './components/ThemeToggle.vue'
+import NavDropdown from './components/NavDropdown.vue'
+import { userApi } from './api/user'
 import { useUserStore } from './stores/userStore'
 import config from './utils/config'
+import type { NavDropdownItem } from './components/NavDropdown.vue'
 
 // 使用User Store
 const userStore = useUserStore()
@@ -19,6 +22,8 @@ const appInitialized = ref(false)
 // 未读私信数
 const unreadMessageCount = ref(0)
 let unreadMessageInterval: number
+// 移动端菜单状态
+const mobileMenuOpen = ref(false)
 
 // 检查后端服务器状态（带超时、取消和重试）
 const checkBackendStatus = async (retries = 2) => {
@@ -125,6 +130,32 @@ const retryBackendCheck = async () => {
   backendStatus.value = 'checking'
   await checkBackendStatus()
 }
+
+// 导航链接配置
+const navLinks = computed(() => [
+  { to: '/explore', label: '校园探索' },
+  { to: '/schools', label: '院校查询' },
+  { to: '/forum', label: '论坛' },
+  { to: '/learning', label: '在线学习' },
+  { to: '/content', label: '内容中心' },
+  { to: '/search', label: '搜索' },
+])
+
+// 用户下拉菜单项
+const userMenuItems = computed<NavDropdownItem[]>(() => [
+  { label: '个人中心', icon: 'i-ep-user', to: '/profile' },
+  { label: '收藏院校', icon: 'i-ep-star', to: '/my-favorite-schools' },
+  { label: '聊天室', icon: 'i-ep-chat-dot-round', to: '/chat-room' },
+  { label: '私信', icon: 'i-ep-message', to: '/messages' },
+  { divider: true },
+  { label: '退出登录', icon: 'i-ep-switch-button', danger: true, action: handleLogout },
+])
+
+// 未登录菜单项
+const guestMenuItems = computed<NavDropdownItem[]>(() => [
+  { label: '登录', icon: 'i-ep-user', to: '/login' },
+  { label: '注册', icon: 'i-ep-plus', to: '/register' },
+])
 </script>
 
 <template>
@@ -134,7 +165,7 @@ const retryBackendCheck = async () => {
       <div class="checking-spinner"></div>
       <p>正在连接后端服务器...</p>
     </div>
-    
+
     <!-- 后端服务器不可用 -->
     <div v-else-if="backendStatus === 'offline'" class="backend-offline">
       <div class="offline-icon">🔌</div>
@@ -142,36 +173,111 @@ const retryBackendCheck = async () => {
       <p>无法连接到后端服务器，请确保后端服务已启动并运行。</p>
       <button class="retry-button" @click="retryBackendCheck">重试连接</button>
     </div>
-    
+
     <!-- 后端服务器可用，显示主应用 -->
     <template v-else>
       <nav class="navbar">
-        <div class="nav-brand">
-          <router-link to="/">校园实时互动社区</router-link>
-        </div>
-        <div class="nav-links">
-          <router-link to="/explore">校园探索</router-link>
-          <router-link to="/schools">院校查询</router-link>
-          <router-link to="/forum">论坛</router-link>
-          <router-link to="/learning">在线学习</router-link>
-          <router-link to="/content">内容中心</router-link>
-          <router-link to="/search">搜索</router-link>
-          <template v-if="userStore.isLoggedIn">
-            <router-link to="/my-favorite-schools">收藏院校</router-link>
-            <router-link to="/chat-room">聊天室</router-link>
-            <router-link to="/messages" class="messages-link">
-              私信
-              <span v-if="unreadMessageCount > 0" class="nav-badge">{{ unreadMessageCount > 99 ? '99+' : unreadMessageCount }}</span>
+        <div class="nav-inner">
+          <div class="nav-brand">
+            <router-link to="/">
+              <span class="brand-dot"></span>
+              校园实时互动社区
             </router-link>
-            <NotificationDropdown class="notification-container" />
-            <router-link to="/profile">个人中心</router-link>
-            <a href="#" @click.prevent="handleLogout">退出登录</a>
-          </template>
-          <template v-else>
-            <router-link to="/login">登录</router-link>
-            <router-link to="/register">注册</router-link>
-          </template>
+          </div>
+
+          <!-- 桌面端导航 -->
+          <div class="nav-links">
+            <router-link
+              v-for="link in navLinks"
+              :key="link.to"
+              :to="link.to"
+              class="nav-link"
+            >
+              {{ link.label }}
+            </router-link>
+          </div>
+
+          <!-- 右侧工具区 -->
+          <div class="nav-tools">
+            <ThemeToggle />
+
+            <template v-if="userStore.isLoggedIn">
+              <router-link to="/messages" class="messages-link" title="私信">
+                <span class="i-ep-message nav-icon" />
+                <span v-if="unreadMessageCount > 0" class="nav-badge">
+                  {{ unreadMessageCount > 99 ? '99+' : unreadMessageCount }}
+                </span>
+              </router-link>
+
+              <NotificationDropdown class="notification-container" />
+
+              <NavDropdown :items="userMenuItems">
+                <span class="i-ep-user-filled nav-icon" />
+                <span class="user-name">{{ userStore.user?.username || '用户' }}</span>
+                <span class="i-ep-arrow-down nav-chevron" />
+              </NavDropdown>
+            </template>
+
+            <template v-else>
+              <NavDropdown :items="guestMenuItems">
+                <span class="i-ep-user nav-icon" />
+                <span class="user-name">访客</span>
+                <span class="i-ep-arrow-down nav-chevron" />
+              </NavDropdown>
+            </template>
+
+            <!-- 移动端菜单按钮 -->
+            <button
+              type="button"
+              class="mobile-menu-btn"
+              :aria-expanded="mobileMenuOpen"
+              aria-label="切换菜单"
+              @click="mobileMenuOpen = !mobileMenuOpen"
+            >
+              <span
+                class="nav-icon"
+                :class="mobileMenuOpen ? 'i-ep-close' : 'i-ep-menu'"
+              />
+            </button>
+          </div>
         </div>
+
+        <!-- 移动端导航菜单 -->
+        <transition name="slide-down">
+          <div v-show="mobileMenuOpen" class="mobile-menu">
+            <router-link
+              v-for="link in navLinks"
+              :key="link.to"
+              :to="link.to"
+              class="mobile-nav-link"
+              @click="mobileMenuOpen = false"
+            >
+              {{ link.label }}
+            </router-link>
+            <template v-if="userStore.isLoggedIn">
+              <router-link to="/profile" class="mobile-nav-link" @click="mobileMenuOpen = false">
+                个人中心
+              </router-link>
+              <router-link to="/messages" class="mobile-nav-link" @click="mobileMenuOpen = false">
+                私信
+                <span v-if="unreadMessageCount > 0" class="mobile-badge">
+                  {{ unreadMessageCount > 99 ? '99+' : unreadMessageCount }}
+                </span>
+              </router-link>
+              <button type="button" class="mobile-nav-link text-error" @click="handleLogout">
+                退出登录
+              </button>
+            </template>
+            <template v-else>
+              <router-link to="/login" class="mobile-nav-link" @click="mobileMenuOpen = false">
+                登录
+              </router-link>
+              <router-link to="/register" class="mobile-nav-link" @click="mobileMenuOpen = false">
+                注册
+              </router-link>
+            </template>
+          </div>
+        </transition>
       </nav>
 
       <main class="main-content">
@@ -182,13 +288,19 @@ const retryBackendCheck = async () => {
         <p>&copy; 2025 校园实时互动社区. All rights reserved.</p>
       </footer>
     </template>
-    
+
     <!-- 全局Toast通知组件 -->
     <Toast />
   </div>
 </template>
 
-<style>
+<style scoped>
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
 /* 后端服务器检查样式 */
 .backend-checking,
 .backend-offline {
@@ -197,7 +309,7 @@ const retryBackendCheck = async () => {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background-color: #f9fafc;
+  background-color: var(--bg-secondary);
   text-align: center;
   padding: 2rem;
 }
@@ -205,9 +317,9 @@ const retryBackendCheck = async () => {
 .checking-spinner {
   width: 50px;
   height: 50px;
-  border: 4px solid rgba(67, 97, 238, 0.3);
+  border: 4px solid rgba(37, 99, 235, 0.3);
   border-radius: 50%;
-  border-top-color: var(--primary-500);
+  border-top-color: var(--primary-600);
   animation: spin 1s ease-in-out infinite;
   margin-bottom: var(--space-6);
 }
@@ -241,7 +353,7 @@ const retryBackendCheck = async () => {
 
 .retry-button {
   padding: 0.8rem 1.5rem;
-  background-color: var(--primary-500);
+  background-color: var(--primary-600);
   color: var(--text-inverse);
   border: none;
   border-radius: var(--radius-md);
@@ -252,92 +364,140 @@ const retryBackendCheck = async () => {
 }
 
 .retry-button:hover {
-  background-color: var(--primary-600);
-}
-</style>
-
-<style>
-.app {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+  background-color: var(--primary-700);
 }
 
+/* 导航栏 */
 .navbar {
-  background-color: var(--bg-primary);
-  box-shadow: var(--shadow-md);
-  padding: var(--space-4) var(--space-8);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   position: sticky;
   top: 0;
   z-index: 100;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  transition: all 0.3s ease;
+}
+
+.nav-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
 }
 
 .nav-brand a {
-  font-size: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 1.35rem;
   font-weight: 700;
   color: var(--text-primary);
   text-decoration: none;
-  transition: color 0.3s;
-  display: flex;
-  align-items: center;
   white-space: nowrap;
+  transition: color 0.3s;
 }
 
 .nav-brand a:hover {
-  color: var(--primary-500);
+  color: var(--primary-600);
 }
 
-.nav-brand a::before {
-  content: '';
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  background-color: var(--primary-500);
+.brand-dot {
+  width: 10px;
+  height: 10px;
   border-radius: var(--radius-full);
-  margin-right: 0.6rem;
+  background: var(--primary-600);
+  box-shadow: 0 0 0 4px var(--primary-100);
+}
+
+.dark .brand-dot {
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25);
 }
 
 .nav-links {
   display: flex;
-  gap: var(--space-2);
   align-items: center;
+  gap: var(--space-1);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  margin-left: var(--space-4);
+  margin-left: auto;
+  margin-right: var(--space-4);
 }
 
 .nav-links::-webkit-scrollbar {
   display: none;
 }
 
-.nav-links a {
+.nav-link {
   color: var(--text-secondary);
   text-decoration: none;
   font-weight: 500;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  transition: all 0.3s;
+  transition: all 0.2s ease;
   white-space: nowrap;
 }
 
-.nav-links a:hover {
-  color: var(--primary-500);
-  background-color: var(--primary-50);
+.nav-link:hover {
+  color: var(--primary-600);
+  background: var(--primary-50);
   text-decoration: none;
 }
 
-.nav-links a.router-link-active {
-  color: var(--primary-500);
+.nav-link.router-link-active {
+  color: var(--primary-600);
   font-weight: 600;
-  background-color: var(--primary-50);
+  background: var(--primary-50);
+}
+
+.dark .nav-link:hover,
+.dark .nav-link.router-link-active {
+  color: var(--primary-400);
+  background: var(--bg-tertiary);
+}
+
+.nav-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.nav-chevron {
+  width: 14px;
+  height: 14px;
+  opacity: 0.6;
 }
 
 .messages-link {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.messages-link:hover {
+  color: var(--primary-600);
+  background: var(--primary-50);
+}
+
+.dark .messages-link:hover {
+  color: var(--primary-400);
+  background: var(--bg-tertiary);
 }
 
 .nav-badge {
@@ -359,7 +519,84 @@ const retryBackendCheck = async () => {
 }
 
 .notification-container {
-  margin: 0 var(--space-2);
+  display: inline-flex;
+  align-items: center;
+}
+
+.user-name {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.mobile-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.mobile-menu-btn:hover {
+  color: var(--primary-600);
+  background: var(--primary-50);
+}
+
+/* 移动端菜单 */
+.mobile-menu {
+  display: none;
+  flex-direction: column;
+  padding: var(--space-2) var(--space-6) var(--space-4);
+  border-top: 1px solid var(--border-color-light);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px) saturate(180%);
+}
+
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.mobile-nav-link:hover,
+.mobile-nav-link.router-link-active {
+  color: var(--primary-600);
+  background: var(--primary-50);
+}
+
+.text-error {
+  color: var(--error-color);
+}
+
+.mobile-badge {
+  padding: 2px 8px;
+  background: var(--error-color);
+  color: var(--text-inverse);
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+}
+
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.25s ease;
+}
+
+.slide-down-enter-from,
+.slide-down-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 .main-content {
@@ -373,11 +610,25 @@ const retryBackendCheck = async () => {
   text-align: center;
   color: var(--text-secondary);
   font-size: 0.9rem;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  border-top: 1px solid var(--border-color-light);
 }
 
-@media (max-width: 768px) {
-  .navbar {
+@media (max-width: 1024px) {
+  .nav-links {
+    display: none;
+  }
+
+  .mobile-menu-btn {
+    display: inline-flex;
+  }
+
+  .mobile-menu {
+    display: flex;
+  }
+}
+
+@media (max-width: 640px) {
+  .nav-inner {
     padding: var(--space-3) var(--space-4);
   }
 
@@ -385,20 +636,12 @@ const retryBackendCheck = async () => {
     font-size: 1.1rem;
   }
 
-  .nav-brand a::before {
-    width: 10px;
-    height: 10px;
-    margin-right: 0.4rem;
+  .user-name {
+    display: none;
   }
 
-  .nav-links {
-    gap: var(--space-1);
-    margin-left: var(--space-3);
-  }
-
-  .nav-links a {
-    padding: var(--space-2);
-    font-size: 0.85rem;
+  .nav-chevron {
+    display: none;
   }
 }
 </style>
