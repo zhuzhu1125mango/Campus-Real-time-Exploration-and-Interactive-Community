@@ -1,77 +1,83 @@
 <template>
   <div class="messages-container">
     <div class="messages-sidebar">
-      <h2 class="sidebar-title">私信</h2>
+      <SectionHeader title="私信" icon="i-ep-chat-round" class="sidebar-header" />
 
       <!-- 搜索框 -->
-      <div class="search-box">
-        <Search class="search-icon" />
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="搜索联系人..."
-          class="search-input"
-        />
-        <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''">
-          <Close />
-        </button>
-      </div>
+      <GlassCard :hover="false" class="search-card" padding="sm">
+        <div class="search-box">
+          <span class="i-ep-search search-icon" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="搜索联系人..."
+            class="search-input"
+          />
+          <button v-if="searchQuery" class="clear-btn" @click="searchQuery = ''">
+            <span class="i-ep-close" />
+          </button>
+        </div>
+      </GlassCard>
 
       <!-- 对话列表 -->
-      <div class="conversation-list">
-        <div v-if="loading && conversations.length === 0" class="loading-container">
-          <div class="loading-spinner"></div>
-          <p>加载中...</p>
-        </div>
-
-        <div v-else-if="filteredConversations.length === 0" class="empty-conversations">
-          <div class="empty-icon">
-            <ChatRound />
+      <GlassCard :hover="false" class="conversation-card" padding="none">
+        <div class="conversation-list">
+          <div v-if="loading && conversations.length === 0" class="loading-container">
+            <div class="loading-spinner"></div>
+            <p>加载中...</p>
           </div>
-          <p v-if="searchQuery">未找到匹配的联系人</p>
-          <template v-else>
-            <p>暂无私信</p>
-            <button class="add-friend-btn" @click="goToFriends">去添加好友</button>
-          </template>
-        </div>
 
-        <div
-          v-for="conv in filteredConversations"
-          :key="conv.user.id"
-          class="conversation-item"
-          @click="goToChat(conv.user.id)"
-        >
-          <div class="avatar-wrapper">
-            <img
-              v-if="conv.user.avatar"
-              :src="formatAvatar(conv.user.avatar)"
-              alt="avatar"
-              class="avatar"
-              @error="($event.target as HTMLImageElement).src = formatAvatar()"
-            />
-            <div v-else class="avatar-placeholder">{{ conv.user.username.substring(0, 1) }}</div>
-            <span v-if="conv.unread_count > 0" class="unread-badge">{{ conv.unread_count }}</span>
+          <div v-else-if="filteredConversations.length === 0" class="empty-conversations">
+            <div class="empty-icon">
+              <span class="i-ep-chat-round" />
+            </div>
+            <p v-if="searchQuery">未找到匹配的联系人</p>
+            <template v-else>
+              <p>暂无私信</p>
+              <button class="btn btn-primary" @click="goToFriends">去添加好友</button>
+            </template>
           </div>
-          <div class="conversation-info">
-            <div class="conversation-name">{{ conv.user.username }}</div>
-            <div class="conversation-preview">
-              {{ getMessagePreview(conv.last_message?.content) }}
+
+          <div
+            v-for="conv in filteredConversations"
+            :key="conv.user.id"
+            class="conversation-item"
+            @click="goToChat(conv.user.id)"
+          >
+            <div class="avatar-wrapper">
+              <img
+                v-if="conv.user.avatar"
+                :src="formatAvatar(conv.user.avatar)"
+                alt="avatar"
+                class="avatar"
+                @error="($event.target as HTMLImageElement).src = formatAvatar()"
+              />
+              <div v-else class="avatar-placeholder">{{ conv.user.username.substring(0, 1) }}</div>
+              <span v-if="conv.unread_count > 0" class="unread-badge">{{ conv.unread_count }}</span>
+            </div>
+            <div class="conversation-info">
+              <div class="conversation-name">{{ conv.user.username }}</div>
+              <div class="conversation-preview">
+                {{ getMessagePreview(conv.last_message?.content) }}
+              </div>
+            </div>
+            <div class="conversation-meta">
+              <div class="conversation-time">{{ formatTime(conv.last_message?.created_at) }}</div>
             </div>
           </div>
-          <div class="conversation-meta">
-            <div class="conversation-time">{{ formatTime(conv.last_message?.created_at) }}</div>
-          </div>
         </div>
-      </div>
+      </GlassCard>
     </div>
 
     <div class="messages-content">
-      <div class="empty-content">
-        <div class="empty-icon">
-          <ChatRound />
+      <GlassCard :hover="false" class="empty-card" padding="lg">
+        <div class="empty-content">
+          <div class="empty-icon">
+            <span class="i-ep-chat-round" />
+          </div>
+          <p>选择一个对话开始聊天</p>
         </div>
-        <p>选择一个对话开始聊天</p>
-      </div>
+      </GlassCard>
     </div>
   </div>
 </template>
@@ -79,22 +85,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Close, ChatRound } from '@element-plus/icons-vue'
 import { userApi } from '@/api/user'
 import { useToast } from '@/composables/useToast'
 import { formatAvatar } from '@/utils/image'
-import type { User } from '@/types/user'
-
-interface LastMessage {
-  content: string
-  created_at: string
-}
-
-interface Conversation {
-  user: User
-  last_message: LastMessage | null
-  unread_count: number
-}
+import GlassCard from '@/components/GlassCard.vue'
+import SectionHeader from '@/components/SectionHeader.vue'
+import type { Conversation } from '@/types/chat'
 
 const router = useRouter()
 const { showToast } = useToast()
@@ -180,32 +176,37 @@ onUnmounted(() => {
   height: calc(100vh - 60px);
   max-width: 1200px;
   margin: 0 auto;
-  background-color: var(--bg-secondary);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  overflow: hidden;
 }
 
 .messages-sidebar {
   width: 320px;
-  background-color: var(--bg-primary);
-  border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-right: 1px solid var(--glass-border);
 }
 
-.sidebar-title {
-  padding: var(--space-4) var(--space-4);
-  font-size: 1.2rem;
-  font-weight: 600;
-  border-bottom: 1px solid var(--border-color);
-  margin: 0;
-  color: var(--text-primary);
+.sidebar-header {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+.search-card {
+  flex-shrink: 0;
 }
 
 .search-box {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border-color);
 }
 
 .search-icon {
@@ -238,10 +239,32 @@ onUnmounted(() => {
   border-radius: 50%;
   color: var(--text-tertiary);
   cursor: pointer;
+  background: transparent;
+  transition: color 0.2s, background-color 0.2s;
 }
 
 .clear-btn:hover {
   color: var(--text-secondary);
+  background: var(--bg-tertiary);
+}
+
+.clear-btn span {
+  width: 12px;
+  height: 12px;
+}
+
+.conversation-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.conversation-card :deep(.glass-card-body) {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .conversation-list {
@@ -261,7 +284,7 @@ onUnmounted(() => {
 .loading-spinner {
   width: 24px;
   height: 24px;
-  border: 2px solid rgba(67, 97, 238, 0.3);
+  border: 2px solid var(--primary-200);
   border-radius: 50%;
   border-top-color: var(--primary-500);
   animation: spin 1s linear infinite;
@@ -297,23 +320,45 @@ onUnmounted(() => {
   margin-bottom: var(--space-3);
 }
 
-.empty-icon svg {
+.empty-icon span {
   width: 28px;
   height: 28px;
 }
 
-.add-friend-btn {
-  padding: var(--space-2) var(--space-4);
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
   border-radius: var(--radius-md);
-  background: var(--primary-500);
-  color: white;
-  font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s;
+  border: none;
+  transition: all 0.2s;
 }
 
-.add-friend-btn:hover {
-  background: var(--primary-600);
+.btn-primary {
+  background-color: var(--primary-600);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-700);
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--border-color);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .conversation-item {
@@ -364,6 +409,8 @@ onUnmounted(() => {
   border-radius: var(--radius-full);
   min-width: 18px;
   text-align: center;
+  box-shadow: var(--shadow-sm);
+  font-weight: 600;
 }
 
 .conversation-info {
@@ -404,7 +451,19 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg-tertiary);
+  padding: var(--space-4);
+}
+
+.empty-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.empty-card :deep(.glass-card-body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .empty-content {
@@ -422,7 +481,7 @@ onUnmounted(() => {
   margin-bottom: var(--space-4);
 }
 
-.empty-content .empty-icon svg {
+.empty-content .empty-icon span {
   width: 36px;
   height: 36px;
 }
@@ -430,6 +489,7 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .messages-sidebar {
     width: 100%;
+    border-right: none;
   }
 
   .messages-content {

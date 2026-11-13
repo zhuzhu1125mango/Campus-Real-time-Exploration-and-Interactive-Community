@@ -26,3 +26,54 @@ start_server.py
 test_login.py
 test_websocket.py
 test_websocket.html
+
+# Sensitive / local environment
+.env
+.env.*
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python cache & compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Python test / coverage
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+.tox/
+
+# Local databases
+*.sqlite3
+*.db
+
+# Logs
+*.log
+logs/
+
+# Celery
+celerybeat-schedule
+celerybeat-schedule.*
+
+# Backend runtime generated files
+backend/static/
+backend/staticfiles/
+backend/media/
+
+# Frontend / mini-program build outputs
+frontend/node_modules/
+frontend/dist/
+frontend/.output/
+mp-weixin/node_modules/
+mp-weixin/dist/
+mp-weixin/unpackage/
+mp-weixin/.hbuilderx/
+
+# macOS
+.DS_Store

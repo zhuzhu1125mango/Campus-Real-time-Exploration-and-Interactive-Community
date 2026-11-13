@@ -1,5 +1,11 @@
 <template>
-  <div class="tag-detail-container">
+  <div class="tag-detail-page container-wide page-padding">
+    <SectionHeader
+      title="标签详情"
+      subtitle="浏览标签下的相关主题"
+      icon="i-ep-collection-tag"
+    />
+
     <div v-if="loading" class="loading-state">
       <el-skeleton :rows="6" animated />
       <p>加载中...</p>
@@ -7,25 +13,33 @@
 
     <div v-else-if="error" class="error-state">
       <el-alert :title="error" type="error" show-icon @close="error = null" />
-      <div class="actions">
+      <div class="error-actions">
         <router-link to="/forum">
-          <el-button type="primary">返回论坛</el-button>
+          <button class="btn btn-primary">
+            <span class="i-ep-back" />
+            返回论坛
+          </button>
         </router-link>
       </div>
     </div>
 
     <template v-else>
-      <div class="tag-header">
-        <div class="tag-info">
-          <h1 class="tag-name">#{{ tag?.name }}</h1>
-          <p class="tag-meta">共 {{ tag?.topic_count || 0 }} 个主题</p>
+      <GlassCard :hover="false" class="tag-header-card">
+        <div class="tag-header">
+          <div class="tag-info">
+            <h1 class="tag-name">#{{ tag?.name }}</h1>
+            <p class="tag-meta">共 {{ tag?.topic_count || 0 }} 个主题</p>
+          </div>
+          <router-link to="/forum">
+            <button class="btn btn-secondary">
+              <span class="i-ep-back" />
+              返回论坛
+            </button>
+          </router-link>
         </div>
-        <router-link to="/forum">
-          <el-button>返回论坛</el-button>
-        </router-link>
-      </div>
+      </GlassCard>
 
-      <div class="topics-section">
+      <GlassCard :hover="false" class="topics-card">
         <h2 class="section-title">相关主题</h2>
 
         <div v-if="topicsLoading" class="loading-state">
@@ -51,8 +65,8 @@
               </div>
             </div>
             <div class="topic-stats">
-              <span><el-icon><View /></el-icon> {{ topic.views || 0 }}</span>
-              <span><el-icon><ChatDotSquare /></el-icon> {{ topic.reply_count || 0 }}</span>
+              <span><span class="i-ep-view" /> {{ topic.views || 0 }}</span>
+              <span><span class="i-ep-chat-dot-round" /> {{ topic.reply_count || 0 }}</span>
             </div>
           </div>
         </div>
@@ -66,7 +80,7 @@
             @current-change="handlePageChange"
           />
         </div>
-      </div>
+      </GlassCard>
     </template>
   </div>
 </template>
@@ -74,9 +88,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { View, ChatDotSquare } from '@element-plus/icons-vue'
 import { forumApi } from '@/api/forum'
+import { getApiErrorMessage } from '@/utils/error'
 import type { Topic } from '@/types/forum'
+import GlassCard from '@/components/GlassCard.vue'
+import SectionHeader from '@/components/SectionHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -109,9 +125,9 @@ const fetchTagData = async () => {
       fetchTopics()
     ])
     tag.value = tagRes
-  } catch (err: any) {
+  } catch (err) {
     console.error('加载标签详情失败:', err)
-    error.value = err?.response?.data?.detail || '加载标签详情失败'
+    error.value = getApiErrorMessage(err, '加载标签详情失败')
   } finally {
     loading.value = false
   }
@@ -170,122 +186,156 @@ watch(tagId, () => {
 </script>
 
 <style scoped>
-.tag-detail-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-}
-
 .loading-state,
 .error-state,
 .empty-state {
-  padding: 3rem 0;
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10) 0;
+  color: var(--text-secondary);
 }
 
-.error-state .actions {
-  margin-top: 1.5rem;
+.error-actions {
+  margin-top: var(--space-5);
+}
+
+.tag-header-card {
+  margin-bottom: var(--space-5);
 }
 
 .tag-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  padding: 1.5rem;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
 }
 
 .tag-name {
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--space-2);
   font-size: 1.8rem;
-  color: #4361ee;
+  color: var(--primary-600);
 }
 
 .tag-meta {
   margin: 0;
-  color: #6b7280;
-}
-
-.topics-section {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  color: var(--text-secondary);
 }
 
 .section-title {
-  margin: 0 0 1.5rem;
-  font-size: 1.3rem;
-  color: #1f2937;
+  margin: 0 0 var(--space-5);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .topic-list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 .topic-card {
-  padding: 1.2rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  padding: var(--space-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: var(--bg-primary);
 }
 
 .topic-card:hover {
-  border-color: #4361ee;
-  box-shadow: 0 4px 12px rgba(67, 97, 238, 0.1);
+  border-color: var(--primary-600);
+  box-shadow: var(--shadow-md);
 }
 
 .topic-title {
-  margin: 0 0 0.6rem;
+  margin: 0 0 var(--space-2);
   font-size: 1.1rem;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .topic-meta {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-4);
   font-size: 0.85rem;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .topic-author {
-  color: #4361ee;
+  color: var(--primary-600);
   font-weight: 500;
 }
 
 .topic-stats {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-4);
   font-size: 0.85rem;
-  color: #6b7280;
+  color: var(--text-secondary);
+}
+
+.topic-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .pagination {
-  margin-top: 2rem;
+  margin-top: var(--space-6);
   display: flex;
   justify-content: center;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background-color: var(--primary-600);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-700);
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--border-color);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @media (max-width: 768px) {
   .tag-header {
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--space-4);
     align-items: flex-start;
   }
 
   .topic-card {
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.8rem;
+    gap: var(--space-3);
   }
 
   .topic-stats {

@@ -6,6 +6,8 @@ import { useUserStore } from '../stores/userStore'
 import { stripHtml } from '../utils/xss'
 import { debounce } from '../utils/debounce'
 import type { ContentItem, Category } from '../types/content'
+import GlassCard from '../components/GlassCard.vue'
+import SectionHeader from '../components/SectionHeader.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -123,20 +125,15 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="content-page">
-    <div class="content-header">
-      <div class="header-inner">
-        <div class="header-text">
-          <h1>内容中心</h1>
-          <p>发现优质校园内容，分享你的知识与见解</p>
-        </div>
-        <button v-if="isLoggedIn" class="btn btn-primary create-btn" @click="goCreate">
-          发布内容
-        </button>
-      </div>
-    </div>
+  <div class="content-page container-wide page-padding">
+    <SectionHeader
+      title="内容中心"
+      subtitle="发现优质校园内容，分享你的知识与见解"
+      icon="i-ep-reading"
+      :action="isLoggedIn ? { label: '发布内容', onClick: goCreate } : undefined"
+    />
 
-    <div class="content-body">
+    <GlassCard :hover="false" class="filter-card">
       <div v-if="isLoggedIn" class="content-tabs">
         <button
           v-for="tab in [
@@ -156,15 +153,18 @@ onMounted(() => {
       </div>
 
       <div class="content-filters">
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="搜索内容"
-          class="search-input"
-          maxlength="100"
-          @input="handleSearch"
-          @keyup.enter="handleSearch"
-        />
+        <div class="search-box">
+          <span class="i-ep-search search-icon" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="搜索内容"
+            class="search-input"
+            maxlength="100"
+            @input="handleSearch"
+            @keyup.enter="handleSearch"
+          />
+        </div>
         <select v-model="selectedCategory" class="filter-select">
           <option value="">全部分类</option>
           <option v-for="category in categories" :key="category.id" :value="category.id">
@@ -177,203 +177,195 @@ onMounted(() => {
           <option value="-like_count">最多点赞</option>
           <option value="-comment_count">最多评论</option>
         </select>
-        <button class="btn btn-secondary" @click="handleSearch">搜索</button>
+      </div>
+    </GlassCard>
+
+    <div v-if="loading" class="loading-state">
+      <div class="loading-spinner"></div>
+      <p>加载中...</p>
+    </div>
+
+    <template v-else>
+      <div v-if="contents.length === 0" class="empty-state">
+        <span class="i-ep-document empty-icon" />
+        <p>暂无内容</p>
+        <button v-if="isLoggedIn" class="btn btn-primary" @click="goCreate">去发布第一篇内容</button>
       </div>
 
-      <div v-if="loading" class="loading-state">
-        <div class="loading-spinner"></div>
-        <p>加载中...</p>
-      </div>
-
-      <template v-else>
-        <div v-if="contents.length === 0" class="empty-state">
-          <p>暂无内容</p>
-          <button v-if="isLoggedIn" class="btn btn-primary" @click="goCreate">去发布第一篇内容</button>
-        </div>
-
-        <div v-else class="content-list">
-          <div
-            v-for="item in contents"
-            :key="item.id"
-            class="content-card"
-            @click="goDetail(item.id)"
-          >
-            <img
-              v-if="item.featured_image"
-              :src="item.featured_image"
-              :alt="item.title"
-              class="content-image"
-            />
-            <div class="content-card-body">
-              <div class="content-meta-top">
-                <span v-if="item.category" class="category-tag">{{ item.category.name }}</span>
-                <span class="content-type">{{ item.content_type.name }}</span>
-                <span v-if="activeTab !== 'all' && item.status" class="status-tag" :class="statusClass[item.status]">
-                  {{ statusLabels[item.status] }}
-                </span>
-              </div>
-              <h3 class="content-title">{{ item.title }}</h3>
-              <p class="content-summary">{{ stripHtml(item.summary || item.content).substring(0, 120) }}...</p>
-              <div class="content-meta-bottom">
-                <span class="author">{{ item.author.username }}</span>
-                <span class="divider">·</span>
-                <span>{{ formatDate(item.created_at) }}</span>
-                <span class="divider">·</span>
-                <span>{{ item.view_count }} 浏览</span>
-                <span class="divider">·</span>
-                <span>{{ item.like_count }} 点赞</span>
-                <span class="divider">·</span>
-                <span>{{ item.comment_count }} 评论</span>
-              </div>
+      <div v-else class="content-list">
+        <GlassCard
+          v-for="item in contents"
+          :key="item.id"
+          :hover="true"
+          class="content-card"
+          @click="goDetail(item.id)"
+        >
+          <img
+            v-if="item.featured_image"
+            :src="item.featured_image"
+            :alt="item.title"
+            class="content-image"
+          />
+          <div class="content-card-body">
+            <div class="content-meta-top">
+              <span v-if="item.category" class="category-tag">{{ item.category.name }}</span>
+              <span class="content-type">{{ item.content_type.name }}</span>
+              <span v-if="activeTab !== 'all' && item.status" class="status-tag" :class="statusClass[item.status]">
+                {{ statusLabels[item.status] }}
+              </span>
+            </div>
+            <h3 class="content-title">{{ item.title }}</h3>
+            <p class="content-summary">{{ stripHtml(item.summary || item.content).substring(0, 120) }}...</p>
+            <div class="content-meta-bottom">
+              <span class="author">{{ item.author.username }}</span>
+              <span class="divider">·</span>
+              <span>{{ formatDate(item.created_at) }}</span>
+              <span class="divider">·</span>
+              <span>{{ item.view_count }} 浏览</span>
+              <span class="divider">·</span>
+              <span>{{ item.like_count }} 点赞</span>
+              <span class="divider">·</span>
+              <span>{{ item.comment_count }} 评论</span>
             </div>
           </div>
-        </div>
+        </GlassCard>
+      </div>
 
-        <div v-if="contents.length > 0" class="pagination">
-          <button
-            class="btn btn-secondary"
-            :disabled="!prevUrl"
-            @click="changePage(page - 1)"
-          >
-            上一页
-          </button>
-          <span class="page-info">第 {{ page }} 页</span>
-          <button
-            class="btn btn-secondary"
-            :disabled="!nextUrl"
-            @click="changePage(page + 1)"
-          >
-            下一页
-          </button>
-        </div>
-      </template>
-    </div>
+      <div v-if="contents.length > 0" class="pagination">
+        <button
+          class="btn btn-secondary"
+          :disabled="!prevUrl"
+          @click="changePage(page - 1)"
+        >
+          上一页
+        </button>
+        <span class="page-info">第 {{ page }} 页</span>
+        <button
+          class="btn btn-secondary"
+          :disabled="!nextUrl"
+          @click="changePage(page + 1)"
+        >
+          下一页
+        </button>
+      </div>
+    </template>
   </div>
 </template>
 
 <style scoped>
 .content-page {
-  min-height: calc(100vh - 200px);
+  color: var(--text-primary);
 }
 
-.content-header {
-  background: linear-gradient(135deg, #4361ee 0%, #3a0ca3 100%);
-  color: white;
-  padding: 3rem 2rem;
-}
-
-.header-inner {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-}
-
-.header-text h1 {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
-
-.header-text p {
-  opacity: 0.9;
-}
-
-.create-btn {
-  background-color: white;
-  color: #4361ee;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.create-btn:hover {
-  background-color: #f0f0f0;
-}
-
-.content-body {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
+.filter-card {
+  margin-bottom: 1.5rem;
 }
 
 .content-tabs {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
   flex-wrap: wrap;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border-color-light);
 }
 
 .tab-btn {
   padding: 0.5rem 1rem;
-  border-radius: 6px;
-  border: 1px solid #e0e0e0;
-  background: white;
-  color: #666;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  border-color: var(--primary-400);
+  color: var(--primary-600);
 }
 
 .tab-btn.active {
-  background: #4361ee;
+  background: var(--primary-600);
+  border-color: var(--primary-600);
   color: white;
-  border-color: #4361ee;
 }
 
 .content-filters {
   display: flex;
   gap: 1rem;
-  margin-bottom: 2rem;
   flex-wrap: wrap;
 }
 
-.search-input {
+.search-box {
   flex: 1;
-  min-width: 200px;
-  padding: 0.75rem 1rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  font-size: 1rem;
+  min-width: 240px;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.search-icon {
+  position: absolute;
+  left: 1rem;
+  color: var(--text-tertiary);
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.625rem 1rem 0.625rem 2.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary-500);
 }
 
 .filter-select {
-  padding: 0.75rem 1rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  font-size: 1rem;
-  background-color: white;
+  padding: 0.625rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   min-width: 140px;
 }
 
 .btn {
-  padding: 0.75rem 1.25rem;
-  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
   font-weight: 500;
   cursor: pointer;
   border: none;
-  transition: all 0.3s;
+  transition: all 0.2s;
 }
 
 .btn-primary {
-  background-color: #4361ee;
+  background-color: var(--primary-600);
   color: white;
 }
 
 .btn-primary:hover {
-  background-color: #3a56d4;
+  background-color: var(--primary-700);
 }
 
 .btn-secondary {
-  background-color: #f0f0f0;
-  color: #333;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: #e0e0e0;
+  background-color: var(--border-color);
 }
 
 .btn:disabled {
@@ -386,17 +378,17 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 4rem;
-  color: #666;
+  padding: 4rem 0;
+  color: var(--text-secondary);
 }
 
 .loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(67, 97, 238, 0.3);
+  border: 3px solid var(--primary-200);
+  border-top-color: var(--primary-600);
   border-radius: 50%;
-  border-top-color: #4361ee;
-  animation: spin 1s ease-in-out infinite;
+  animation: spin 1s linear infinite;
   margin-bottom: 1rem;
 }
 
@@ -405,9 +397,18 @@ onMounted(() => {
 }
 
 .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
-  padding: 4rem;
-  color: #666;
+  padding: 4rem 0;
+  color: var(--text-secondary);
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.4;
 }
 
 .empty-state p {
@@ -418,30 +419,20 @@ onMounted(() => {
 .content-list {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .content-card {
   display: flex;
-  gap: 1.5rem;
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  gap: 1.25rem;
   cursor: pointer;
-  transition: all 0.3s;
-}
-
-.content-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
 }
 
 .content-image {
   width: 200px;
   height: 140px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   flex-shrink: 0;
 }
 
@@ -449,68 +440,64 @@ onMounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .content-meta-top {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .category-tag,
-.content-type {
-  padding: 0.25rem 0.6rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.category-tag {
-  background-color: rgba(67, 97, 238, 0.1);
-  color: #4361ee;
-}
-
-.content-type {
-  background-color: #f0f0f0;
-  color: #666;
-}
-
+.content-type,
 .status-tag {
   padding: 0.25rem 0.6rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.75rem;
   font-weight: 500;
 }
 
+.category-tag {
+  background-color: var(--primary-50);
+  color: var(--primary-700);
+}
+
+.content-type {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
 .status-draft {
-  background-color: #f0f0f0;
-  color: #666;
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .status-pending {
-  background-color: #fff3cd;
-  color: #856404;
+  background-color: var(--warning-bg);
+  color: var(--warning-color);
 }
 
 .status-published {
-  background-color: #d4edda;
-  color: #155724;
+  background-color: var(--success-bg);
+  color: var(--success-color);
 }
 
 .status-rejected {
-  background-color: #f8d7da;
-  color: #721c24;
+  background-color: var(--error-bg);
+  color: var(--error-color);
 }
 
 .content-title {
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 0.5rem;
 }
 
 .content-summary {
-  color: #666;
+  color: var(--text-secondary);
   line-height: 1.6;
   margin-bottom: 1rem;
   flex: 1;
@@ -519,13 +506,14 @@ onMounted(() => {
 .content-meta-bottom {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  color: #999;
-  font-size: 0.9rem;
+  gap: 0.375rem;
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  flex-wrap: wrap;
 }
 
 .author {
-  color: #4361ee;
+  color: var(--primary-600);
   font-weight: 500;
 }
 
@@ -542,15 +530,11 @@ onMounted(() => {
 }
 
 .page-info {
-  color: #666;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
 }
 
 @media (max-width: 768px) {
-  .header-inner {
-    flex-direction: column;
-    text-align: center;
-  }
-
   .content-card {
     flex-direction: column;
   }
@@ -562,6 +546,14 @@ onMounted(() => {
 
   .content-filters {
     flex-direction: column;
+  }
+
+  .search-box {
+    min-width: auto;
+  }
+
+  .filter-select {
+    width: 100%;
   }
 }
 </style>

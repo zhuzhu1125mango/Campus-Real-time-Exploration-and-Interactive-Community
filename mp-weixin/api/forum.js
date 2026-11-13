@@ -208,31 +208,6 @@ const forumApi = {
    */
   getMyBookmarks: () => {
     return request.get('/my-bookmarks/')
-  },
-
-  /**
-   * 获取论坛通知列表
-   * @returns {Promise} 通知列表
-   */
-  getNotifications: () => {
-    return request.get('/notifications/')
-  },
-
-  /**
-   * 标记单条通知为已读
-   * @param {number} notificationId - 通知ID
-   * @returns {Promise} 操作结果
-   */
-  markNotificationAsRead: (notificationId) => {
-    return request.post(`/notifications/${notificationId}/mark_read/`)
-  },
-
-  /**
-   * 标记所有通知为已读
-   * @returns {Promise} 操作结果
-   */
-  markAllNotificationsAsRead: () => {
-    return request.post('/notifications/mark_all_read/')
   }
 }
 

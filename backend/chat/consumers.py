@@ -1,17 +1,48 @@
 import json
-from channels.generic.websocket import AsyncWebsocketConsumer
 import logging
-from .views import presence
-from asgiref.sync import sync_to_async
 from datetime import datetime
-from users.notifications import Notification
-from users.friendship import Friend
-from users.messages import Message
-from users.notification_sender import send_notification_to_user
+
+from asgiref.sync import sync_to_async
+from channels.generic.websocket import AsyncWebsocketConsumer
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
+
+from core.html_sanitizer import sanitize_html
+from notifications.models import Notification
+from notifications.notification_sender import send_notification_to_user
+from friendships.models import Friend
+from private_messages.models import Message
+from .views import presence
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+
+
+class WebSocketRateLimiter:
+    """基于 Django cache 的 WebSocket 消息频率限制器。"""
+
+    def __init__(self, window=60, max_messages=60):
+        self.window = window
+        self.max_messages = max_messages
+        self.prefix = 'ws:rate'
+
+    def _key(self, user_id, msg_type):
+        return f"{self.prefix}:{msg_type}:{user_id}"
+
+    def is_allowed(self, user_id, msg_type='message'):
+        """判断指定用户是否允许继续发送该类型消息。"""
+        key = self._key(user_id, msg_type)
+        try:
+            count = cache.incr(key)
+        except ValueError:
+            cache.set(key, 1, self.window)
+            count = 1
+        return count <= self.max_messages
+
+
+# 全局默认限流器：60 秒窗口最多 60 条聊天消息
+_chat_limiter = WebSocketRateLimiter(window=60, max_messages=60)
+
 
 # 改进版ChatConsumer
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -149,8 +180,20 @@ class ChatConsumer(AsyncWebsocketConsumer):
             
             # 处理聊天消息 - 增加验证和安全检查
             if message_type == 'chat_message':
-                content = data.get('message', '').strip()
-                
+                # 频率限制（仅对已认证用户）
+                if self.user.is_authenticated:
+                    allowed = await sync_to_async(_chat_limiter.is_allowed)(
+                        self.user.id, 'chat_message'
+                    )
+                    if not allowed:
+                        await self.send(text_data=json.dumps({
+                            'type': 'error',
+                            'message': '发送过于频繁，请稍后再试'
+                        }))
+                        return
+
+                content = sanitize_html(data.get('message', '').strip())
+
                 # 内容验证
                 if not content:
                     await self.send(text_data=json.dumps({
@@ -158,7 +201,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         'message': '消息内容不能为空'
                     }))
                     return
-                
+
                 # 消息长度限制 (1000字符)
                 if len(content) > 1000:
                     await self.send(text_data=json.dumps({
@@ -389,7 +432,7 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
 
         # 创建私聊组名（按用户ID排序，确保双方加入同一个组）
         user_ids = sorted([str(self.user.id), str(self.target_user_id)])
-        self.room_group_name = f"private_chat_{user_ids[0]}_{user_ids[1]}"
+        self.room_group_name = f"private_{user_ids[0]}_{user_ids[1]}"
         
         # 将消费者添加到私聊组
         await self.channel_layer.group_add(
@@ -434,7 +477,18 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
                 return
                 
             if message_type == 'private_message':
-                content = data.get('content', '').strip()
+                # 频率限制
+                allowed = await sync_to_async(_chat_limiter.is_allowed)(
+                    self.user.id, 'private_message'
+                )
+                if not allowed:
+                    await self.send(text_data=json.dumps({
+                        'type': 'error',
+                        'message': '发送过于频繁，请稍后再试'
+                    }))
+                    return
+
+                content = sanitize_html(data.get('content', '').strip())
 
                 if not content:
                     await self.send(text_data=json.dumps({
@@ -483,13 +537,13 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
                     }
                 )
 
-                # 发送私信通知给接收者
+                # 发送私信通知给接收者（创建记录后由 Celery 异步推送）
                 await sync_to_async(send_notification_to_user)(
-                    self.target_user,
-                    '新私信',
-                    f'{self.user.username} 给您发送了一条私信',
-                    'message',
-                    f'/chat/{self.user.id}'
+                    user=self.target_user,
+                    title='新私信',
+                    content=f'{self.user.username} 给您发送了一条私信',
+                    notification_type='message',
+                    url=f'/chat/{self.user.id}'
                 )
 
                 await self.send(text_data=json.dumps({

@@ -69,7 +69,7 @@ class SchoolSerializer(serializers.ModelSerializer):
             return False
 
         from django.contrib.contenttypes.models import ContentType
-        from users.favorites import Favorite
+        from favorites.models import Favorite
 
         content_type = ContentType.objects.get_for_model(obj)
         return Favorite.objects.filter(

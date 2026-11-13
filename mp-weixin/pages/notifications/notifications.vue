@@ -52,7 +52,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import forumApi from '../../api/forum'
+import notificationApi from '../../api/notification'
 import { sanitizeHtml } from '../../utils/xss'
 
 const notifications = ref([])
@@ -82,7 +82,10 @@ const loadNotifications = async (reset = false) => {
   }
 
   try {
-    const result = await forumApi.getNotifications()
+    const result = await notificationApi.getNotifications({
+      page: page.value,
+      page_size: pageSize
+    })
     const list = Array.isArray(result) ? result : (result.results || [])
     notifications.value = reset ? list : [...notifications.value, ...list]
     hasMore.value = list.length === pageSize
@@ -111,7 +114,7 @@ const viewNotification = (notification) => {
 
 const markAsRead = async (notificationId) => {
   try {
-    await forumApi.markNotificationAsRead(notificationId)
+    await notificationApi.markAsRead(notificationId)
     const notification = notifications.value.find(n => n.id === notificationId)
     if (notification) {
       notification.is_read = true
@@ -124,7 +127,7 @@ const markAsRead = async (notificationId) => {
 
 const markAllAsRead = async () => {
   try {
-    await forumApi.markAllNotificationsAsRead()
+    await notificationApi.markAllRead()
     notifications.value.forEach(notification => {
       notification.is_read = true
     })

@@ -70,13 +70,14 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from '../composables/useToast'
 import { userApi } from '../api/user'
+import type { User } from '../types/user'
 
 const router = useRouter()
 const { showToast } = useToast()
 
 // 状态数据
 const loading = ref(false)
-const friends = ref<any[]>([])
+const friends = ref<User[]>([])
 const searchQuery = ref('')
 const showRemoveConfirm = ref(false)
 const friendToRemoveId = ref<number | null>(null)

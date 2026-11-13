@@ -2,6 +2,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth import get_user_model
 from schools.models import School  # 添加School模型的导入
+from core.html_sanitizer import sanitize_html
 
 User = get_user_model()
 
@@ -161,6 +162,10 @@ class Post(models.Model):
     def __str__(self):
         return f"{self.topic.title} - {self.author.username}"
 
+    def save(self, *args, **kwargs):
+        self.content = sanitize_html(self.content)
+        super().save(*args, **kwargs)
+
 
 class Attachment(models.Model):
     """
@@ -258,43 +263,6 @@ class Report(models.Model):
         return f"{self.reporter.username} 举报 {self.post.id}"
 
 
-class Notification(models.Model):
-    """
-    通知模型
-    用于通知用户论坛活动
-    """
-    NOTIFICATION_TYPES = (
-        ('topic_reply', '主题回复'),
-        ('mention', '提及'),
-        ('like', '点赞'),
-        ('topic_moved', '主题移动'),
-        ('topic_closed', '主题关闭'),
-        ('topic_pinned', '主题置顶'),
-        ('system', '系统通知'),
-    )
-    
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='forum_notifications')
-    sender = models.ForeignKey(User, on_delete=models.SET_NULL, related_name='sent_forum_notifications', null=True, blank=True)
-    notification_type = models.CharField(_('通知类型'), max_length=20, choices=NOTIFICATION_TYPES)
-    topic = models.ForeignKey(Topic, on_delete=models.SET_NULL, related_name='notifications', null=True, blank=True)
-    post = models.ForeignKey(Post, on_delete=models.SET_NULL, related_name='notifications', null=True, blank=True)
-    message = models.TextField(_('通知内容'))
-    is_read = models.BooleanField(_('是否已读'), default=False)
-    created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
-    
-    class Meta:
-        verbose_name = _('通知')
-        verbose_name_plural = _('通知')
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['user', '-created_at'], name='forum_notif_user_crt_idx'),
-            models.Index(fields=['user', 'is_read', '-created_at'], name='forum_notif_user_read_crt_idx'),
-        ]
-
-    def __str__(self):
-        return f"{self.user.username}的通知: {self.message[:30]}"
-
-
 class Bookmark(models.Model):
     """
     书签模型
@@ -339,6 +307,10 @@ class Comment(models.Model):
 
     def __str__(self):
         return f"{self.author.username} -> {self.post.id}"
+
+    def save(self, *args, **kwargs):
+        self.content = sanitize_html(self.content)
+        super().save(*args, **kwargs)
 
     @property
     def like_count(self):

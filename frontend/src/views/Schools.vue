@@ -1,28 +1,34 @@
 <template>
-  <div class="schools-container">
-    <div class="filter-section">
+  <div class="schools-page container-wide page-padding">
+    <SectionHeader
+      title="院校库"
+      subtitle="发现全国高校信息，对比专业与录取数据"
+      icon="i-ep-school"
+    />
+
+    <GlassCard :hover="false" class="filter-card" padding="md">
       <div class="search-box">
         <div class="input-wrapper">
-          <span class="input-icon search-icon"></span>
+          <span class="i-ep-search search-icon" />
           <input
-            type="text"
             v-model="searchQuery"
+            type="text"
             placeholder="搜索院校名称"
             @input="debounceSearch"
           />
         </div>
-        
-        <el-button 
+
+        <el-button
           v-if="isAdmin"
-          type="primary" 
-          size="small" 
+          type="primary"
+          size="small"
           @click="showImportDialog = true"
           class="import-button"
         >
           导入学校数据
         </el-button>
       </div>
-      
+
       <div class="filters">
         <div class="filter-group">
           <label>省份</label>
@@ -33,7 +39,7 @@
             </option>
           </select>
         </div>
-        
+
         <div class="filter-group">
           <label>院校类型</label>
           <select v-model="selectedType" @change="handleSearch">
@@ -43,7 +49,7 @@
             </option>
           </select>
         </div>
-        
+
         <div class="filter-group">
           <label>办学层次</label>
           <select v-model="selectedLevel" @change="handleSearch">
@@ -53,7 +59,7 @@
             </option>
           </select>
         </div>
-        
+
         <div class="filter-group">
           <label>排序方式</label>
           <select v-model="sortBy" @change="handleSearch">
@@ -63,7 +69,7 @@
           </select>
         </div>
       </div>
-    </div>
+    </GlassCard>
 
     <div v-if="loading" class="loading-indicator">
       <el-skeleton :rows="6" animated />
@@ -71,19 +77,11 @@
     </div>
 
     <div v-else-if="error" class="error-state">
-      <el-alert
-        :title="error"
-        type="error"
-        show-icon
-        @close="error = null"
-      />
+      <el-alert :title="error" type="error" show-icon @close="error = null" />
     </div>
 
     <div v-else-if="schools.length === 0" class="empty-state">
-      <el-empty
-        description="未找到符合条件的院校"
-        :image-size="200"
-      >
+      <el-empty description="未找到符合条件的院校" :image-size="200">
         <template #extra>
           <el-button type="primary" @click="resetFilters">重置筛选条件</el-button>
         </template>
@@ -91,11 +89,7 @@
     </div>
 
     <div v-else class="schools-grid">
-      <SchoolCard 
-        v-for="school in schools" 
-        :key="school.id" 
-        :school="school"
-      />
+      <SchoolCard v-for="school in schools" :key="school.id" :school="school" />
     </div>
 
     <div v-if="schools.length > 0" class="pagination">
@@ -111,14 +105,12 @@
     </div>
 
     <!-- 导入学校CSV对话框 -->
-    <el-dialog 
-      v-model="showImportDialog" 
-      title="导入学校数据" 
-      width="500px"
-    >
+    <el-dialog v-model="showImportDialog" title="导入学校数据" width="500px">
       <div class="import-dialog-content">
-        <p class="import-tips">请上传包含学校数据的CSV文件，要求包含以下字段：name（学校名称）、province（省份）等</p>
-        
+        <p class="import-tips">
+          请上传包含学校数据的CSV文件，要求包含以下字段：name（学校名称）、province（省份）等
+        </p>
+
         <el-upload
           class="upload-demo"
           drag
@@ -133,12 +125,10 @@
             拖动文件到此处或 <em>点击上传</em>
           </div>
           <template #tip>
-            <div class="el-upload__tip">
-              仅支持CSV格式文件
-            </div>
+            <div class="el-upload__tip">仅支持CSV格式文件</div>
           </template>
         </el-upload>
-        
+
         <div v-if="importResult" class="import-result">
           <p>导入结果：</p>
           <ul>
@@ -146,7 +136,7 @@
             <li>导入失败：{{ importResult.error_count }} 条</li>
             <li>总记录数：{{ importResult.total }} 条</li>
           </ul>
-          
+
           <div v-if="importResult.errors && importResult.errors.length > 0" class="import-errors">
             <p>部分错误信息：</p>
             <ul>
@@ -155,15 +145,15 @@
           </div>
         </div>
       </div>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="showImportDialog = false">取消</el-button>
-          <el-button 
-            type="primary" 
-            @click="handleImportSubmit" 
+          <el-button
+            type="primary"
             :loading="importing"
             :disabled="!selectedFile"
+            @click="handleImportSubmit"
           >
             开始导入
           </el-button>
@@ -174,18 +164,21 @@
 </template>
 
 <script setup lang="ts">
+import { logger } from '@/utils/logger'
 import { ref, computed, onMounted } from 'vue'
 import { schoolApi } from '../api/school'
 import type { School, SchoolQueryParams, ImportCsvResponse } from '../types/school'
 import SchoolCard from '../components/SchoolCard.vue'
+import GlassCard from '../components/GlassCard.vue'
+import SectionHeader from '../components/SectionHeader.vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores/userStore'
 
 // 数据
 const schools = ref<School[]>([])
 const provinces = ref<string[]>([])
-const schoolTypes = ref<{[key: string]: string}>({})
-const schoolLevels = ref<{[key: string]: string}>({})
+const schoolTypes = ref<{ [key: string]: string }>({})
+const schoolLevels = ref<{ [key: string]: string }>({})
 const loading = ref(true)
 const error = ref<string | null>(null)
 
@@ -202,8 +195,6 @@ const totalPages = ref(1)
 const totalItems = ref(0)
 const perPage = 12
 
-
-
 // 获取学校数据
 const fetchSchools = async () => {
   loading.value = true
@@ -218,12 +209,12 @@ const fetchSchools = async () => {
       school_level: selectedLevel.value,
       sort_by: sortBy.value
     }
-    
+
     const response = await schoolApi.getSchools(params)
     if (response && 'results' in response && 'count' in response) {
       schools.value = response.results as School[]
       totalItems.value = response.count as number
-      totalPages.value = Math.ceil(response.count as number / perPage)
+      totalPages.value = Math.ceil((response.count as number) / perPage)
     } else {
       throw new Error('Invalid response format')
     }
@@ -246,23 +237,21 @@ const fetchFilterData = async () => {
       schoolApi.getSchoolTypes(),
       schoolApi.getSchoolLevels()
     ])
-    
+
     if (Array.isArray(provincesRes)) {
       provinces.value = provincesRes
     }
     if (typesRes && typeof typesRes === 'object') {
-      schoolTypes.value = (typesRes as unknown as { [key: string]: string })
+      schoolTypes.value = typesRes as unknown as { [key: string]: string }
     }
     if (levelsRes && typeof levelsRes === 'object') {
-      schoolLevels.value = (levelsRes as unknown as { [key: string]: string })
+      schoolLevels.value = levelsRes as unknown as { [key: string]: string }
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : '获取筛选数据失败'
     ElMessage.error(error.value)
   }
 }
-
-
 
 // 搜索防抖
 let searchTimeout: number | null = null
@@ -299,11 +288,9 @@ const resetFilters = () => {
 
 // 初始化
 onMounted(async () => {
-  console.log('Schools组件已挂载，开始加载数据')
+  logger.log('Schools组件已挂载，开始加载数据')
   try {
-    // 先获取筛选数据
     await fetchFilterData()
-    // 再获取学校列表
     await fetchSchools()
   } catch (err) {
     console.error('初始化加载失败:', err)
@@ -328,131 +315,150 @@ const handleFileChange = (file: any) => {
 }
 
 // 处理导入提交
-  const handleImportSubmit = async () => {
-    if (!selectedFile.value) {
-      ElMessage.warning('请先选择CSV文件')
-      return
-    }
-    
-    importing.value = true
-    importResult.value = null
-    
-    try {
-      const response = await schoolApi.importSchoolsCsv(selectedFile.value)
-      importResult.value = response
-      ElMessage.success(`成功导入${response.success_count}条学校数据`)
-      
-      // 如果导入成功，刷新学校列表
-      if (response.success_count > 0) {
-        await fetchSchools()
-      }
-    } catch (err) {
-      console.error('导入学校数据失败:', err)
-      ElMessage.error('导入学校数据失败')
-    } finally {
-      importing.value = false
-    }
+const handleImportSubmit = async () => {
+  if (!selectedFile.value) {
+    ElMessage.warning('请先选择CSV文件')
+    return
   }
+
+  importing.value = true
+  importResult.value = null
+
+  try {
+    const response = await schoolApi.importSchoolsCsv(selectedFile.value)
+    importResult.value = response
+    ElMessage.success(`成功导入${response.success_count}条学校数据`)
+
+    if (response.success_count > 0) {
+      await fetchSchools()
+    }
+  } catch (err) {
+    console.error('导入学校数据失败:', err)
+    ElMessage.error('导入学校数据失败')
+  } finally {
+    importing.value = false
+  }
+}
 </script>
 
 <style scoped>
-.schools-container {
-  padding: 20px;
+.schools-page {
+  min-height: 100vh;
 }
 
-.filter-section {
-  margin-bottom: 20px;
+.filter-card {
+  margin-bottom: var(--space-6);
 }
 
 .search-box {
-  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  position: relative;
 }
 
 .input-wrapper {
   position: relative;
-  max-width: 400px;
-}
-
-.input-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
+  flex: 1;
+  max-width: 420px;
 }
 
 .search-icon {
-  width: 16px;
-  height: 16px;
-  background: url('@/assets/icons/search.svg') no-repeat center;
-  background-size: contain;
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: var(--text-tertiary);
+  pointer-events: none;
 }
 
 input {
   width: 100%;
-  padding: 8px 12px 8px 36px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  font-size: 14px;
+  padding: 10px 14px 10px 40px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  transition: all 0.2s ease;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--primary-400);
+  box-shadow: 0 0 0 3px var(--primary-100);
 }
 
 .filters {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.filter-group {
-  flex: 1;
-  min-width: 200px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
 }
 
 .filter-group label {
   display: block;
-  margin-bottom: 8px;
-  font-size: 14px;
-  color: #606266;
+  margin-bottom: var(--space-2);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 select {
   width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  font-size: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--primary-400);
+  box-shadow: 0 0 0 3px var(--primary-100);
 }
 
 .loading-indicator {
   text-align: center;
-  padding: 40px;
+  padding: var(--space-10);
+  color: var(--text-secondary);
+}
+
+.loading-indicator span {
+  display: block;
+  margin-top: var(--space-4);
 }
 
 .error-state {
-  margin: 20px 0;
+  margin: var(--space-4) 0;
 }
 
 .empty-state {
-  padding: 40px;
+  padding: var(--space-10);
   text-align: center;
 }
 
 .schools-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
 }
 
 .pagination {
   display: flex;
   justify-content: center;
-  margin-top: 20px;
+  margin-top: var(--space-6);
 }
 
 .import-button {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  flex-shrink: 0;
 }
 
 .import-dialog-content {
@@ -460,23 +466,60 @@ select {
 }
 
 .import-tips {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
+  color: var(--text-secondary);
+  line-height: 1.6;
 }
 
 .upload-demo {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
 }
 
 .import-result {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
+  text-align: left;
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.import-result ul {
+  list-style: none;
+  margin-top: var(--space-2);
+}
+
+.import-result li {
+  padding: var(--space-1) 0;
+  color: var(--text-secondary);
 }
 
 .import-errors {
-  margin-top: 10px;
-  color: #f56c6c;
+  margin-top: var(--space-3);
+  color: var(--error-color);
 }
 
 .dialog-footer {
-  text-align: right;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
 }
-</style> 
+
+@media (max-width: 640px) {
+  .search-box {
+    flex-wrap: wrap;
+  }
+
+  .input-wrapper {
+    max-width: none;
+    width: 100%;
+  }
+
+  .import-button {
+    width: 100%;
+  }
+
+  .filters {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

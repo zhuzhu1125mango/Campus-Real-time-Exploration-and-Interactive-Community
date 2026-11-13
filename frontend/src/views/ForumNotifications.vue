@@ -1,69 +1,98 @@
 <template>
-  <div class="notifications-container">
-    <div class="notifications-header">
-      <h1 class="page-title">论坛通知</h1>
-      <button v-if="notifications.length > 0" class="btn-mark-all-read" @click="markAllAsRead">
-        全部标为已读
-      </button>
-    </div>
+  <div class="forum-notifications-page container-medium page-padding">
+    <SectionHeader
+      title="论坛通知"
+      subtitle="查看论坛相关通知消息"
+      icon="i-ep-bell"
+    />
 
-    <div v-if="loading" class="loading-container">
-      <div class="loading-spinner"></div>
-      <p>加载中...</p>
-    </div>
+    <GlassCard :hover="false" class="notifications-card">
+      <div class="notifications-toolbar">
+        <h2 class="card-title">通知列表</h2>
+        <button
+          v-if="validNotifications.length > 0"
+          class="btn btn-primary"
+          @click="markAllAsRead"
+        >
+          <span class="i-ep-check" />
+          全部标为已读
+        </button>
+      </div>
 
-    <div v-else-if="notifications.length === 0" class="empty-notifications">
-      <div class="empty-icon"></div>
-      <p>暂无通知</p>
-      <router-link to="/forum" class="btn-to-forum">浏览论坛</router-link>
-    </div>
+      <div v-if="loading" class="loading-state">
+        <div class="loading-spinner" />
+        <p>加载中...</p>
+      </div>
 
-    <div v-else class="notifications-list">
-      <div 
-        v-for="notification in notifications" 
-        :key="notification.id" 
-        class="notification-item"
-        :class="{ 'unread': !notification.is_read }"
-        @click="viewNotification(notification)"
-      >
-        <div class="notification-dot" v-if="!notification.is_read"></div>
-        <div class="notification-content">
-          <div class="notification-text" v-html="sanitizeHtml(notification.content)"></div>
-          <div class="notification-time">{{ formatDate(notification.created_at) }}</div>
+      <div v-else-if="notifications.length === 0" class="empty-state">
+        <div class="empty-icon">
+          <span class="i-ep-bell" />
         </div>
-        <button class="btn-mark-read" @click.stop="markAsRead(notification.id)" v-if="!notification.is_read">
-          标为已读
-        </button>
+        <p>暂无通知</p>
+        <router-link to="/forum">
+          <button class="btn btn-primary">
+            <span class="i-ep-view" />
+            浏览论坛
+          </button>
+        </router-link>
       </div>
 
-      <!-- 分页 -->
-      <div v-if="totalPages > 1" class="pagination">
-        <button 
-          class="btn-page" 
-          :disabled="currentPage === 1" 
-          @click="changePage(currentPage - 1)"
+      <div v-else class="notifications-list">
+        <div
+          v-for="notification in validNotifications"
+          :key="notification?.id"
+          class="notification-item"
+          :class="{ 'unread': !notification?.is_read }"
+          @click="viewNotification(notification)"
         >
-          上一页
-        </button>
-        <span class="page-info">{{ currentPage }} / {{ totalPages }}</span>
-        <button 
-          class="btn-page" 
-          :disabled="currentPage === totalPages" 
-          @click="changePage(currentPage + 1)"
-        >
-          下一页
-        </button>
+          <div class="notification-dot" v-if="!notification?.is_read" />
+          <div class="notification-content">
+            <div class="notification-text" v-html="sanitizeHtml(notification?.content || '')" />
+            <div class="notification-time">{{ formatDate(notification?.created_at || '') }}</div>
+          </div>
+          <button
+            class="btn btn-secondary"
+            @click.stop="markAsRead(notification?.id)"
+            v-if="!notification?.is_read"
+          >
+            <span class="i-ep-check" />
+            标为已读
+          </button>
+        </div>
+
+        <!-- 分页 -->
+        <div v-if="totalPages > 1" class="pagination">
+          <button
+            class="btn btn-secondary"
+            :disabled="currentPage === 1"
+            @click="changePage(currentPage - 1)"
+          >
+            <span class="i-ep-arrow-left" />
+            上一页
+          </button>
+          <span class="page-info">{{ currentPage }} / {{ totalPages }}</span>
+          <button
+            class="btn btn-secondary"
+            :disabled="currentPage === totalPages"
+            @click="changePage(currentPage + 1)"
+          >
+            下一页
+            <span class="i-ep-arrow-right" />
+          </button>
+        </div>
       </div>
-    </div>
+    </GlassCard>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { forumApi } from '../api/forum'
+import { userApi } from '../api/user'
 import { sanitizeHtml } from '../utils/xss'
-import type { Notification } from '../types/forum'
+import type { Notification } from '../types/user'
+import GlassCard from '../components/GlassCard.vue'
+import SectionHeader from '../components/SectionHeader.vue'
 
 const router = useRouter()
 
@@ -72,6 +101,9 @@ const notifications = ref<Notification[]>([])
 const loading = ref(true)
 const currentPage = ref(1)
 const totalNotifications = ref(0)
+
+// 过滤掉后端可能返回的 null/undefined 项，避免渲染时读取 .id 报错
+const validNotifications = computed(() => notifications.value.filter(Boolean))
 
 // 计算属性
 const totalPages = computed(() => {
@@ -82,9 +114,12 @@ const totalPages = computed(() => {
 const fetchNotifications = async () => {
   loading.value = true
   try {
-    const response = await forumApi.getNotifications()
-    notifications.value = response
-    totalNotifications.value = response.length
+    const response = await userApi.getNotifications({
+      page: currentPage.value,
+      page_size: 10
+    })
+    notifications.value = response.results
+    totalNotifications.value = response.count
   } catch (error) {
     console.error('获取通知失败:', error)
   } finally {
@@ -93,21 +128,21 @@ const fetchNotifications = async () => {
 }
 
 // 查看通知
-const viewNotification = (notification: Notification) => {
+const viewNotification = (notification: Notification | null | undefined) => {
+  if (!notification) return
   if (!notification.is_read) {
     markAsRead(notification.id)
   }
-  // 通知类型处理逻辑
-  if (notification.notification_type === 'reply' && notification.post) {
-    router.push(`/forum/post/${notification.post}`)
+  if (notification.url && notification.url.startsWith('/')) {
+    router.push(notification.url)
   }
 }
 
 // 标记单条通知为已读
 const markAsRead = async (notificationId: number) => {
   try {
-    await forumApi.markNotificationAsRead(notificationId)
-    
+    await userApi.markNotificationAsRead(notificationId)
+
     // 更新本地状态
     const notification = notifications.value.find(n => n.id === notificationId)
     if (notification) {
@@ -121,10 +156,10 @@ const markAsRead = async (notificationId: number) => {
 // 标记所有通知为已读
 const markAllAsRead = async () => {
   try {
-    await forumApi.markAllNotificationsAsRead()
-    
-    // 更新本地状态
-    notifications.value.forEach(notification => {
+    await userApi.markAllNotificationsAsRead()
+
+    // 标记所有通知为已读（仅更新有效项，避免 null 项报错）
+    validNotifications.value.forEach(notification => {
       notification.is_read = true
     })
   } catch (error) {
@@ -141,11 +176,11 @@ const changePage = (page: number) => {
 // 格式化日期
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '未知'
-  
+
   const date = new Date(dateStr)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
-  
+
   // 小于一天，显示相对时间
   if (diff < 24 * 60 * 60 * 1000) {
     const hours = Math.floor(diff / (60 * 60 * 1000))
@@ -155,7 +190,7 @@ const formatDate = (dateStr: string) => {
     }
     return `${hours}小时前`
   }
-  
+
   // 显示年月日
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
@@ -167,201 +202,194 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.notifications-container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
+.notifications-card {
+  overflow: hidden;
 }
 
-.notifications-header {
+.notifications-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
+  margin-bottom: var(--space-5);
 }
 
-.page-title {
-  font-size: 24px;
-  color: #333;
+.card-title {
   margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-.btn-mark-all-read {
-  padding: 8px 15px;
-  background-color: #f1f1f1;
-  border: none;
-  border-radius: 4px;
-  color: #333;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.btn-mark-all-read:hover {
-  background-color: #e0e0e0;
-}
-
-.loading-container {
+.loading-state,
+.empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 50px 0;
+  justify-content: center;
+  padding: var(--space-10) 0;
+  color: var(--text-secondary);
+  text-align: center;
 }
 
 .loading-spinner {
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-radius: 50%;
-  border-top: 4px solid #3498db;
   width: 40px;
   height: 40px;
+  border: 3px solid rgba(67, 97, 238, 0.2);
+  border-radius: 50%;
+  border-top-color: var(--primary-500);
   animation: spin 1s linear infinite;
-  margin-bottom: 15px;
+  margin-bottom: var(--space-3);
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.empty-notifications {
-  text-align: center;
-  padding: 50px 0;
-  color: #666;
+  to { transform: rotate(360deg); }
 }
 
 .empty-icon {
-  font-size: 48px;
-  margin-bottom: 20px;
-  opacity: 0.3;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--primary-50);
+  color: var(--primary-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-4);
+  font-size: 2rem;
 }
 
-.empty-icon::before {
-  content: "🔔";
-}
-
-.btn-to-forum {
-  display: inline-block;
-  margin-top: 20px;
-  padding: 10px 20px;
-  background-color: #3498db;
-  color: white;
-  text-decoration: none;
-  border-radius: 4px;
-  font-weight: 500;
+.empty-state p {
+  margin-bottom: var(--space-4);
 }
 
 .notifications-list {
-  margin-bottom: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .notification-item {
   position: relative;
   display: flex;
   align-items: center;
-  padding: 15px 20px;
-  background-color: white;
-  border-radius: 8px;
-  margin-bottom: 15px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  padding: var(--space-4);
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
 }
 
 .notification-item:hover {
-  background-color: #f5f5f5;
+  border-color: var(--primary-600);
+  box-shadow: var(--shadow-sm);
 }
 
 .notification-item.unread {
-  background-color: #ebf7ff;
+  background: var(--primary-50);
+  border-color: var(--primary-200);
 }
 
 .notification-dot {
   width: 10px;
   height: 10px;
-  background-color: #3498db;
+  background-color: var(--primary-600);
   border-radius: 50%;
-  margin-right: 15px;
+  margin-right: var(--space-3);
+  flex-shrink: 0;
 }
 
 .notification-content {
   flex: 1;
+  min-width: 0;
 }
 
 .notification-text {
-  margin-bottom: 5px;
-  color: #333;
-  line-height: 1.4;
+  margin-bottom: var(--space-1);
+  color: var(--text-primary);
+  line-height: 1.5;
 }
 
 .notification-time {
-  font-size: 14px;
-  color: #888;
-}
-
-.btn-mark-read {
-  padding: 6px 12px;
-  background-color: transparent;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  color: #666;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-left: 15px;
-}
-
-.btn-mark-read:hover {
-  background-color: #f1f1f1;
-  border-color: #3498db;
-  color: #3498db;
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
 }
 
 .pagination {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-top: 30px;
-  gap: 20px;
-}
-
-.btn-page {
-  padding: 8px 15px;
-  background-color: #f1f1f1;
-  border: none;
-  border-radius: 4px;
-  color: #333;
-  cursor: pointer;
-}
-
-.btn-page:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  margin-top: var(--space-5);
+  gap: var(--space-4);
 }
 
 .page-info {
-  color: #666;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background-color: var(--primary-600);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-700);
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--border-color);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @media (max-width: 768px) {
+  .notifications-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
   .notification-item {
     flex-direction: column;
     align-items: flex-start;
   }
-  
+
   .notification-dot {
     position: absolute;
-    top: 15px;
-    left: 5px;
+    top: var(--space-4);
+    left: var(--space-2);
   }
-  
+
   .notification-content {
-    padding-left: 20px;
+    padding-left: var(--space-4);
     width: 100%;
   }
-  
-  .btn-mark-read {
-    margin-left: 20px;
-    margin-top: 10px;
+
+  .notification-item .btn {
+    margin-left: var(--space-4);
+    margin-top: var(--space-3);
   }
 }
-</style> 
+</style>

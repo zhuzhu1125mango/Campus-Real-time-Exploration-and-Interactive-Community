@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { userApi } from '../api/user'
 import { buildMediaUrl } from '../utils/urlUtils'
 import config from '../utils/config'
+import { getApiErrorMessage } from '../utils/error'
 import { useTokenStore } from './tokenStore'
 
 export interface User {
@@ -20,6 +21,32 @@ export interface User {
   updated_at?: string
 }
 
+const USER_CACHE_PREFIX = 'user_profile:'
+const LEGACY_AVATAR_KEY = 'user_avatar'
+const LEGACY_BANNER_KEY = 'user_banner'
+
+function getUserCacheKey(userId: number) {
+  return `${USER_CACHE_PREFIX}${userId}`
+}
+
+function readCachedUser(userId: number): User | null {
+  try {
+    const raw = localStorage.getItem(getUserCacheKey(userId))
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+function writeCachedUser(userId: number, user: User) {
+  localStorage.setItem(getUserCacheKey(userId), JSON.stringify(user))
+}
+
+function removeCachedUser(userId: number) {
+  localStorage.removeItem(getUserCacheKey(userId))
+}
+
 export const useUserProfileStore = defineStore('userProfile', () => {
   const tokenStore = useTokenStore()
   const user = ref<User | null>(null)
@@ -27,12 +54,38 @@ export const useUserProfileStore = defineStore('userProfile', () => {
   const error = ref<string | null>(null)
   const failedToLoad = ref(false)
 
+  const activeUserId = computed(() => tokenStore.activeUserId)
+
   const isLoggedIn = computed(() => {
     return !!user.value && !!user.value.id
   })
 
-  const fetchUserInfo = async () => {
-    if (loading.value || !tokenStore.accessToken) return
+  const loadUserFromCache = (userId: number) => {
+    const cached = readCachedUser(userId)
+    if (cached) {
+      user.value = cached
+      return true
+    }
+    return false
+  }
+
+  const fetchUserInfo = async (options: { force?: boolean } = {}) => {
+    const currentUserId = activeUserId.value
+    if (!currentUserId) {
+      user.value = null
+      return null
+    }
+
+    if (loading.value) return user.value
+
+    if (!options.force && loadUserFromCache(currentUserId)) {
+      return user.value
+    }
+
+    if (!tokenStore.accessToken) {
+      user.value = null
+      return null
+    }
 
     loading.value = true
     failedToLoad.value = false
@@ -44,7 +97,7 @@ export const useUserProfileStore = defineStore('userProfile', () => {
       const avatarUrl = buildMediaUrl(userData.avatar, config.media.defaultAvatar)
       const bannerUrl = buildMediaUrl(userData.banner, config.media.defaultBanner)
 
-      user.value = {
+      const normalized: User = {
         id: userData.id,
         username: userData.username,
         email: userData.email,
@@ -59,15 +112,23 @@ export const useUserProfileStore = defineStore('userProfile', () => {
         updated_at: userData.updated_at || undefined
       }
 
-      localStorage.setItem('user_avatar', avatarUrl || '')
-      localStorage.setItem('user_banner', bannerUrl || '')
+      user.value = normalized
+      writeCachedUser(normalized.id, normalized)
 
-      return user.value
-    } catch (err: any) {
+      // 同步更新账号元数据
+      tokenStore.updateAccountMeta({
+        userId: normalized.id,
+        username: normalized.username,
+        avatar: normalized.avatar
+      })
+
+      return normalized
+    } catch (err) {
       failedToLoad.value = true
-      error.value = err.response?.data?.detail || '获取用户信息失败'
-      if (err.response?.status === 401) {
-        tokenStore.clearTokens()
+      error.value = getApiErrorMessage(err, '获取用户信息失败')
+      const status = (err as { response?: { status?: number } }).response?.status
+      if (status === 401) {
+        tokenStore.removeAccount(currentUserId)
       }
       return null
     } finally {
@@ -81,6 +142,7 @@ export const useUserProfileStore = defineStore('userProfile', () => {
       if (user.value && user.value.favorite_schools) {
         if (!user.value.favorite_schools.includes(schoolId)) {
           user.value.favorite_schools.push(schoolId)
+          writeCachedUser(user.value.id, user.value)
         }
       }
       return true
@@ -94,6 +156,7 @@ export const useUserProfileStore = defineStore('userProfile', () => {
       await userApi.unfavoriteSchool(schoolId)
       if (user.value && user.value.favorite_schools) {
         user.value.favorite_schools = user.value.favorite_schools.filter((id: number) => id !== schoolId)
+        writeCachedUser(user.value.id, user.value)
       }
       return true
     } catch (error) {
@@ -105,38 +168,41 @@ export const useUserProfileStore = defineStore('userProfile', () => {
     user.value = null
     error.value = null
     failedToLoad.value = false
-    localStorage.removeItem('user_avatar')
-    localStorage.removeItem('user_banner')
+  }
+
+  const clearAllUsers = () => {
+    tokenStore.accounts.forEach(a => removeCachedUser(a.userId))
+    clearUser()
+    localStorage.removeItem(LEGACY_AVATAR_KEY)
+    localStorage.removeItem(LEGACY_BANNER_KEY)
+    localStorage.removeItem('tempAvatarPreview')
+    localStorage.removeItem('tempBannerPreview')
   }
 
   const initializeUser = () => {
-    if (tokenStore.accessToken && !user.value) {
-      const savedAvatar = localStorage.getItem('user_avatar')
-      const savedBanner = localStorage.getItem('user_banner')
+    const currentUserId = activeUserId.value
+    if (!currentUserId) {
+      user.value = null
+      return
+    }
 
-      const validAvatar = (savedAvatar && !savedAvatar.startsWith('blob:')) ? savedAvatar : ''
-      const validBanner = (savedBanner && !savedBanner.startsWith('blob:')) ? savedBanner : ''
-
-      if (tokenStore.accessToken && (validAvatar || validBanner)) {
-        user.value = {
-          id: 0,
-          username: '',
-          email: '',
-          avatar: validAvatar,
-          banner: validBanner
-        }
-      }
-
+    if (loadUserFromCache(currentUserId)) {
+      fetchUserInfo()
+    } else {
+      // 兼容旧版缓存：如果新缓存没有但旧版头像 key 存在，尝试用 token 拉取
       fetchUserInfo()
     }
   }
 
+  // 监听 activeUserId 变化，自动加载对应用户信息
   watch(
-    () => tokenStore.accessToken,
-    (newToken) => {
-      if (newToken && !user.value) {
-        fetchUserInfo()
-      } else if (!newToken) {
+    () => tokenStore.activeUserId,
+    (newId, oldId) => {
+      if (newId && newId !== oldId) {
+        if (!loadUserFromCache(newId)) {
+          fetchUserInfo()
+        }
+      } else if (!newId) {
         clearUser()
       }
     },
@@ -153,6 +219,7 @@ export const useUserProfileStore = defineStore('userProfile', () => {
     favoriteSchool,
     unfavoriteSchool,
     clearUser,
+    clearAllUsers,
     initializeUser
   }
 })

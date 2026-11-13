@@ -7,10 +7,9 @@ from rest_framework import viewsets, permissions, filters, status, serializers
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
 from .models import (
     Category, Board, Topic, Post, Attachment,
-    Like, Tag, Report, Notification, Bookmark,
+    Like, Tag, Report, Bookmark,
     Comment, CommentLike
 )
 from .serializers import (
@@ -19,10 +18,18 @@ from .serializers import (
     TopicCreateSerializer, PostSerializer, PostCreateSerializer,
     PostUpdateSerializer, AttachmentSerializer, LikeSerializer,
     TagSerializer, ReportCreateSerializer, BookmarkSerializer,
-    NotificationSerializer, CommentSerializer, CommentCreateSerializer
+    CommentSerializer, CommentCreateSerializer
 )
+from notifications.notification_sender import notify_forum_event
 from users.permissions import IsOwnerOrAdmin
 from users.throttles import SearchThrottle, WriteThrottle
+from users.tasks import queue_update_user_points
+from search.services import SearchService
+from core.base_viewsets import (
+    StandardResultsSetPagination,
+    PublicReadOnlyModelViewSet,
+    AuthenticatedModelViewSet,
+)
 
 
 def annotate_topic_list(queryset):
@@ -80,7 +87,7 @@ def hot_topics(request):
         Topic.objects.filter(created_at__gte=date_from)
     ).annotate(
         like_count=Count('posts__likes', distinct=True)
-    ).order_by('-views', '-post_count', '-like_count')
+    ).order_by('-views', '-topic_post_count', '-like_count')
     
     paginator = StandardResultsSetPagination()
     page = paginator.paginate_queryset(topics, request)
@@ -105,34 +112,38 @@ def my_bookmarks(request):
     return paginator.get_paginated_response(serializer.data)
 
 
-class StandardResultsSetPagination(PageNumberPagination):
-    """标准分页类"""
-    page_size = 10
-    page_size_query_param = 'page_size'
-    max_page_size = 100
-
-
-class CategoryViewSet(viewsets.ModelViewSet):
+class CategoryViewSet(PublicReadOnlyModelViewSet):
     """论坛分类视图集"""
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
-    permission_classes = [permissions.IsAdminUser]
-    
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [permissions.AllowAny()]
-        return super().get_permissions()
+    permission_config = {
+        'list': [permissions.AllowAny],
+        'retrieve': [permissions.AllowAny],
+        'create': [permissions.IsAdminUser],
+        'update': [permissions.IsAdminUser],
+        'partial_update': [permissions.IsAdminUser],
+        'destroy': [permissions.IsAdminUser],
+    }
 
 
-class BoardViewSet(viewsets.ModelViewSet):
+class BoardViewSet(PublicReadOnlyModelViewSet):
     """论坛板块视图集"""
     queryset = Board.objects.all()
-    permission_classes = [permissions.IsAdminUser]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['name', 'description']
+    filter_backends = [filters.OrderingFilter]
     ordering_fields = ['order', 'name', 'created_at']
     ordering = ['category', 'order', 'name']
-    
+    select_related_fields = ['category']
+    permission_config = {
+        'list': [permissions.AllowAny],
+        'retrieve': [permissions.AllowAny],
+        'topics': [permissions.AllowAny],
+        'active_topics': [permissions.AllowAny],
+        'create': [permissions.IsAdminUser],
+        'update': [permissions.IsAdminUser],
+        'partial_update': [permissions.IsAdminUser],
+        'destroy': [permissions.IsAdminUser],
+    }
+
     def get_serializer_class(self):
         if self.action == 'list':
             return BoardListSerializer
@@ -140,18 +151,13 @@ class BoardViewSet(viewsets.ModelViewSet):
             return BoardCreateUpdateSerializer
         return BoardDetailSerializer
     
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'topics', 'active_topics']:
-            return [permissions.AllowAny()]
-        return super().get_permissions()
-    
     def get_queryset(self):
-        queryset = Board.objects.all()
+        queryset = super().get_queryset()
         if self.action == 'list':
             # 预取分类，并通过 annotate 聚合主题数、帖子数、最后发帖信息，减少 N+1
             # 字段名避免与模型 property 重名
             last_post = Post.objects.filter(topic__board=OuterRef('pk')).order_by('-created_at')
-            return queryset.select_related('category').annotate(
+            return queryset.annotate(
                 board_topic_count=Count('topics', distinct=True),
                 board_post_count=Count('topics__posts', distinct=True),
                 last_post_id=Subquery(last_post.values('id')[:1]),
@@ -161,8 +167,15 @@ class BoardViewSet(viewsets.ModelViewSet):
                 last_post_author_id=Subquery(last_post.values('author__id')[:1]),
                 last_post_author_username=Subquery(last_post.values('author__username')[:1]),
             )
+
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) | Q(description__icontains=search)
+            )
+
         return queryset
-    
+
     @action(detail=True, methods=['get'])
     def topics(self, request, pk=None):
         """获取板块内的主题列表"""
@@ -213,47 +226,48 @@ class BoardViewSet(viewsets.ModelViewSet):
         return self.get_paginated_response(serializer.data)
 
 
-class TopicViewSet(viewsets.ModelViewSet):
+class TopicViewSet(PublicReadOnlyModelViewSet):
     """主题视图集"""
     queryset = Topic.objects.all()
-    pagination_class = StandardResultsSetPagination
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['title']
+    filter_backends = [filters.OrderingFilter]
     ordering_fields = ['created_at', 'views']
     ordering = ['-created_at']
-    
+    select_related_fields = ['author', 'board']
+    prefetch_related_fields = ['tags']
+    permission_config = {
+        'list': [permissions.AllowAny],
+        'retrieve': [permissions.AllowAny],
+        'posts': [permissions.AllowAny],
+        'create': [permissions.IsAuthenticated],
+        'bookmark': [permissions.IsAuthenticated],
+        'unbookmark': [permissions.IsAuthenticated],
+        'close': [permissions.IsAuthenticated],
+        'update': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+        'partial_update': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+        'destroy': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+    }
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'create': [WriteThrottle],
+        'bookmark': [WriteThrottle],
+        'unbookmark': [WriteThrottle],
+        'close': [WriteThrottle],
+        'update': [WriteThrottle],
+        'partial_update': [WriteThrottle],
+        'destroy': [WriteThrottle],
+    }
+
     def get_serializer_class(self):
         if self.action == 'create':
             return TopicCreateSerializer
         elif self.action == 'list':
             return TopicListSerializer
         return TopicDetailSerializer
-    
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'posts']:
-            # 允许所有用户查看主题和帖子列表
-            return [permissions.AllowAny()]
-        elif self.action in ['create', 'bookmark']:
-            # 需要登录才能创建主题、收藏
-            return [permissions.IsAuthenticated()]
-        elif self.action in ['update', 'partial_update', 'destroy']:
-            # 仅作者或管理员可编辑/删除主题
-            return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
-        elif self.action == 'close':
-            # 关闭主题由视图内部校验作者/版主/管理员
-            return [permissions.IsAuthenticated()]
-        return [permissions.IsAuthenticated()]
-
-    def get_throttles(self):
-        if self.action in ['create', 'bookmark', 'unbookmark', 'close']:
-            return [WriteThrottle()]
-        return super().get_throttles()
 
     def get_queryset(self):
         # 预取作者、板块和标签，并 annotate 帖子数/最后回复信息，减少 N+1 查询
-        queryset = annotate_topic_list(
-            Topic.objects.select_related('author', 'board').prefetch_related('tags')
-        )
+        queryset = annotate_topic_list(super().get_queryset())
 
         # 过滤
         board_id = self.request.query_params.get('board')
@@ -272,8 +286,17 @@ class TopicViewSet(viewsets.ModelViewSet):
         if author:
             queryset = queryset.filter(author__username=author)
 
+        search = self.request.query_params.get('search')
+        if search:
+            service = SearchService()
+            es_ids = list(service.search_topics(search, limit=200).values_list('pk', flat=True))
+            if es_ids:
+                queryset = queryset.filter(pk__in=es_ids)
+            else:
+                queryset = queryset.filter(title__icontains=search)
+
         return queryset
-    
+
     def perform_create(self, serializer):
         # TopicCreateSerializer 已负责创建主题及首贴
         serializer.save()
@@ -303,15 +326,15 @@ class TopicViewSet(viewsets.ModelViewSet):
         """收藏主题"""
         topic = self.get_object()
         user = request.user
-        
-        if not user.is_authenticated:
-            return Response({"detail": "认证凭据未提供"}, status=status.HTTP_401_UNAUTHORIZED)
-        
+
         bookmark, created = Bookmark.objects.get_or_create(user=user, topic=topic)
-        
+
         if not created:
             return Response({"detail": "已经收藏过此主题"}, status=status.HTTP_200_OK)
-        
+
+        # 异步发放收藏积分
+        queue_update_user_points(user.id, 'favorite', description='收藏主题')
+
         return Response({"status": "收藏成功"}, status=status.HTTP_201_CREATED)
     
     @action(detail=True, methods=['delete'])
@@ -319,9 +342,6 @@ class TopicViewSet(viewsets.ModelViewSet):
         """取消收藏主题"""
         topic = self.get_object()
         user = request.user
-        
-        if not user.is_authenticated:
-            return Response({"detail": "认证凭据未提供"}, status=status.HTTP_401_UNAUTHORIZED)
         
         try:
             bookmark = Bookmark.objects.get(user=user, topic=topic)
@@ -334,9 +354,6 @@ class TopicViewSet(viewsets.ModelViewSet):
     def close(self, request, pk=None):
         """关闭或重新打开主题"""
         topic = self.get_object()
-        
-        if not request.user.is_authenticated:
-            return Response({"detail": "认证凭据未提供"}, status=status.HTTP_401_UNAUTHORIZED)
         
         # 检查是否有权限（作者、版主或管理员）
         if (topic.author != request.user and 
@@ -351,35 +368,48 @@ class TopicViewSet(viewsets.ModelViewSet):
         return Response({"status": f"主题已{status_message}"}, status=status.HTTP_200_OK)
 
 
-class PostViewSet(viewsets.ModelViewSet):
+class PostViewSet(PublicReadOnlyModelViewSet):
     """帖子视图集"""
     queryset = Post.objects.all()
-    pagination_class = StandardResultsSetPagination
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['content', 'topic__title']
+    filter_backends = [filters.OrderingFilter]
     ordering_fields = ['created_at', 'updated_at']
     ordering = ['-created_at']
-    
+    select_related_fields = ['author', 'topic', 'topic__board', 'edited_by', 'reviewed_by']
+    annotation_fields = {'like_count': Count('likes', distinct=True)}
+    permission_config = {
+        'list': [permissions.AllowAny],
+        'retrieve': [permissions.AllowAny],
+        'create': [permissions.IsAuthenticated],
+        'like': [permissions.IsAuthenticated],
+        'unlike': [permissions.IsAuthenticated],
+        'report': [permissions.IsAuthenticated],
+        'pending_review': [permissions.IsAuthenticated],
+        'update': [permissions.IsAuthenticated],
+        'partial_update': [permissions.IsAuthenticated],
+        'destroy': [permissions.IsAuthenticated],
+    }
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'create': [WriteThrottle],
+        'like': [WriteThrottle],
+        'unlike': [WriteThrottle],
+        'report': [WriteThrottle],
+        'update': [WriteThrottle],
+        'partial_update': [WriteThrottle],
+        'destroy': [WriteThrottle],
+    }
+
     def get_serializer_class(self):
         if self.action == 'create':
             return PostCreateSerializer
         elif self.action == 'update' or self.action == 'partial_update':
             return PostUpdateSerializer
         return PostSerializer
-    
-    def get_throttles(self):
-        if self.action in ['create', 'like', 'unlike', 'report']:
-            return [WriteThrottle()]
-        return super().get_throttles()
 
     def get_queryset(self):
-        # 预取作者、主题与板块、编辑/审核人，减少 N+1 查询
-        queryset = Post.objects.select_related(
-            'author', 'topic', 'topic__board', 'edited_by', 'reviewed_by'
-        ).annotate(
-            like_count=Count('likes', distinct=True)
-        )
+        # 预取与 annotate 由基类统一处理；子类追加业务过滤
+        queryset = super().get_queryset()
 
         # 当前用户是否点赞使用 Exists 子查询，避免拉取全部点赞记录
         user = self.request.user
@@ -413,8 +443,19 @@ class PostViewSet(viewsets.ModelViewSet):
             if status_filter:
                 queryset = queryset.filter(content_status=status_filter)
 
+        search = self.request.query_params.get('search')
+        if search:
+            service = SearchService()
+            es_ids = list(service.search_posts(search, limit=200).values_list('pk', flat=True))
+            if es_ids:
+                queryset = queryset.filter(pk__in=es_ids)
+            else:
+                queryset = queryset.filter(
+                    Q(content__icontains=search) | Q(topic__title__icontains=search)
+                )
+
         return queryset
-    
+
     def is_moderator(self, user):
         """检查用户是否是版主"""
         # 获取帖子所在的版块
@@ -463,10 +504,6 @@ class PostViewSet(viewsets.ModelViewSet):
         """点赞或取消点赞帖子"""
         post = self.get_object()
 
-        # 用户必须登录才能点赞
-        if not request.user.is_authenticated:
-            return Response({"detail": "认证凭据未提供"}, status=status.HTTP_401_UNAUTHORIZED)
-
         # 只能点赞已审核通过的帖子
         if post.content_status != 'approved' and not request.user.is_staff and not self.is_moderator(request.user):
             return Response({"detail": "此帖子未通过审核或已被隐藏"}, status=status.HTTP_403_FORBIDDEN)
@@ -481,13 +518,18 @@ class PostViewSet(viewsets.ModelViewSet):
 
             # 创建点赞通知（如果点赞的不是自己的帖子）
             if post.author != request.user:
-                Notification.objects.create(
-                    user=post.author,
+                notify_forum_event(
+                    recipient=post.author,
                     sender=request.user,
-                    notification_type='like',
+                    forum_type='like',
+                    message=f"{request.user.username} 点赞了你的帖子",
                     post=post,
-                    message=f"{request.user.username} 点赞了你的帖子"
                 )
+
+        # 异步更新积分：点赞者 +2，被点赞者 +3
+        queue_update_user_points(request.user.id, 'like')
+        if post.author != request.user:
+            queue_update_user_points(post.author.id, 'liked')
 
         return Response({"status": "点赞成功"}, status=status.HTTP_201_CREATED)
     
@@ -495,9 +537,6 @@ class PostViewSet(viewsets.ModelViewSet):
     def report(self, request, pk=None):
         """举报帖子"""
         post = self.get_object()
-        
-        if not request.user.is_authenticated:
-            return Response({"detail": "认证凭据未提供"}, status=status.HTTP_401_UNAUTHORIZED)
         
         serializer = ReportCreateSerializer(data=request.data)
         if serializer.is_valid():
@@ -510,13 +549,13 @@ class PostViewSet(viewsets.ModelViewSet):
             # 通知版主和管理员
             moderators = post.topic.board.moderators.all()
             for moderator in moderators:
-                Notification.objects.create(
-                    user=moderator,
+                notify_forum_event(
+                    recipient=moderator,
                     sender=request.user,
-                    notification_type='system',
+                    forum_type='system',
+                    message=f"帖子被举报，需要审核：{post.topic.title}",
                     topic=post.topic,
                     post=post,
-                    message=f"帖子被举报，需要审核：{post.topic.title}"
                 )
             
             return Response({"status": "举报成功"}, status=status.HTTP_201_CREATED)
@@ -551,10 +590,6 @@ class PostViewSet(viewsets.ModelViewSet):
         """取消点赞帖子"""
         post = self.get_object()
         
-        # 用户必须登录才能取消点赞
-        if not request.user.is_authenticated:
-            return Response({"detail": "认证凭据未提供"}, status=status.HTTP_401_UNAUTHORIZED)
-        
         # 查找点赞记录
         try:
             like = Like.objects.get(user=request.user, post=post)
@@ -564,14 +599,13 @@ class PostViewSet(viewsets.ModelViewSet):
             return Response({"detail": "未找到点赞记录"}, status=status.HTTP_404_NOT_FOUND)
 
 
-class AttachmentViewSet(viewsets.ModelViewSet):
+class AttachmentViewSet(AuthenticatedModelViewSet):
     """附件视图集"""
     queryset = Attachment.objects.all()
     serializer_class = AttachmentSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
+
     def get_queryset(self):
-        queryset = Attachment.objects.all()
+        queryset = super().get_queryset()
         
         # 只允许查看自己的附件
         if not self.request.user.is_staff:
@@ -605,18 +639,27 @@ class AttachmentViewSet(viewsets.ModelViewSet):
         return Response({"file_url": attachment.file.url}, status=status.HTTP_200_OK)
 
 
-class TagViewSet(viewsets.ModelViewSet):
+class TagViewSet(PublicReadOnlyModelViewSet):
     """标签视图集"""
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
-    permission_classes = [permissions.IsAdminUser]
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['name']
+    permission_config = {
+        'list': [permissions.AllowAny],
+        'retrieve': [permissions.AllowAny],
+        'hot': [permissions.AllowAny],
+        'topics': [permissions.AllowAny],
+        'create': [permissions.IsAdminUser],
+        'update': [permissions.IsAdminUser],
+        'partial_update': [permissions.IsAdminUser],
+        'destroy': [permissions.IsAdminUser],
+    }
 
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'hot', 'topics']:
-            return [permissions.AllowAny()]
-        return super().get_permissions()
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(name__icontains=search)
+        return queryset
 
     @action(detail=False, methods=['get'])
     def hot(self, request):
@@ -644,15 +687,17 @@ class TagViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class BookmarkViewSet(viewsets.ModelViewSet):
+class BookmarkViewSet(AuthenticatedModelViewSet):
     """书签视图集"""
     serializer_class = BookmarkSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_throttles(self):
-        if self.action in ['create', 'destroy', 'unbookmark']:
-            return [WriteThrottle()]
-        return super().get_throttles()
+    queryset = Bookmark.objects.all()
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'create': [WriteThrottle],
+        'destroy': [WriteThrottle],
+        'unbookmark': [WriteThrottle],
+    }
 
     def get_queryset(self):
         # 只能查看自己的书签
@@ -673,60 +718,45 @@ class BookmarkViewSet(viewsets.ModelViewSet):
             return Response({"detail": "未找到收藏记录"}, status=status.HTTP_404_NOT_FOUND)
 
 
-class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
-    """通知视图集"""
-    serializer_class = NotificationSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    pagination_class = StandardResultsSetPagination
-
-    def get_queryset(self):
-        # 只能查看自己的通知，并预取发送者、主题、帖子，减少 N+1
-        return Notification.objects.filter(user=self.request.user).select_related('sender', 'topic', 'post')
-
-    @action(detail=True, methods=['post'])
-    def mark_read(self, request, pk=None):
-        """标记通知为已读"""
-        notification = self.get_object()
-        notification.is_read = True
-        notification.save(update_fields=['is_read'])
-        return Response({"status": "标记成功"}, status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=['post'])
-    def mark_all_read(self, request):
-        """标记所有通知为已读"""
-        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
-        return Response({"status": "所有通知已标记为已读"}, status=status.HTTP_200_OK)
-
-
-class CommentViewSet(viewsets.ModelViewSet):
+class CommentViewSet(PublicReadOnlyModelViewSet):
     """评论视图集"""
     queryset = Comment.objects.all()
-    pagination_class = StandardResultsSetPagination
+    select_related_fields = ['author', 'post']
+    prefetch_related_fields = ['likes', 'replies__author']
+    annotation_fields = {'like_count': Count('likes', distinct=True)}
+    permission_config = {
+        'list': [permissions.AllowAny],
+        'retrieve': [permissions.AllowAny],
+        'create': [permissions.IsAuthenticated],
+        'like': [permissions.IsAuthenticated],
+        'report': [permissions.IsAuthenticated],
+        'update': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+        'partial_update': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+        'destroy': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+        'approve': [permissions.IsAuthenticated, permissions.IsAdminUser],
+        'disapprove': [permissions.IsAuthenticated, permissions.IsAdminUser],
+    }
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'create': [WriteThrottle],
+        'like': [WriteThrottle],
+        'report': [WriteThrottle],
+        'update': [WriteThrottle],
+        'partial_update': [WriteThrottle],
+        'destroy': [WriteThrottle],
+        'approve': [WriteThrottle],
+        'disapprove': [WriteThrottle],
+    }
 
     def get_serializer_class(self):
         if self.action == 'create':
             return CommentCreateSerializer
         return CommentSerializer
 
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [permissions.AllowAny()]
-        if self.action in ['update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
-        if self.action in ['approve', 'disapprove']:
-            return [permissions.IsAuthenticated(), permissions.IsAdminUser()]
-        return [permissions.IsAuthenticated()]
-
-    def get_throttles(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'like']:
-            return [WriteThrottle()]
-        return super().get_throttles()
-
     def get_queryset(self):
-        # 预取作者、帖子、点赞和回复，减少 N+1 查询
-        queryset = Comment.objects.select_related('author', 'post').prefetch_related('likes', 'replies__author').annotate(
-            like_count=Count('likes', distinct=True)
-        )
+        # 预取与 annotate 由基类统一处理；子类追加业务过滤
+        queryset = super().get_queryset()
 
         # 当前用户是否点赞
         user = self.request.user
@@ -755,9 +785,6 @@ class CommentViewSet(viewsets.ModelViewSet):
         """点赞或取消点赞评论"""
         comment = self.get_object()
 
-        if not request.user.is_authenticated:
-            return Response({"detail": "认证凭据未提供"}, status=status.HTTP_401_UNAUTHORIZED)
-
         with transaction.atomic():
             like, created = CommentLike.objects.get_or_create(user=request.user, comment=comment)
 
@@ -767,13 +794,18 @@ class CommentViewSet(viewsets.ModelViewSet):
 
             # 创建点赞通知（如果点赞的不是自己的评论）
             if comment.author != request.user:
-                Notification.objects.create(
-                    user=comment.author,
+                notify_forum_event(
+                    recipient=comment.author,
                     sender=request.user,
-                    notification_type='like',
+                    forum_type='like',
+                    message=f"{request.user.username} 点赞了你的评论",
                     post=comment.post,
-                    message=f"{request.user.username} 点赞了你的评论"
                 )
+
+        # 异步更新积分：点赞者 +2，被点赞者 +3
+        queue_update_user_points(request.user.id, 'like')
+        if comment.author != request.user:
+            queue_update_user_points(comment.author.id, 'liked')
 
         return Response({"status": "点赞成功"}, status=status.HTTP_201_CREATED)
     
@@ -781,9 +813,6 @@ class CommentViewSet(viewsets.ModelViewSet):
     def report(self, request, pk=None):
         """举报评论"""
         comment = self.get_object()
-        
-        if not request.user.is_authenticated:
-            return Response({"detail": "认证凭据未提供"}, status=status.HTTP_401_UNAUTHORIZED)
         
         report_type = request.data.get('report_type', 'other')
         description = request.data.get('description', '')

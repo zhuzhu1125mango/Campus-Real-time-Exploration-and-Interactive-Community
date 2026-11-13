@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { ChatLineRound, Warning } from '@element-plus/icons-vue'
 import { useUserStore } from '../stores/userStore'
+import { useTokenStore } from '../stores/tokenStore'
+import GlassCard from '@/components/GlassCard.vue'
+import SectionHeader from '@/components/SectionHeader.vue'
 import config from '../utils/config'
 import { formatAvatar } from '../utils/image'
 import { messageStorage } from '../utils/messageStorage'
@@ -27,6 +29,7 @@ interface ChatMessageItem {
 
 const router = useRouter()
 const userStore = useUserStore()
+const tokenStore = useTokenStore()
 
 // 状态
 const messages = ref<ChatMessageItem[]>([])
@@ -184,7 +187,7 @@ const connectWebSocket = async () => {
     return
   }
 
-  const token = localStorage.getItem(config.jwt.accessTokenKey)
+  const token = tokenStore.accessToken
   if (!token) {
     ElMessage.warning('登录会话已过期，请重新登录')
     router.push('/login')
@@ -364,149 +367,159 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="chat-room">
-    <div class="chat-header">
-      <h2 class="chat-title">公共聊天室</h2>
-      <div class="header-meta">
-        <span class="online-count">在线: {{ onlineCount }} 人</span>
-        <span class="connection-status" :class="connectionStatus">{{ connectionStatusText }}</span>
-      </div>
+  <div class="chat-room-page container-wide page-padding">
+    <SectionHeader
+      title="公共聊天室"
+      :subtitle="`${onlineCount} 人在线`"
+      icon="i-ep-chat-dot-round"
+    />
+
+    <div class="connection-status-bar">
+      <span class="connection-status-dot" :class="connectionStatus" />
+      <span class="connection-status-text" :class="connectionStatus">{{ connectionStatusText }}</span>
     </div>
 
-    <div class="chat-messages" ref="messagesContainer">
-      <div v-if="loading" class="loading-container">
-        <div class="loading-spinner"></div>
-        <p>加载历史消息中...</p>
-      </div>
-
-      <div v-else-if="messages.length === 0" class="empty-state">
-        <div class="empty-icon">
-          <ChatLineRound />
+    <GlassCard :hover="false" class="messages-card" padding="none">
+      <div class="chat-messages" ref="messagesContainer">
+        <div v-if="loading" class="loading-container">
+          <div class="loading-spinner"></div>
+          <p>加载历史消息中...</p>
         </div>
-        <p>还没有消息，来说点什么吧！</p>
-      </div>
 
-      <div v-else class="messages-list">
-        <template v-for="(group, groupIndex) in groupedMessages" :key="groupIndex">
-          <div v-if="group.date" class="date-divider">
-            <span>{{ group.date }}</span>
+        <div v-else-if="messages.length === 0" class="empty-state">
+          <div class="empty-icon">
+            <span class="i-ep-chat-line-round" />
           </div>
-          <div
-            v-for="message in group.messages"
-            :key="message.id"
-            :class="[
-              'message-item',
-              message.type === 'system' ? 'system-message' : '',
-              message.user.id === currentUserId ? 'self-message' : 'other-message'
-            ]"
-          >
-            <template v-if="message.type === 'system'">
-              <span class="system-text">{{ message.content }}</span>
-            </template>
-            <template v-else>
-              <div
-                class="message-avatar"
-                :style="{ backgroundImage: message.user.avatar ? `url(${formatAvatar(message.user.avatar)})` : 'none' }"
-              >
-                <span v-if="!message.user.avatar">{{ getInitials(message.user.username) }}</span>
-              </div>
-              <div class="message-body">
-                <div class="message-info">
-                  <span class="message-username">{{ message.user.username }}</span>
-                  <span class="message-time">{{ formatTime(message.time) }}</span>
+          <p>还没有消息，来说点什么吧！</p>
+        </div>
+
+        <div v-else class="messages-list">
+          <template v-for="(group, groupIndex) in groupedMessages" :key="groupIndex">
+            <div v-if="group.date" class="date-divider">
+              <span>{{ group.date }}</span>
+            </div>
+            <div
+              v-for="message in group.messages"
+              :key="message.id"
+              :class="[
+                'message-item',
+                message.type === 'system' ? 'system-message' : '',
+                message.user.id === currentUserId ? 'self-message' : 'other-message'
+              ]"
+            >
+              <template v-if="message.type === 'system'">
+                <span class="system-text">{{ message.content }}</span>
+              </template>
+              <template v-else>
+                <div
+                  class="message-avatar"
+                  :style="{ backgroundImage: message.user.avatar ? `url(${formatAvatar(message.user.avatar)})` : 'none' }"
+                >
+                  <span v-if="!message.user.avatar">{{ getInitials(message.user.username) }}</span>
                 </div>
-                <div class="message-content" :class="{ 'send-failed': message.sendFailed }">
-                  <p>{{ message.content }}</p>
-                  <span v-if="message.isTemp && !message.sendFailed" class="sending-hint">发送中...</span>
-                  <span v-if="message.sendFailed" class="failed-hint">发送失败</span>
+                <div class="message-body">
+                  <div class="message-info">
+                    <span class="message-username">{{ message.user.username }}</span>
+                    <span class="message-time">{{ formatTime(message.time) }}</span>
+                  </div>
+                  <div class="message-content" :class="{ 'send-failed': message.sendFailed }">
+                    <p>{{ message.content }}</p>
+                    <span v-if="message.isTemp && !message.sendFailed" class="sending-hint">发送中...</span>
+                    <span v-if="message.sendFailed" class="failed-hint">发送失败</span>
+                  </div>
                 </div>
-              </div>
-            </template>
-          </div>
-        </template>
+              </template>
+            </div>
+          </template>
+        </div>
       </div>
-    </div>
+    </GlassCard>
 
     <div v-if="!connected && !loading" class="reconnect-bar">
-      <Warning class="reconnect-icon" />
+      <span class="i-ep-warning reconnect-icon" />
       <span>连接已断开，消息可能无法实时同步</span>
-      <button class="reconnect-btn" @click="connectWebSocket">重新连接</button>
+      <button class="btn btn-secondary reconnect-btn" @click="connectWebSocket">重新连接</button>
     </div>
 
-    <div class="chat-input-area">
-      <textarea
-        v-model="messageInput"
-        placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
-        class="message-input"
-        rows="1"
-        :disabled="!connected"
-        @keydown="handleInputKeydown"
-      ></textarea>
-      <button class="send-btn" @click="sendMessage" :disabled="!messageInput.trim() || !connected">
-        发送
-      </button>
-    </div>
+    <GlassCard :hover="false" class="input-card" padding="md">
+      <div class="chat-input-area">
+        <textarea
+          v-model="messageInput"
+          placeholder="输入消息，Enter 发送，Shift+Enter 换行..."
+          class="message-input"
+          rows="1"
+          :disabled="!connected"
+          @keydown="handleInputKeydown"
+        ></textarea>
+        <button
+          class="btn btn-primary send-btn"
+          @click="sendMessage"
+          :disabled="!messageInput.trim() || !connected"
+        >
+          发送
+        </button>
+      </div>
+    </GlassCard>
   </div>
 </template>
 
 <style scoped>
-.chat-room {
+.chat-room-page {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 120px);
-  max-width: 900px;
-  margin: 0 auto;
-  background: var(--bg-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  min-height: 480px;
+}
+
+.messages-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  margin-bottom: var(--space-4);
 }
 
-.chat-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--border-color-light);
-  background: var(--bg-secondary);
+.input-card {
+  flex-shrink: 0;
 }
 
-.chat-title {
-  margin: 0;
-  font-size: 18px;
-  color: var(--text-primary);
-}
-
-.header-meta {
+.connection-status-bar {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  font-size: 14px;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  font-size: 0.875rem;
 }
 
-.online-count {
+.connection-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--text-tertiary);
+}
+
+.connection-status-text {
   color: var(--text-secondary);
 }
 
-.connection-status {
-  padding: 2px 10px;
-  border-radius: var(--radius-full);
-  font-size: 12px;
-}
-
-.connection-status.connecting {
-  background: var(--warning-bg);
+.connection-status-dot.connecting,
+.connection-status-text.connecting {
+  background: var(--warning-color);
   color: var(--warning-color);
 }
 
-.connection-status.connected {
-  background: var(--success-bg);
+.connection-status-dot.connected,
+.connection-status-text.connected {
+  background: var(--success-color);
   color: var(--success-color);
 }
 
-.connection-status.disconnected,
-.connection-status.error {
-  background: var(--error-bg);
+.connection-status-dot.disconnected,
+.connection-status-text.disconnected,
+.connection-status-dot.error,
+.connection-status-text.error {
+  background: var(--error-color);
   color: var(--error-color);
 }
 
@@ -514,7 +527,6 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-4) var(--space-5);
-  background: var(--bg-tertiary);
 }
 
 .loading-container,
@@ -539,7 +551,7 @@ onUnmounted(() => {
   margin-bottom: var(--space-4);
 }
 
-.empty-icon svg {
+.empty-icon span {
   width: 32px;
   height: 32px;
 }
@@ -575,10 +587,14 @@ onUnmounted(() => {
 
 .date-divider span {
   padding: 4px 12px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--bg-tertiary);
   color: var(--text-tertiary);
   border-radius: var(--radius-full);
   font-size: 12px;
+}
+
+.dark .date-divider span {
+  background: var(--bg-secondary);
 }
 
 .message-item {
@@ -603,10 +619,14 @@ onUnmounted(() => {
 
 .system-text {
   padding: 4px 12px;
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--bg-tertiary);
   color: var(--text-secondary);
   border-radius: var(--radius-full);
   font-size: 12px;
+}
+
+.dark .system-text {
+  background: var(--bg-secondary);
 }
 
 .message-avatar {
@@ -622,6 +642,7 @@ onUnmounted(() => {
   font-size: 14px;
   background-size: cover;
   background-position: center;
+  box-shadow: var(--shadow-sm);
 }
 
 .message-body {
@@ -643,6 +664,7 @@ onUnmounted(() => {
 
 .message-username {
   color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .message-time {
@@ -657,12 +679,15 @@ onUnmounted(() => {
   word-break: break-word;
   box-shadow: var(--shadow-sm);
   max-width: 100%;
+  border: 1px solid var(--border-color-light);
 }
 
 .self-message .message-content {
   background: var(--primary-500);
   color: var(--text-inverse);
+  border-color: transparent;
   border-bottom-right-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
 }
 
 .other-message .message-content {
@@ -694,6 +719,7 @@ onUnmounted(() => {
 .message-content.send-failed {
   background: var(--error-bg);
   color: var(--error-color);
+  border-color: var(--error-color);
 }
 
 .reconnect-bar {
@@ -702,10 +728,13 @@ onUnmounted(() => {
   justify-content: center;
   gap: var(--space-3);
   padding: var(--space-3);
+  margin-bottom: var(--space-4);
   background: var(--warning-bg);
   color: var(--warning-color);
   font-size: 13px;
-  border-top: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--warning-color);
+  opacity: 0.9;
 }
 
 .reconnect-icon {
@@ -714,25 +743,14 @@ onUnmounted(() => {
 }
 
 .reconnect-btn {
-  padding: 4px 12px;
-  border-radius: var(--radius-md);
-  background: var(--warning-color);
-  color: white;
   font-size: 12px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.reconnect-btn:hover {
-  opacity: 0.9;
+  padding: var(--space-1) var(--space-3);
 }
 
 .chat-input-area {
   display: flex;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-5);
-  border-top: 1px solid var(--border-color-light);
-  background: var(--bg-primary);
+  align-items: flex-end;
 }
 
 .message-input {
@@ -740,6 +758,8 @@ onUnmounted(() => {
   padding: 10px 14px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
+  background: var(--bg-primary);
+  color: var(--text-primary);
   outline: none;
   font-size: 14px;
   resize: none;
@@ -759,23 +779,84 @@ onUnmounted(() => {
   color: var(--text-tertiary);
 }
 
-.send-btn {
-  padding: 0 24px;
-  border: none;
-  border-radius: var(--radius-xl);
-  background: var(--primary-500);
-  color: var(--text-inverse);
-  font-size: 14px;
+/* 按钮样式 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-lg);
+  font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s;
+  border: none;
+  transition: all 0.2s ease;
 }
 
-.send-btn:hover:not(:disabled) {
-  background: var(--primary-600);
+.btn-primary {
+  background-color: var(--primary-600);
+  color: white;
 }
 
-.send-btn:disabled {
-  background: var(--text-tertiary);
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-700);
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--border-color-light);
+}
+
+.btn:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
+}
+
+.send-btn {
+  padding: var(--space-3) var(--space-6);
+}
+
+@media (max-width: 640px) {
+  .chat-room-page {
+    height: calc(100vh - 100px);
+    min-height: auto;
+  }
+
+  .messages-card {
+    margin-bottom: var(--space-3);
+  }
+
+  .chat-messages {
+    padding: var(--space-3);
+  }
+
+  .message-item {
+    max-width: 90%;
+  }
+
+  .message-avatar {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    font-size: 12px;
+  }
+
+  .chat-input-area {
+    gap: var(--space-2);
+  }
+
+  .send-btn {
+    padding: var(--space-2) var(--space-4);
+  }
+
+  .reconnect-bar {
+    flex-wrap: wrap;
+    text-align: center;
+    font-size: 12px;
+  }
 }
 </style>

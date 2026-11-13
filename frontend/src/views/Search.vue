@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Search, Clock, Top, Close, ArrowRight } from '@element-plus/icons-vue'
 import { searchApi, type SearchType, type SearchResults, type SearchSuggestion } from '../api/search'
 import { stripHtml, escapeHtml } from '../utils/xss'
+import GlassCard from '@/components/GlassCard.vue'
+import SectionHeader from '@/components/SectionHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -188,47 +189,50 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="search-page">
-    <div class="search-header">
-      <div class="search-header-inner">
-        <h1>全局搜索</h1>
-        <div class="search-box">
-          <div class="search-input-wrapper">
-            <Search class="search-icon" />
-            <input
-              v-model="query"
-              type="text"
-              placeholder="搜索课程、内容、学校、论坛..."
-              class="search-input"
-              maxlength="100"
-              @input="handleInput"
-              @keyup.enter="doSearch"
-              @focus="handleFocus"
-            />
-            <button v-if="query" class="clear-btn" @click="query = ''; results = {}">
-              <Close />
-            </button>
-          </div>
-          <button class="btn btn-primary" :disabled="loading" @click="doSearch">
-            {{ loading ? '搜索中' : '搜索' }}
-          </button>
-          <ul v-if="showSuggestions" class="suggestions-list">
-            <li
-              v-for="item in suggestions"
-              :key="`${item.type}-${item.id}`"
-              class="suggestion-item"
-              @mousedown="selectSuggestion(item)"
-            >
-              <span class="suggestion-type">{{ typeLabels[item.type] || item.type }}</span>
-              <span class="suggestion-title" v-html="highlightText(item.title, query)"></span>
-              <ArrowRight class="suggestion-arrow" />
-            </li>
-          </ul>
-        </div>
-      </div>
-    </div>
+  <div class="search-page container-wide page-padding">
+    <SectionHeader
+      title="全局搜索"
+      subtitle="搜索课程、内容、学校、论坛..."
+      icon="i-ep-search"
+    />
 
-    <div class="search-body">
+    <GlassCard :hover="false" class="search-card">
+      <div class="search-box">
+        <div class="search-input-wrapper">
+          <span class="search-icon i-ep-search" />
+          <input
+            v-model="query"
+            type="text"
+            placeholder="搜索课程、内容、学校、论坛..."
+            class="search-input"
+            maxlength="100"
+            @input="handleInput"
+            @keyup.enter="doSearch"
+            @focus="handleFocus"
+          />
+          <button v-if="query" class="clear-btn" @click="query = ''; results = {}" aria-label="清空">
+            <span class="i-ep-close" />
+          </button>
+        </div>
+        <button class="btn btn-primary" :disabled="loading" @click="doSearch">
+          {{ loading ? '搜索中' : '搜索' }}
+        </button>
+        <ul v-if="showSuggestions" class="suggestions-list">
+          <li
+            v-for="item in suggestions"
+            :key="`${item.type}-${item.id}`"
+            class="suggestion-item"
+            @mousedown="selectSuggestion(item)"
+          >
+            <span class="suggestion-type">{{ typeLabels[item.type] || item.type }}</span>
+            <span class="suggestion-title" v-html="highlightText(item.title, query)"></span>
+            <span class="suggestion-arrow i-ep-arrow-right" />
+          </li>
+        </ul>
+      </div>
+    </GlassCard>
+
+    <GlassCard :hover="false" class="tabs-card">
       <div class="search-tabs">
         <button
           v-for="t in searchTypes"
@@ -240,7 +244,9 @@ onMounted(() => {
           {{ t.label }}
         </button>
       </div>
+    </GlassCard>
 
+    <div class="search-body">
       <div v-if="loading" class="skeleton-wrapper">
         <div v-for="i in 3" :key="i" class="skeleton-section">
           <div class="skeleton-title"></div>
@@ -257,15 +263,14 @@ onMounted(() => {
       <template v-else-if="hasSearched">
         <div v-if="totalCount === 0" class="empty-state">
           <div class="empty-icon">
-            <Search />
+            <span class="i-ep-search" />
           </div>
           <p class="empty-title">未找到与 "{{ query }}" 相关的结果</p>
           <p class="empty-desc">换个关键词试试看</p>
         </div>
 
         <div v-else class="search-results">
-          <section v-if="results.courses && results.courses.length > 0" class="result-section">
-            <h2>课程</h2>
+          <GlassCard v-if="results.courses && results.courses.length > 0" :hover="false" title="课程" class="result-section">
             <div class="result-list">
               <div
                 v-for="course in results.courses"
@@ -281,10 +286,9 @@ onMounted(() => {
                 </div>
               </div>
             </div>
-          </section>
+          </GlassCard>
 
-          <section v-if="results.contents && results.contents.length > 0" class="result-section">
-            <h2>内容</h2>
+          <GlassCard v-if="results.contents && results.contents.length > 0" :hover="false" title="内容" class="result-section">
             <div class="result-list">
               <div
                 v-for="item in results.contents"
@@ -300,10 +304,9 @@ onMounted(() => {
                 </div>
               </div>
             </div>
-          </section>
+          </GlassCard>
 
-          <section v-if="results.schools && results.schools.length > 0" class="result-section">
-            <h2>学校</h2>
+          <GlassCard v-if="results.schools && results.schools.length > 0" :hover="false" title="学校" class="result-section">
             <div class="result-list">
               <div
                 v-for="school in results.schools"
@@ -319,10 +322,9 @@ onMounted(() => {
                 </div>
               </div>
             </div>
-          </section>
+          </GlassCard>
 
-          <section v-if="results.topics && results.topics.length > 0" class="result-section">
-            <h2>论坛主题</h2>
+          <GlassCard v-if="results.topics && results.topics.length > 0" :hover="false" title="论坛主题" class="result-section">
             <div class="result-list">
               <div
                 v-for="topic in results.topics"
@@ -338,10 +340,9 @@ onMounted(() => {
                 </div>
               </div>
             </div>
-          </section>
+          </GlassCard>
 
-          <section v-if="results.posts && results.posts.length > 0" class="result-section">
-            <h2>帖子</h2>
+          <GlassCard v-if="results.posts && results.posts.length > 0" :hover="false" title="帖子" class="result-section">
             <div class="result-list">
               <div
                 v-for="post in results.posts"
@@ -356,14 +357,14 @@ onMounted(() => {
                 </div>
               </div>
             </div>
-          </section>
+          </GlassCard>
         </div>
       </template>
 
       <div v-else class="search-placeholder">
-        <div v-if="searchHistory.length > 0" class="history-section">
-          <div class="section-header">
-            <Clock class="section-icon" />
+        <GlassCard v-if="searchHistory.length > 0" :hover="false" class="history-section">
+          <div class="section-header-row">
+            <span class="section-icon i-ep-clock" />
             <span class="section-title">搜索历史</span>
             <button class="clear-link" @click="clearHistory">清空</button>
           </div>
@@ -376,15 +377,15 @@ onMounted(() => {
             >
               {{ item }}
               <span class="remove-btn" @click.stop="removeHistory(item)">
-                <Close />
+                <span class="i-ep-close" />
               </span>
             </span>
           </div>
-        </div>
+        </GlassCard>
 
-        <div class="hot-section">
-          <div class="section-header">
-            <Top class="section-icon" />
+        <GlassCard :hover="false" class="hot-section">
+          <div class="section-header-row">
+            <span class="section-icon i-ep-top" />
             <span class="section-title">热门搜索</span>
           </div>
           <div class="tag-list">
@@ -397,11 +398,11 @@ onMounted(() => {
               {{ item }}
             </span>
           </div>
-        </div>
+        </GlassCard>
 
         <div class="empty-state soft">
           <div class="empty-icon">
-            <Search />
+            <span class="i-ep-search" />
           </div>
           <p class="empty-title">输入关键词开始搜索</p>
         </div>
@@ -415,20 +416,9 @@ onMounted(() => {
   min-height: calc(100vh - 200px);
 }
 
-.search-header {
-  background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-700) 100%);
-  color: white;
-  padding: var(--space-10) var(--space-6);
-}
-
-.search-header-inner {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.search-header h1 {
-  font-size: 2rem;
-  margin-bottom: var(--space-6);
+.search-card,
+.tabs-card {
+  margin-bottom: var(--space-5);
 }
 
 .search-box {
@@ -442,21 +432,27 @@ onMounted(() => {
   position: relative;
   display: flex;
   align-items: center;
-  background: white;
+  gap: var(--space-3);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   padding: 0 var(--space-4);
+  transition: border-color 0.2s;
+}
+
+.search-input-wrapper:focus-within {
+  border-color: var(--primary-400);
 }
 
 .search-icon {
-  width: 20px;
-  height: 20px;
+  font-size: 1.25rem;
   color: var(--text-tertiary);
   flex-shrink: 0;
 }
 
 .search-box .search-input {
   flex: 1;
-  padding: var(--space-3) var(--space-3);
+  padding: var(--space-3) 0;
   border: none;
   background: transparent;
   font-size: 1rem;
@@ -469,14 +465,13 @@ onMounted(() => {
 }
 
 .clear-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
   border-radius: 50%;
   color: var(--text-tertiary);
-  cursor: pointer;
   transition: all 0.2s;
 }
 
@@ -485,12 +480,40 @@ onMounted(() => {
   color: var(--text-secondary);
 }
 
-.search-box .btn {
-  padding: 0 var(--space-6);
-  border-radius: var(--radius-lg);
-  border: none;
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-md);
   font-weight: 500;
   cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background-color: var(--primary-600);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-700);
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--border-color);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .suggestions-list {
@@ -498,7 +521,8 @@ onMounted(() => {
   top: calc(100% + 8px);
   left: 0;
   right: calc(72px + var(--space-3));
-  background: white;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   list-style: none;
@@ -522,7 +546,7 @@ onMounted(() => {
 
 .suggestion-type {
   font-size: 0.75rem;
-  color: var(--primary-500);
+  color: var(--primary-600);
   background: var(--primary-50);
   padding: 0.15rem var(--space-2);
   border-radius: var(--radius-sm);
@@ -535,55 +559,56 @@ onMounted(() => {
 }
 
 .suggestion-title :deep(mark) {
-  background: transparent;
-  color: var(--primary-500);
+  background: var(--primary-100);
+  color: var(--primary-600);
   font-weight: 600;
 }
 
 .suggestion-arrow {
-  width: 16px;
-  height: 16px;
+  font-size: 1rem;
   color: var(--text-tertiary);
-}
-
-.search-body {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: var(--space-6);
+  flex-shrink: 0;
 }
 
 .search-tabs {
   display: flex;
   gap: var(--space-2);
-  margin-bottom: var(--space-6);
   flex-wrap: wrap;
 }
 
 .tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-  background: white;
+  background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .tab-btn:hover {
-  border-color: var(--primary-300);
-  color: var(--primary-500);
+  border-color: var(--primary-400);
+  color: var(--primary-600);
 }
 
 .tab-btn.active {
-  background: var(--primary-500);
+  background: var(--primary-600);
   color: white;
-  border-color: var(--primary-500);
+  border-color: var(--primary-600);
+}
+
+.search-body {
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .skeleton-wrapper {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--space-6);
 }
 
 .skeleton-section {
@@ -608,10 +633,11 @@ onMounted(() => {
 }
 
 .skeleton-card {
-  background: white;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -654,15 +680,11 @@ onMounted(() => {
   margin: 0 auto var(--space-4);
   border-radius: 50%;
   background: var(--primary-50);
-  color: var(--primary-500);
+  color: var(--primary-600);
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.empty-icon svg {
-  width: 36px;
-  height: 36px;
+  font-size: 2.25rem;
 }
 
 .empty-title {
@@ -679,10 +701,10 @@ onMounted(() => {
 .search-results {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--space-5);
 }
 
-.result-section h2 {
+.result-section :deep(.glass-card-title) {
   font-size: 1.1rem;
   color: var(--text-primary);
   margin-bottom: var(--space-4);
@@ -697,7 +719,7 @@ onMounted(() => {
 }
 
 .result-card {
-  background: white;
+  background: var(--bg-primary);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
   box-shadow: var(--shadow-sm);
@@ -720,8 +742,8 @@ onMounted(() => {
 }
 
 .result-card h3 :deep(mark) {
-  background: transparent;
-  color: var(--primary-500);
+  background: var(--primary-100);
+  color: var(--primary-600);
   font-weight: 700;
 }
 
@@ -737,8 +759,8 @@ onMounted(() => {
 }
 
 .result-card p :deep(mark) {
-  background: transparent;
-  color: var(--primary-500);
+  background: var(--primary-100);
+  color: var(--primary-600);
   font-weight: 600;
 }
 
@@ -749,35 +771,13 @@ onMounted(() => {
   color: var(--text-tertiary);
 }
 
-.btn-primary {
-  background-color: var(--primary-500);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background-color: var(--primary-600);
-}
-
-.btn-primary:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
 .search-placeholder {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--space-5);
 }
 
-.history-section,
-.hot-section {
-  background: white;
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-  box-shadow: var(--shadow-sm);
-}
-
-.section-header {
+.section-header-row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -785,9 +785,8 @@ onMounted(() => {
 }
 
 .section-icon {
-  width: 18px;
-  height: 18px;
-  color: var(--primary-500);
+  font-size: 1.125rem;
+  color: var(--primary-600);
 }
 
 .section-title {
@@ -830,7 +829,7 @@ onMounted(() => {
 .history-tag:hover,
 .hot-tag:hover {
   background: var(--primary-50);
-  color: var(--primary-500);
+  color: var(--primary-600);
 }
 
 .remove-btn {
@@ -863,15 +862,11 @@ onMounted(() => {
   }
 
   .search-box .btn {
-    padding: var(--space-3);
+    width: 100%;
   }
 
   .suggestions-list {
     right: 0;
-  }
-
-  .search-header h1 {
-    font-size: 1.5rem;
   }
 }
 </style>

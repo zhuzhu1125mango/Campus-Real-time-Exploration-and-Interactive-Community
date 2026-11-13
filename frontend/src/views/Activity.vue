@@ -1,50 +1,16 @@
-<template>
-  <div class="activity-page">
-    <div class="activity-header">
-      <h1>个人动态</h1>
-      <p>查看你和关注用户的最新动态</p>
-    </div>
-    
-    <div class="activity-content">
-      <div class="activity-tabs">
-        <button 
-          class="tab-btn" 
-          :class="{ 'active': activeTab === 'feed' }"
-          @click="activeTab = 'feed'"
-        >
-          关注动态
-        </button>
-        <button 
-          class="tab-btn" 
-          :class="{ 'active': activeTab === 'my' }"
-          @click="activeTab = 'my'"
-        >
-          我的动态
-        </button>
-        <button 
-          class="tab-btn" 
-          :class="{ 'active': activeTab === 'all' }"
-          @click="activeTab = 'all'"
-        >
-          全部动态
-        </button>
-      </div>
-      
-      <div class="activity-feed-container">
-        <ActivityFeed 
-          :title="getTabTitle()" 
-          :feed-type="activeTab"
-        />
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { ref } from 'vue'
 import ActivityFeed from '../components/ActivityFeed.vue'
+import GlassCard from '../components/GlassCard.vue'
+import SectionHeader from '../components/SectionHeader.vue'
 
 const activeTab = ref<'feed' | 'my' | 'all'>('feed')
+
+const tabs: { key: 'feed' | 'my' | 'all'; label: string; icon: string }[] = [
+  { key: 'feed', label: '关注动态', icon: 'i-ep-user-filled' },
+  { key: 'my', label: '我的动态', icon: 'i-ep-user' },
+  { key: 'all', label: '全部动态', icon: 'i-ep-view' }
+]
 
 const getTabTitle = () => {
   switch (activeTab.value) {
@@ -60,97 +26,103 @@ const getTabTitle = () => {
 }
 </script>
 
+<template>
+  <div class="activity-page container-wide page-padding">
+    <SectionHeader
+      title="个人动态"
+      subtitle="查看你和关注用户的最新动态"
+      icon="i-ep-magic-stick"
+    />
+
+    <GlassCard :hover="false" class="activity-card">
+      <div class="activity-tabs">
+        <button
+          v-for="tab in tabs"
+          :key="tab.key"
+          class="tab-btn"
+          :class="{ active: activeTab === tab.key }"
+          @click="activeTab = tab.key"
+        >
+          <span :class="tab.icon" />
+          {{ tab.label }}
+        </button>
+      </div>
+
+      <div class="activity-feed-container">
+        <ActivityFeed
+          :title="getTabTitle()"
+          :feed-type="activeTab"
+        />
+      </div>
+    </GlassCard>
+  </div>
+</template>
+
 <style scoped>
 .activity-page {
-  min-height: 100vh;
-  background: #f5f7fa;
+  min-height: calc(100vh - 200px);
 }
 
-.activity-header {
-  background: linear-gradient(135deg, #9b59b6, #8e44ad);
-  color: #fff;
-  padding: 60px 20px;
-  text-align: center;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-.activity-header h1 {
-  font-size: 36px;
-  font-weight: bold;
-  margin-bottom: 10px;
-}
-
-.activity-header p {
-  font-size: 18px;
-  opacity: 0.9;
-}
-
-.activity-content {
-  padding: 40px 20px;
-  max-width: 800px;
-  margin: 0 auto;
+.activity-card {
+  overflow: visible;
 }
 
 .activity-tabs {
   display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-  background: #fff;
-  border-radius: 8px;
-  padding: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  padding: var(--space-1);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  width: fit-content;
 }
 
 .tab-btn {
-  flex: 1;
-  padding: 12px;
-  background: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
   border: none;
-  border-radius: 6px;
-  font-size: 16px;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
   font-weight: 500;
-  color: #666;
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.2s ease;
 }
 
 .tab-btn:hover {
-  background: #f5f7fa;
-  color: #333;
+  color: var(--text-primary);
+  background: var(--bg-primary);
 }
 
 .tab-btn.active {
-  background: #9b59b6;
-  color: #fff;
+  background: var(--bg-primary);
+  color: var(--primary-600);
+  box-shadow: var(--shadow-sm);
+}
+
+.dark .tab-btn.active {
+  background: var(--bg-primary);
+  color: var(--primary-400);
 }
 
 .activity-feed-container {
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
-@media (max-width: 768px) {
-  .activity-header {
-    padding: 40px 20px;
-  }
-  
-  .activity-header h1 {
-    font-size: 28px;
-  }
-  
-  .activity-content {
-    padding: 20px 10px;
-  }
-  
+@media (max-width: 640px) {
   .activity-tabs {
-    flex-direction: column;
+    width: 100%;
   }
-  
+
   .tab-btn {
-    padding: 10px;
-    font-size: 14px;
+    flex: 1;
+    justify-content: center;
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.875rem;
   }
 }
 </style>

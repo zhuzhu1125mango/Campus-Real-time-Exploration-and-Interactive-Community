@@ -82,7 +82,7 @@
           </template>
           <div class="event-card-body">
             <div class="event-info">
-              <el-icon><Time /></el-icon>
+              <el-icon><Clock /></el-icon>
               <span>{{ formatDateTime(event.start_time) }} - {{ formatDateTime(event.end_time) }}</span>
             </div>
             <div class="event-info">
@@ -157,7 +157,7 @@
       </div>
       <div v-else-if="errorEvent" class="error-container">
         <el-empty description="获取活动详情失败" />
-        <el-button type="primary" @click="loadEventDetail(selectedEvent.id)">重新加载</el-button>
+        <el-button v-if="selectedEvent" type="primary" @click="loadEventDetail(selectedEvent.id)">重新加载</el-button>
       </div>
       <div v-else-if="selectedEvent" class="event-detail">
         <div class="event-detail-header">
@@ -172,11 +172,11 @@
             <span>学校: {{ selectedEvent.school }}</span>
           </div>
           <div class="info-item">
-            <el-icon><Time /></el-icon>
+            <el-icon><Clock /></el-icon>
             <span>开始时间: {{ formatDateTime(selectedEvent.start_time) }}</span>
           </div>
           <div class="info-item">
-            <el-icon><Time /></el-icon>
+            <el-icon><Clock /></el-icon>
             <span>结束时间: {{ formatDateTime(selectedEvent.end_time) }}</span>
           </div>
           <div class="info-item">
@@ -233,8 +233,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
-import { Location, User, School, UserFilled, Timer } from '@element-plus/icons-vue'
+import { Location, User, School, UserFilled, Timer, Clock } from '@element-plus/icons-vue'
 import { schoolApi } from '../api/school'
+import type { Event as SchoolEvent, School as SchoolType } from '@/types/school'
 
 // 筛选条件
 const schoolFilter = ref('')
@@ -247,18 +248,18 @@ const pageSize = ref(10)
 const total = ref(0)
 
 // 活动数据
-const events = ref<any[]>([])
+const events = ref<SchoolEvent[]>([])
 const loading = ref(false)
 const error = ref(false)
 
 // 学校数据
-const schools = ref<any[]>([])
+const schools = ref<SchoolType[]>([])
 
 // 日历
 const currentDate = ref(new Date())
 
 // 活动详情
-const selectedEvent = ref<any>(null)
+const selectedEvent = ref<SchoolEvent | null>(null)
 const showEventDialog = ref(false)
 const loadingEvent = ref(false)
 const errorEvent = ref(false)
@@ -278,13 +279,20 @@ const loadEvents = async () => {
   loading.value = true
   error.value = false
   try {
-    const params: any = {
+    const params: {
+      page: number
+      pageSize: number
+      school_id?: number
+      status?: string
+      start_date?: string
+      end_date?: string
+    } = {
       page: currentPage.value,
       pageSize: pageSize.value
     }
     
     if (schoolFilter.value) {
-      params.school_id = schoolFilter.value
+      params.school_id = Number(schoolFilter.value)
     }
     
     if (statusFilter.value) {
@@ -325,14 +333,23 @@ const loadEventDetail = async (eventId: number) => {
 }
 
 // 查看活动详情
-const viewEvent = (event: any) => {
+const viewEvent = (event: SchoolEvent) => {
   selectedEvent.value = event
   showEventDialog.value = true
   loadEventDetail(event.id)
 }
 
+// 提取错误提示
+const getErrorMessage = (err: unknown, defaultMsg: string): string => {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const response = (err as { response?: { data?: { detail?: string } } }).response
+    return response?.data?.detail || defaultMsg
+  }
+  return defaultMsg
+}
+
 // 报名活动
-const registerEvent = async (event: any) => {
+const registerEvent = async (event: SchoolEvent) => {
   try {
     await schoolApi.registerEvent(event.id)
     ElNotification.success({
@@ -344,14 +361,14 @@ const registerEvent = async (event: any) => {
     loadEventDetail(event.id)
     // 重新加载活动列表
     loadEvents()
-  } catch (err: any) {
-    ElMessage.error(err.response?.data?.detail || '报名失败，请重试')
+  } catch (err: unknown) {
+    ElMessage.error(getErrorMessage(err, '报名失败，请重试'))
     console.error('报名失败:', err)
   }
 }
 
 // 取消报名
-const cancelRegistration = async (event: any) => {
+const cancelRegistration = async (event: SchoolEvent) => {
   try {
     await schoolApi.cancelEventRegistration(event.id)
     ElNotification.success({
@@ -363,8 +380,8 @@ const cancelRegistration = async (event: any) => {
     loadEventDetail(event.id)
     // 重新加载活动列表
     loadEvents()
-  } catch (err: any) {
-    ElMessage.error(err.response?.data?.detail || '取消报名失败，请重试')
+  } catch (err: unknown) {
+    ElMessage.error(getErrorMessage(err, '取消报名失败，请重试'))
     console.error('取消报名失败:', err)
   }
 }

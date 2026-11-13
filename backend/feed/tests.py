@@ -7,8 +7,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from forum.models import Category, Board, Topic, Post, Tag as ForumTag
 from content.models import ContentType, Content, Tag as ContentTag
-from users.activities import Activity
-from users.friendship import Friend
+from activities.models import Activity
+from friendships.models import Friend
 from schools.models import School, Event, Place
 
 User = get_user_model()

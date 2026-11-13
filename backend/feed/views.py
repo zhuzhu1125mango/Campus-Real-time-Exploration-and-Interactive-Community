@@ -8,8 +8,8 @@ from rest_framework.response import Response
 
 from forum.models import Topic, Tag as ForumTag
 from content.models import Content, Tag as ContentTag
-from users.activities import Activity
-from users.friendship import Friend
+from activities.models import Activity
+from friendships.models import Friend
 from schools.models import Event, Place
 
 

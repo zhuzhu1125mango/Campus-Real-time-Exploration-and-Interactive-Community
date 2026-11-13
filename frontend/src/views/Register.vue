@@ -1,32 +1,33 @@
 <template>
-  <div class="register-container">
-    <div class="register-card">
-      <div class="register-header">
-        <h2>创建新账号</h2>
-        <p>加入校园互动社区，开启精彩校园生活</p>
-      </div>
-      
-      <div class="register-tabs">
-        <button 
-          @click="activeTab = 'email'" 
+  <div class="auth-page container-narrow page-padding">
+    <SectionHeader
+      title="创建新账号"
+      subtitle="加入校园互动社区，开启精彩校园生活"
+      icon="i-ep-user-filled"
+    />
+
+    <GlassCard :hover="false" class="auth-card" padding="lg">
+      <div class="auth-tabs">
+        <button
+          @click="activeTab = 'email'"
           :class="['tab-btn', { active: activeTab === 'email' }]"
         >
           邮箱注册
         </button>
-        <button 
-          @click="activeTab = 'phone'" 
+        <button
+          @click="activeTab = 'phone'"
           :class="['tab-btn', { active: activeTab === 'phone' }]"
         >
           手机号注册
         </button>
       </div>
-      
+
       <!-- 邮箱注册 -->
-      <form v-if="activeTab === 'email'" @submit.prevent="handleEmailRegister" class="register-form">
+      <form v-if="activeTab === 'email'" @submit.prevent="handleEmailRegister" class="auth-form">
         <div class="form-group">
           <label for="username-email">用户名</label>
           <div class="input-wrapper">
-            <span class="input-icon user-icon"></span>
+            <span class="input-icon i-ep-user" />
             <input
               type="text"
               id="username-email"
@@ -35,50 +36,53 @@
               placeholder="请输入用户名"
               minlength="3"
               maxlength="30"
+              class="form-input"
             />
           </div>
         </div>
-        
+
         <div class="form-group">
           <label for="email">邮箱</label>
           <div class="input-wrapper">
-            <span class="input-icon email-icon"></span>
+            <span class="input-icon i-ep-message" />
             <input
               type="email"
               id="email"
               v-model="emailForm.email"
               required
               placeholder="请输入邮箱"
+              class="form-input"
             />
           </div>
         </div>
-        
+
         <div class="form-group">
           <label for="emailCode">验证码</label>
           <div class="input-wrapper code-wrapper">
-            <span class="input-icon code-icon"></span>
+            <span class="input-icon i-ep-key" />
             <input
               type="text"
               id="emailCode"
               v-model="emailForm.code"
               required
               placeholder="请输入验证码"
+              class="form-input"
             />
-            <button 
-              type="button" 
-              class="btn-code" 
-              :disabled="emailCounting || !isValidEmail" 
+            <button
+              type="button"
+              class="btn btn-secondary code-btn"
+              :disabled="emailCounting || !isValidEmail"
               @click="sendEmailCode"
             >
               {{ emailCountDown ? `${emailCountDown}秒后重发` : '获取验证码' }}
             </button>
           </div>
         </div>
-        
+
         <div class="form-group">
           <label for="password-email">密码</label>
           <div class="input-wrapper">
-            <span class="input-icon password-icon"></span>
+            <span class="input-icon i-ep-lock" />
             <input
               :type="showPasswordEmail ? 'text' : 'password'"
               id="password-email"
@@ -86,21 +90,22 @@
               required
               placeholder="请输入密码"
               minlength="8"
+              class="form-input"
             />
-            <button 
-              type="button" 
-              class="btn-toggle-password" 
+            <button
+              type="button"
+              class="btn-toggle-password"
               @click="showPasswordEmail = !showPasswordEmail"
             >
-              <span :class="['toggle-password-icon', showPasswordEmail ? 'show' : 'hide']"></span>
+              <span :class="['toggle-password-icon', showPasswordEmail ? 'i-ep-view' : 'i-ep-hide']" />
             </button>
           </div>
         </div>
-        
+
         <div class="form-group">
           <label for="confirmPassword-email">确认密码</label>
           <div class="input-wrapper">
-            <span class="input-icon password-icon"></span>
+            <span class="input-icon i-ep-lock" />
             <input
               :type="showConfirmPasswordEmail ? 'text' : 'password'"
               id="confirmPassword-email"
@@ -108,31 +113,32 @@
               required
               placeholder="请再次输入密码"
               minlength="8"
+              class="form-input"
             />
-            <button 
-              type="button" 
-              class="btn-toggle-password" 
+            <button
+              type="button"
+              class="btn-toggle-password"
               @click="showConfirmPasswordEmail = !showConfirmPasswordEmail"
             >
-              <span :class="['toggle-password-icon', showConfirmPasswordEmail ? 'show' : 'hide']"></span>
+              <span :class="['toggle-password-icon', showConfirmPasswordEmail ? 'i-ep-view' : 'i-ep-hide']" />
             </button>
           </div>
         </div>
-        
+
         <div class="form-actions">
-          <button type="submit" class="btn-register" :disabled="loading">
-            <span v-if="loading" class="loading-spinner"></span>
+          <button type="submit" class="btn btn-primary" :disabled="loading">
+            <span v-if="loading" class="loading-spinner" />
             <span>{{ loading ? '注册中...' : '注册' }}</span>
           </button>
         </div>
       </form>
-      
+
       <!-- 手机号注册 -->
-      <form v-if="activeTab === 'phone'" @submit.prevent="handlePhoneRegister" class="register-form">
+      <form v-if="activeTab === 'phone'" @submit.prevent="handlePhoneRegister" class="auth-form">
         <div class="form-group">
           <label for="username-phone">用户名</label>
           <div class="input-wrapper">
-            <span class="input-icon user-icon"></span>
+            <span class="input-icon i-ep-user" />
             <input
               type="text"
               id="username-phone"
@@ -141,14 +147,15 @@
               placeholder="请输入用户名"
               minlength="3"
               maxlength="30"
+              class="form-input"
             />
           </div>
         </div>
-        
+
         <div class="form-group">
           <label for="phone">手机号</label>
           <div class="input-wrapper">
-            <span class="input-icon phone-icon"></span>
+            <span class="input-icon i-ep-iphone" />
             <input
               type="tel"
               id="phone"
@@ -156,36 +163,38 @@
               required
               placeholder="请输入手机号"
               pattern="^1[3-9]\d{9}$"
+              class="form-input"
             />
           </div>
         </div>
-        
+
         <div class="form-group">
           <label for="phoneCode">验证码</label>
           <div class="input-wrapper code-wrapper">
-            <span class="input-icon code-icon"></span>
+            <span class="input-icon i-ep-key" />
             <input
               type="text"
               id="phoneCode"
               v-model="phoneForm.code"
               required
               placeholder="请输入验证码"
+              class="form-input"
             />
-            <button 
-              type="button" 
-              class="btn-code" 
-              :disabled="phoneCounting || !isValidPhone" 
+            <button
+              type="button"
+              class="btn btn-secondary code-btn"
+              :disabled="phoneCounting || !isValidPhone"
               @click="sendPhoneCode"
             >
               {{ phoneCountDown ? `${phoneCountDown}秒后重发` : '获取验证码' }}
             </button>
           </div>
         </div>
-        
+
         <div class="form-group">
           <label for="password-phone">密码</label>
           <div class="input-wrapper">
-            <span class="input-icon password-icon"></span>
+            <span class="input-icon i-ep-lock" />
             <input
               :type="showPasswordPhone ? 'text' : 'password'"
               id="password-phone"
@@ -193,21 +202,22 @@
               required
               placeholder="请输入密码"
               minlength="8"
+              class="form-input"
             />
-            <button 
-              type="button" 
-              class="btn-toggle-password" 
+            <button
+              type="button"
+              class="btn-toggle-password"
               @click="showPasswordPhone = !showPasswordPhone"
             >
-              <span :class="['toggle-password-icon', showPasswordPhone ? 'show' : 'hide']"></span>
+              <span :class="['toggle-password-icon', showPasswordPhone ? 'i-ep-view' : 'i-ep-hide']" />
             </button>
           </div>
         </div>
-        
+
         <div class="form-group">
           <label for="confirmPassword-phone">确认密码</label>
           <div class="input-wrapper">
-            <span class="input-icon password-icon"></span>
+            <span class="input-icon i-ep-lock" />
             <input
               :type="showConfirmPasswordPhone ? 'text' : 'password'"
               id="confirmPassword-phone"
@@ -215,37 +225,41 @@
               required
               placeholder="请再次输入密码"
               minlength="8"
+              class="form-input"
             />
-            <button 
-              type="button" 
-              class="btn-toggle-password" 
+            <button
+              type="button"
+              class="btn-toggle-password"
               @click="showConfirmPasswordPhone = !showConfirmPasswordPhone"
             >
-              <span :class="['toggle-password-icon', showConfirmPasswordPhone ? 'show' : 'hide']"></span>
+              <span :class="['toggle-password-icon', showConfirmPasswordPhone ? 'i-ep-view' : 'i-ep-hide']" />
             </button>
           </div>
         </div>
-        
+
         <div class="form-actions">
-          <button type="submit" class="btn-register" :disabled="loading">
-            <span v-if="loading" class="loading-spinner"></span>
+          <button type="submit" class="btn btn-primary" :disabled="loading">
+            <span v-if="loading" class="loading-spinner" />
             <span>{{ loading ? '注册中...' : '注册' }}</span>
           </button>
         </div>
       </form>
-      
-      <div class="register-footer">
-        <p>已有账号？ <router-link to="/login" class="login-link">立即登录</router-link></p>
+
+      <div class="auth-footer">
+        <p>已有账号？ <router-link to="/login" class="auth-link">立即登录</router-link></p>
       </div>
-    </div>
+    </GlassCard>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import GlassCard from '@/components/GlassCard.vue'
+import SectionHeader from '@/components/SectionHeader.vue'
 import { userApi } from '../api/user'
 import { useToast } from '../composables/useToast'
+import { getApiErrorMessage } from '../utils/error'
 
 const router = useRouter()
 const { showToast } = useToast()
@@ -300,26 +314,26 @@ const handleEmailRegister = async () => {
     showToast('请输入用户名', 'error')
     return
   }
-  
+
   // 验证邮箱
   if (!isValidEmail.value) {
     showToast('请输入正确的邮箱地址', 'error')
     return
   }
-  
+
   // 验证密码
   if (emailForm.value.password !== emailForm.value.password_confirm) {
     showToast('两次输入的密码不一致', 'error')
     return
   }
-  
+
   if (emailForm.value.password.length < 8) {
     showToast('密码长度不能少于8位', 'error')
     return
   }
-  
+
   loading.value = true
-  
+
   try {
     const registerData: any = {
       username: emailForm.value.username,
@@ -327,32 +341,32 @@ const handleEmailRegister = async () => {
       password: emailForm.value.password,
       password_confirm: emailForm.value.password_confirm
     }
-    
+
     // 只有当用户输入了验证码时，才发送code字段
     if (emailForm.value.code) {
       registerData.code = emailForm.value.code
     }
-    
+
     await userApi.register(registerData)
-    
+
     showToast('注册成功，请登录', 'success')
-    
+
     // 注册成功，跳转到登录页
     router.push('/login')
-  } catch (error: any) {
+  } catch (error) {
+    const data = (error as { response?: { data?: Record<string, unknown> } }).response?.data
     let errorMsg = '注册失败，请稍后重试'
-    if (error.response?.data?.detail) {
-      errorMsg = error.response.data.detail
-    } else if (error.response?.data) {
-      // 处理各种字段错误
-      const errors = error.response.data
-      for (const key in errors) {
-        if (Array.isArray(errors[key])) {
-          errorMsg = errors[key][0]
+    if (data?.detail) {
+      errorMsg = data.detail as string
+    } else if (data) {
+      for (const key in data) {
+        const val = data[key]
+        if (Array.isArray(val) && val.length > 0) {
+          errorMsg = String(val[0])
           break
         }
       }
-    } else if (error.message) {
+    } else if (error instanceof Error) {
       errorMsg = error.message
     }
     showToast(errorMsg, 'error')
@@ -368,26 +382,26 @@ const handlePhoneRegister = async () => {
     showToast('请输入用户名', 'error')
     return
   }
-  
+
   // 验证手机号
   if (!isValidPhone.value) {
     showToast('请输入正确的手机号', 'error')
     return
   }
-  
+
   // 验证密码
   if (phoneForm.value.password !== phoneForm.value.password_confirm) {
     showToast('两次输入的密码不一致', 'error')
     return
   }
-  
+
   if (phoneForm.value.password.length < 8) {
     showToast('密码长度不能少于8位', 'error')
     return
   }
-  
+
   loading.value = true
-  
+
   try {
     const registerData: any = {
       username: phoneForm.value.username,
@@ -395,32 +409,32 @@ const handlePhoneRegister = async () => {
       password: phoneForm.value.password,
       password_confirm: phoneForm.value.password_confirm
     }
-    
+
     // 只有当用户输入了验证码时，才发送code字段
     if (phoneForm.value.code) {
       registerData.code = phoneForm.value.code
     }
-    
+
     await userApi.register(registerData)
-    
+
     showToast('注册成功，请登录', 'success')
-    
+
     // 注册成功，跳转到登录页
     router.push('/login')
-  } catch (error: any) {
+  } catch (error) {
+    const data = (error as { response?: { data?: Record<string, unknown> } }).response?.data
     let errorMsg = '注册失败，请稍后重试'
-    if (error.response?.data?.detail) {
-      errorMsg = error.response.data.detail
-    } else if (error.response?.data) {
-      // 处理各种字段错误
-      const errors = error.response.data
-      for (const key in errors) {
-        if (Array.isArray(errors[key])) {
-          errorMsg = errors[key][0]
+    if (data?.detail) {
+      errorMsg = data.detail as string
+    } else if (data) {
+      for (const key in data) {
+        const val = data[key]
+        if (Array.isArray(val) && val.length > 0) {
+          errorMsg = String(val[0])
           break
         }
       }
-    } else if (error.message) {
+    } else if (error instanceof Error) {
       errorMsg = error.message
     }
     showToast(errorMsg, 'error')
@@ -435,13 +449,13 @@ const sendEmailCode = async () => {
     showToast('请输入正确的邮箱', 'error')
     return
   }
-  
+
   try {
     await userApi.sendEmailCode({
       email: emailForm.value.email,
       purpose: 'register'
     })
-    
+
     // 开始倒计时
     emailCountDown.value = 60
     const timer = setInterval(() => {
@@ -450,11 +464,10 @@ const sendEmailCode = async () => {
         clearInterval(timer)
       }
     }, 1000)
-    
+
     showToast('验证码已发送，请查看邮箱', 'success')
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || error.message || '发送验证码失败'
-    showToast(errorMsg, 'error')
+  } catch (error) {
+    showToast(getApiErrorMessage(error, '发送验证码失败'), 'error')
   }
 }
 
@@ -464,13 +477,13 @@ const sendPhoneCode = async () => {
     showToast('请输入正确的手机号', 'error')
     return
   }
-  
+
   try {
     await userApi.sendPhoneCode({
       phone: phoneForm.value.phone,
       purpose: 'register'
     })
-    
+
     // 开始倒计时
     phoneCountDown.value = 60
     const timer = setInterval(() => {
@@ -479,72 +492,45 @@ const sendPhoneCode = async () => {
         clearInterval(timer)
       }
     }, 1000)
-    
+
     showToast('验证码已发送，请注意查收', 'success')
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || error.message || '发送验证码失败'
-    showToast(errorMsg, 'error')
+  } catch (error) {
+    showToast(getApiErrorMessage(error, '发送验证码失败'), 'error')
   }
 }
 </script>
 
 <style scoped>
-.register-container {
+.auth-page {
+  min-height: calc(100vh - 200px);
+}
+
+.auth-card {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.auth-tabs {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: calc(100vh - 130px);
-  padding: 2rem 1rem;
-  background-color: #f9fafc;
-}
-
-.register-card {
-  width: 100%;
-  max-width: 500px;
-  background-color: white;
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-}
-
-.register-header {
-  padding: 2.5rem 2.5rem 1.5rem;
-  text-align: center;
-}
-
-.register-header h2 {
-  font-size: 1.8rem;
-  color: #333;
-  margin-bottom: 0.5rem;
-  font-weight: 700;
-}
-
-.register-header p {
-  color: #666;
-  font-size: 1rem;
-}
-
-.register-tabs {
-  display: flex;
-  border-bottom: 1px solid #eee;
-  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: var(--space-6);
 }
 
 .tab-btn {
   flex: 1;
-  padding: 1rem 0;
+  padding: var(--space-3) 0;
   background: none;
   border: none;
-  color: #666;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s;
   position: relative;
 }
 
 .tab-btn.active {
-  color: #4361ee;
+  color: var(--primary-600);
   font-weight: 600;
 }
 
@@ -555,24 +541,26 @@ const sendPhoneCode = async () => {
   left: 20%;
   width: 60%;
   height: 3px;
-  background-color: #4361ee;
-  border-radius: 3px 3px 0 0;
+  background-color: var(--primary-600);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
 
-.register-form {
-  padding: 0 2.5rem 2rem;
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
 
 .form-group {
-  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
-label {
-  display: block;
-  margin-bottom: 0.5rem;
-  color: #555;
-  font-weight: 500;
+.form-group label {
   font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .input-wrapper {
@@ -584,193 +572,160 @@ label {
 .code-wrapper {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .input-icon {
   position: absolute;
-  left: 12px;
-  width: 20px;
-  height: 20px;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
-  opacity: 0.5;
+  left: var(--space-3);
+  color: var(--text-tertiary);
+  font-size: 1.1rem;
+  pointer-events: none;
 }
 
-.user-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>');
-}
-
-.email-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>');
-}
-
-.phone-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M16 1H8C6.34 1 5 2.34 5 4v16c0 1.66 1.34 3 3 3h8c1.66 0 3-1.34 3-3V4c0-1.66-1.34-3-3-3zm-2 20h-4v-1h4v1zm3.25-3H6.75V4h10.5v14z"/></svg>');
-}
-
-.password-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>');
-}
-
-.code-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M22 3H2C.9 3 0 3.9 0 5v14c0 1.1.9 2 2 2h20c1.1 0 1.99-.9 1.99-2L24 5c0-1.1-.9-2-2-2zm0 16H2V5h20v14zM10 8h4c1.1 0 2 .9 2 2s-.9 2-2 2h-4v-2h4v-2h-4v2z"/></svg>');
-}
-
-input {
+.form-input {
   width: 100%;
-  padding: 0.8rem 0.8rem 0.8rem 2.5rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  padding: var(--space-3) var(--space-4);
+  padding-left: 2.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   font-size: 1rem;
-  transition: all 0.3s;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-input:focus {
+.form-input:focus {
   outline: none;
-  border-color: #4361ee;
-  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+  border-color: var(--primary-400);
+  box-shadow: 0 0 0 3px var(--primary-100);
 }
 
-.btn-code {
-  min-width: 110px;
-  padding: 0.8rem;
-  background-color: #4361ee;
-  color: white;
+.form-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.dark .form-input:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.btn-toggle-password {
+  position: absolute;
+  right: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
+  color: var(--text-tertiary);
+  background: none;
   border: none;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: color 0.2s;
+}
+
+.btn-toggle-password:hover {
+  color: var(--text-secondary);
+}
+
+.toggle-password-icon {
+  font-size: 1.1rem;
+}
+
+.code-btn {
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.85rem;
   white-space: nowrap;
 }
 
-.btn-code:hover:not(:disabled) {
-  background-color: #3a56d4;
-}
-
-.btn-code:disabled {
-  background-color: #b0b0b0;
-  cursor: not-allowed;
-}
-
 .form-actions {
-  margin-top: 2rem;
+  margin-top: var(--space-2);
 }
 
-.btn-register {
+.form-actions .btn {
   width: 100%;
-  padding: 0.9rem;
-  background-color: #4361ee;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: flex;
-  justify-content: center;
+}
+
+.btn {
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-lg);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
 }
 
-.btn-register:hover {
-  background-color: #3a56d4;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(67, 97, 238, 0.2);
+.btn-primary {
+  background-color: var(--primary-600);
+  color: white;
 }
 
-.btn-register:disabled {
-  background-color: #b0b0b0;
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-700);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--border-color-light);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .loading-spinner {
-  display: inline-block;
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255,255,255,0.3);
+  border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
-  border-top-color: #fff;
-  animation: spin 1s linear infinite;
+  border-top-color: white;
+  animation: spin 1s ease-in-out infinite;
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-.register-footer {
-  padding: 1.5rem;
-  background-color: #f8f9ff;
+.auth-footer {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border-color-light);
   text-align: center;
-  border-top: 1px solid #f0f0f0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
 }
 
-.login-link {
-  color: #4361ee;
+.auth-link {
+  color: var(--text-link);
   font-weight: 600;
-  text-decoration: none;
 }
 
-.login-link:hover {
-  text-decoration: underline;
+.auth-link:hover {
+  color: var(--primary-500);
 }
 
-@media (max-width: 480px) {
-  .register-card {
+@media (max-width: 640px) {
+  .auth-card {
     max-width: 100%;
   }
-  
-  .register-header {
-    padding: 2rem 1.5rem 1rem;
-  }
-  
-  .register-form {
-    padding: 0 1.5rem 1.5rem;
-  }
-  
+
   .tab-btn {
-    font-size: 0.8rem;
-    padding: 0.8rem 0;
+    font-size: 0.85rem;
   }
 }
-
-/* 密码显示/隐藏按钮样式 */
-.btn-toggle-password {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  padding: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #666;
-  outline: none;
-}
-
-.toggle-password-icon {
-  width: 20px;
-  height: 20px;
-  display: inline-block;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-}
-
-.toggle-password-icon.show {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>');
-}
-
-.toggle-password-icon.hide {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>');
-}
-</style> 
+</style>

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { logger } from '@/utils/logger'
+import { getErrorMessage } from '@/utils/error'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import request from './utils/request'
@@ -11,7 +13,6 @@ import BackToTop from './components/BackToTop.vue'
 import AppFooter from './components/AppFooter.vue'
 import { userApi } from './api/user'
 import { useUserStore } from './stores/userStore'
-import config from './utils/config'
 import type { NavDropdownItem } from './components/NavDropdown.vue'
 
 // 使用User Store
@@ -30,29 +31,29 @@ const mobileMenuOpen = ref(false)
 
 // 检查后端服务器状态（带超时、取消和重试）
 const checkBackendStatus = async (retries = 2) => {
-  console.log('开始检查后端服务器状态')
+  logger.log('开始检查后端服务器状态')
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController()
     const timeoutId = window.setTimeout(() => controller.abort(), 5000)
     try {
       // 使用统一 request 封装（响应拦截器已返回 response.data）
-      const data = await request.get('/health/', {
+      const data = await request.get<{ status: string }>('/health/', {
         signal: controller.signal,
         timeout: 5000
       })
       if (data?.status === 'ok') {
-        console.log('后端服务器可用')
+        logger.log('后端服务器可用')
         backendStatus.value = 'online'
         appInitialized.value = true
         return
       }
       throw new Error('健康检查失败')
-    } catch (error: any) {
-      const isAbort = error.name === 'AbortError'
+    } catch (error) {
+      const isAbort = error instanceof Error && error.name === 'AbortError'
       if (isAbort) {
-        console.warn(`健康检查超时（尝试 ${attempt + 1}/${retries + 1}）`)
+        logger.warn(`健康检查超时（尝试 ${attempt + 1}/${retries + 1}）`)
       } else if (attempt >= retries) {
-        console.error('后端服务器不可用:', error.message || error)
+        console.error('后端服务器不可用:', getErrorMessage(error, String(error)))
       }
       if (attempt >= retries) {
         backendStatus.value = 'offline'
@@ -73,14 +74,14 @@ onMounted(async () => {
   await checkBackendStatus()
 
   // 如果后端服务器可用，再检查登录状态
-  if (backendStatus.value === 'online' && localStorage.getItem(config.jwt.accessTokenKey)) {
+  if (backendStatus.value === 'online' && userStore.isLoggedIn) {
     try {
       await userStore.fetchUserProfile()
       await fetchUnreadMessageCount()
       unreadMessageInterval = window.setInterval(fetchUnreadMessageCount, 60000)
     } catch (error) {
       console.error('验证登录状态失败', error)
-      // 如果获取用户信息失败，清除token
+      // 如果获取用户信息失败，清除当前账号 token
       userStore.logout()
     }
   }
@@ -113,6 +114,18 @@ const fetchUnreadMessageCount = async () => {
   } catch (error) {
     console.error('获取未读私信数失败:', error)
   }
+}
+
+// 切换账号
+const handleSwitchAccount = (userId: number) => {
+  userStore.switchAccount(userId)
+  // 切换后刷新当前页面，确保所有数据按新用户重新加载
+  router.go(0)
+}
+
+// 跳转去添加/登录新账号
+const handleAddAccount = () => {
+  router.push('/login?addAccount=1')
 }
 
 // 退出登录
@@ -150,6 +163,36 @@ const moreMenuItems = computed<NavDropdownItem[]>(() => [
   { label: '搜索', icon: 'i-ep-search', to: '/search' },
 ])
 
+// 当前激活账号ID
+const currentUserId = computed(() => userStore.activeUserId)
+
+// 账号切换下拉菜单项
+const accountSwitchItems = computed<NavDropdownItem[]>(() => {
+  const items: NavDropdownItem[] = userStore.accounts.map(account => ({
+    label: account.username + (account.userId === currentUserId.value ? ' (当前)' : ''),
+    icon: account.userId === currentUserId.value ? 'i-ep-check' : 'i-ep-user',
+    action: () => handleSwitchAccount(account.userId)
+  }))
+
+  items.push({ divider: true })
+  items.push({ label: '添加账号', icon: 'i-ep-plus', action: handleAddAccount })
+  items.push({ label: '退出所有账号', icon: 'i-ep-switch-button', danger: true, action: () => handleLogoutAll() })
+
+  return items
+})
+
+// 退出所有账号
+const handleLogoutAll = async () => {
+  try {
+    await userApi.logout()
+  } catch (error) {
+    // ignore
+  } finally {
+    userStore.logout(true)
+    router.push('/login')
+  }
+}
+
 // 用户下拉菜单项
 const userMenuItems = computed<NavDropdownItem[]>(() => [
   { label: '个人中心', icon: 'i-ep-user', to: '/profile' },
@@ -159,6 +202,18 @@ const userMenuItems = computed<NavDropdownItem[]>(() => [
   { divider: true },
   { label: '退出登录', icon: 'i-ep-switch-button', danger: true, action: handleLogout },
 ])
+
+// 监听账号变化，重新获取未读私信数
+watch(
+  () => userStore.activeUserId,
+  () => {
+    if (userStore.isLoggedIn) {
+      fetchUnreadMessageCount()
+    } else {
+      unreadMessageCount.value = 0
+    }
+  }
+)
 
 // 未登录菜单项
 const guestMenuItems = computed<NavDropdownItem[]>(() => [
@@ -225,6 +280,10 @@ const guestMenuItems = computed<NavDropdownItem[]>(() => [
 
               <NotificationDropdown class="notification-container" />
 
+              <NavDropdown :items="accountSwitchItems" class="account-switch-dropdown">
+                <span class="i-ep-refresh nav-icon" title="切换账号" />
+              </NavDropdown>
+
               <NavDropdown :items="userMenuItems">
                 <span class="i-ep-user-filled nav-icon" />
                 <span class="user-name">{{ userStore.user?.username || '用户' }}</span>
@@ -279,6 +338,23 @@ const guestMenuItems = computed<NavDropdownItem[]>(() => [
               {{ item.label }}
             </router-link>
             <template v-if="userStore.isLoggedIn">
+              <div class="mobile-section-title">切换账号</div>
+              <button
+                v-for="account in userStore.accounts"
+                :key="account.userId"
+                type="button"
+                class="mobile-nav-link"
+                :class="{ active: account.userId === currentUserId }"
+                @click="handleSwitchAccount(account.userId); mobileMenuOpen = false"
+              >
+                <span :class="account.userId === currentUserId ? 'i-ep-check mobile-nav-icon' : 'i-ep-user mobile-nav-icon'" />
+                {{ account.username }}
+                <span v-if="account.userId === currentUserId" class="mobile-badge">当前</span>
+              </button>
+              <button type="button" class="mobile-nav-link" @click="handleAddAccount(); mobileMenuOpen = false">
+                <span class="i-ep-plus mobile-nav-icon" />
+                添加账号
+              </button>
               <router-link to="/profile" class="mobile-nav-link" @click="mobileMenuOpen = false">
                 个人中心
               </router-link>
@@ -290,6 +366,9 @@ const guestMenuItems = computed<NavDropdownItem[]>(() => [
               </router-link>
               <button type="button" class="mobile-nav-link text-error" @click="handleLogout">
                 退出登录
+              </button>
+              <button type="button" class="mobile-nav-link text-error" @click="handleLogoutAll">
+                退出所有账号
               </button>
             </template>
             <template v-else>
@@ -612,9 +691,19 @@ const guestMenuItems = computed<NavDropdownItem[]>(() => [
 }
 
 .mobile-nav-link:hover,
-.mobile-nav-link.router-link-active {
+.mobile-nav-link.router-link-active,
+.mobile-nav-link.active {
   color: var(--primary-600);
   background: var(--primary-50);
+}
+
+.mobile-section-title {
+  padding: var(--space-2) var(--space-4);
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: var(--space-2);
 }
 
 .text-error {

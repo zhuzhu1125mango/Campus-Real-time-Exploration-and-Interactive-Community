@@ -73,6 +73,7 @@ import { ref, watch, computed } from 'vue'
 import { ElDialog, ElMessage } from 'element-plus'
 import { learningApi } from '../api/learning'
 import { sanitizeHtml } from '../utils/xss'
+import { getApiErrorMessage } from '../utils/error'
 import type { Lesson, Course, Progress, Enrollment } from '../types/learning'
 
 const props = defineProps<{
@@ -217,9 +218,8 @@ const markComplete = async () => {
     }
     ElMessage.success('已标记为完成')
     emit('complete')
-  } catch (error: any) {
-    const msg = error?.response?.data?.detail || '标记完成失败'
-    ElMessage.error(msg)
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '标记完成失败'))
   } finally {
     completing.value = false
   }

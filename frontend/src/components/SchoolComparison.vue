@@ -177,10 +177,36 @@ import { ElMessage, ElNotification } from 'element-plus'
 import { Delete, Plus, Download } from '@element-plus/icons-vue'
 // import * as echarts from 'echarts'
 import { schoolApi } from '../api/school'
+import type { School, SchoolListResponse } from '../types/school'
+
+interface ComparedAdmissionScore {
+  year: number
+  province: string
+  score_type: string
+  min_score: number
+  avg_score: number
+  ranking: number
+}
+
+interface ComparedSchool extends Omit<School, 'admission_scores'> {
+  campus_area?: number
+  admission_scores?: ComparedAdmissionScore[]
+}
+
+interface ComparisonResult {
+  schools: ComparedSchool[]
+  fields: string[]
+}
+
+interface ComparisonRow {
+  field: string
+  type: string
+  [key: string]: string | number | undefined
+}
 
 // 院校选择相关
-const selectedSchools = ref<any[]>([{}, {}])
-const schoolOptions = ref<any[]>([])
+const selectedSchools = ref<Partial<School>[]>([{}, {}])
+const schoolOptions = ref<School[]>([])
 const loading = ref(false)
 const comparing = ref(false)
 
@@ -205,9 +231,9 @@ const selectedFields = ref<string[]>([
 ])
 
 // 对比结果相关
-const compareResult = ref<any>({ schools: [], fields: [] })
+const compareResult = ref<ComparisonResult>({ schools: [], fields: [] })
 const showResult = ref(false)
-const comparisonData = ref<any[]>([])
+const comparisonData = ref<ComparisonRow[]>([])
 
 // 搜索院校
 const querySchools = async (query: string) => {
@@ -215,7 +241,7 @@ const querySchools = async (query: string) => {
     loading.value = true
     try {
     const response = await schoolApi.getSchools({ search: query, pageSize: 20 })
-    schoolOptions.value = (response as any).results || []
+    schoolOptions.value = (response as SchoolListResponse).results || []
   } catch (error) {
       ElMessage.error('搜索院校失败')
       console.error('搜索院校失败:', error)
@@ -264,24 +290,25 @@ const getFieldLabel = (fieldKey: string) => {
 
 // 准备对比数据
 const prepareComparisonData = () => {
-  const data: any[] = []
-  
+  const data: ComparisonRow[] = []
+
   selectedFields.value.forEach(fieldKey => {
     const field = availableFields.value.find(f => f.key === fieldKey)
     if (field) {
-      const row: any = {
+      const row: ComparisonRow = {
         field: field.label,
         type: field.type
       }
-      
-      compareResult.value.schools.forEach((school: any, index: number) => {
-        row[`value${index}`] = school[fieldKey] || '-'
+
+      compareResult.value.schools.forEach((school: ComparedSchool, index: number) => {
+        const value = school[fieldKey as keyof ComparedSchool]
+        row[`value${index}`] = typeof value === 'string' || typeof value === 'number' ? value : '-'
       })
-      
+
       data.push(row)
     }
   })
-  
+
   return data
 }
 
@@ -296,8 +323,8 @@ const renderCharts = () => {
   //       if (chartDom) {
   //         const chart = echarts.init(chartDom)
   //         
-  //         const xAxisData = compareResult.value.schools.map((school: any) => school.name)
-  //         const seriesData = compareResult.value.schools.map((school: any) => school[fieldKey] || 0)
+  // const xAxisData = compareResult.value.schools.map((school: ComparedSchool) => school.name)
+        // const seriesData = compareResult.value.schools.map((school: ComparedSchool) => school[fieldKey] || 0)
   //         
   //         const option = {
   //           tooltip: {
@@ -351,13 +378,15 @@ const compareSchools = async () => {
   
   comparing.value = true
   try {
-    const schoolIds = validSchools.map(school => school.id)
+    const schoolIds = validSchools
+      .map((school) => school.id)
+      .filter((id): id is number => typeof id === 'number')
     const response = await schoolApi.compareSchools({
       school_ids: schoolIds,
       comparison_fields: selectedFields.value
     })
-    
-    compareResult.value = response
+
+    compareResult.value = response as ComparisonResult
     comparisonData.value = prepareComparisonData()
     showResult.value = true
     

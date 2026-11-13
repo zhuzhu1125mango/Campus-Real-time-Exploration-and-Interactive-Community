@@ -1,134 +1,97 @@
 <template>
   <div class="dashboard">
-    <div class="dashboard-header">
-      <h2>数据仪表盘</h2>
-      <el-button type="primary" @click="refreshStats">
-        <el-icon><Refresh /></el-icon> 刷新数据
-      </el-button>
-    </div>
-    
     <div v-if="loading" class="loading-container">
       <el-skeleton :rows="10" animated />
     </div>
-    
+
     <div v-else-if="error" class="error-container">
       <el-empty description="获取数据失败，请重试" />
-      <el-button type="primary" @click="loadStats">重新加载</el-button>
+      <button class="btn btn-primary" @click="loadStats">重新加载</button>
     </div>
-    
+
     <div v-else class="dashboard-content">
+      <div class="dashboard-toolbar">
+        <button class="btn btn-primary" @click="refreshStats">
+          <span class="i-ep-refresh" /> 刷新数据
+        </button>
+      </div>
+
       <!-- 概览卡片 -->
       <div class="overview-cards">
-        <el-card class="overview-card">
+        <GlassCard :hover="false" class="overview-card">
           <div class="card-content">
-            <div class="card-icon school-icon"></div>
+            <span class="card-icon school-icon i-ep-school" />
             <div class="card-info">
               <h3>学校总数</h3>
               <p class="card-value">{{ dashboardStats.school_stats?.total_schools || 0 }}</p>
             </div>
           </div>
-        </el-card>
-        
-        <el-card class="overview-card">
+        </GlassCard>
+
+        <GlassCard :hover="false" class="overview-card">
           <div class="card-content">
-            <div class="card-icon forum-icon"></div>
+            <span class="card-icon forum-icon i-ep-chat-dot-round" />
             <div class="card-info">
               <h3>帖子总数</h3>
               <p class="card-value">{{ dashboardStats.forum_stats?.total_posts || 0 }}</p>
             </div>
           </div>
-        </el-card>
-        
-        <el-card class="overview-card">
+        </GlassCard>
+
+        <GlassCard :hover="false" class="overview-card">
           <div class="card-content">
-            <div class="card-icon event-icon"></div>
+            <span class="card-icon event-icon i-ep-calendar" />
             <div class="card-info">
               <h3>活动总数</h3>
               <p class="card-value">{{ dashboardStats.event_stats?.total_events || 0 }}</p>
             </div>
           </div>
-        </el-card>
-        
-        <el-card class="overview-card">
+        </GlassCard>
+
+        <GlassCard :hover="false" class="overview-card">
           <div class="card-content">
-            <div class="card-icon user-icon"></div>
+            <span class="card-icon user-icon i-ep-user" />
             <div class="card-info">
               <h3>用户总数</h3>
               <p class="card-value">{{ dashboardStats.user_stats?.total_users || 0 }}</p>
             </div>
           </div>
-        </el-card>
+        </GlassCard>
       </div>
-      
+
       <!-- 图表区域 -->
       <div class="charts-section">
         <div class="chart-row">
-          <!-- 学校类型分布 -->
-          <el-card class="chart-card">
-            <template #header>
-              <div class="chart-header">
-                <h3>学校类型分布</h3>
-              </div>
-            </template>
+          <GlassCard :hover="false" title="学校类型分布" class="chart-card">
             <div ref="schoolTypeChart" class="chart"></div>
-          </el-card>
-          
-          <!-- 学校层次分布 -->
-          <el-card class="chart-card">
-            <template #header>
-              <div class="chart-header">
-                <h3>学校层次分布</h3>
-              </div>
-            </template>
+          </GlassCard>
+
+          <GlassCard :hover="false" title="学校层次分布" class="chart-card">
             <div ref="schoolLevelChart" class="chart"></div>
-          </el-card>
+          </GlassCard>
         </div>
-        
+
         <div class="chart-row">
-          <!-- 省份分布 -->
-          <el-card class="chart-card">
-            <template #header>
-              <div class="chart-header">
-                <h3>省份分布</h3>
-              </div>
-            </template>
+          <GlassCard :hover="false" title="省份分布" class="chart-card">
             <div ref="provinceChart" class="chart"></div>
-          </el-card>
-          
-          <!-- 论坛活动 -->
-          <el-card class="chart-card">
-            <template #header>
-              <div class="chart-header">
-                <h3>论坛活动</h3>
-              </div>
-            </template>
+          </GlassCard>
+
+          <GlassCard :hover="false" title="论坛活动" class="chart-card">
             <div ref="forumActivityChart" class="chart"></div>
-          </el-card>
+          </GlassCard>
         </div>
-        
+
         <div class="chart-row">
-          <!-- 活动状态分布 -->
-          <el-card class="chart-card">
-            <template #header>
-              <div class="chart-header">
-                <h3>活动状态分布</h3>
-              </div>
-            </template>
+          <GlassCard :hover="false" title="活动状态分布" class="chart-card">
             <div ref="eventStatusChart" class="chart"></div>
-          </el-card>
-          
-          <!-- 用户行为 -->
-          <el-card class="chart-card">
-            <template #header>
-              <div class="chart-header">
-                <h3>用户行为</h3>
-              </div>
-            </template>
+          </GlassCard>
+
+          <GlassCard :hover="false" title="用户行为" class="chart-card">
             <div ref="userActivityChart" class="chart"></div>
-          </el-card>
+          </GlassCard>
         </div>
       </div>
-      
+
       <!-- 数据更新时间 -->
       <div class="last-updated">
         <p>最后更新时间: {{ formatDate(dashboardStats.last_updated) }}</p>
@@ -140,16 +103,31 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
 import { schoolApi } from '@/api/school'
+import GlassCard from '@/components/GlassCard.vue'
+import type { DashboardStats } from '@/types/school'
 
 // 仪表盘数据
-const dashboardStats = ref<any>({
-  school_stats: {},
-  forum_stats: {},
-  event_stats: {},
-  user_stats: {},
+const dashboardStats = ref<DashboardStats>({
+  school_stats: {
+    total_schools: 0,
+    type_distribution: [],
+    level_distribution: [],
+    province_distribution: []
+  },
+  forum_stats: {
+    total_posts: 0,
+    recent_posts: 0,
+    recent_comments: 0
+  },
+  event_stats: {
+    total_events: 0,
+    status_distribution: []
+  },
+  user_stats: {
+    total_users: 0,
+    activity_stats: []
+  },
   last_updated: new Date().toISOString()
 })
 
@@ -166,7 +144,7 @@ const eventStatusChart = ref<HTMLElement | null>(null)
 const userActivityChart = ref<HTMLElement | null>(null)
 
 // 图表实例
-const chartInstances = ref<echarts.ECharts[]>([])
+const chartInstances = ref<any[]>([])
 
 // 加载统计数据
 const loadStats = async () => {
@@ -195,7 +173,10 @@ const refreshStats = () => {
 }
 
 // 渲染图表
-const renderCharts = () => {
+const renderCharts = async () => {
+  // 动态加载按需引入的 echarts，减少 chunk 体积
+  const echarts: any = await import('@/utils/echarts')
+
   // 销毁现有图表
   chartInstances.value.forEach(chart => chart.dispose())
   chartInstances.value = []
@@ -307,7 +288,7 @@ const renderCharts = () => {
       },
       xAxis: {
         type: 'category',
-        data: data.map((item: any) => item.province),
+        data: data.map((item) => item.province),
         axisLabel: {
           rotate: 45
         }
@@ -319,7 +300,7 @@ const renderCharts = () => {
         {
           name: '学校数量',
           type: 'bar',
-          data: data.map((item: any) => item.count),
+          data: data.map((item) => item.count),
           itemStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
               { offset: 0, color: '#83bff6' },
@@ -444,7 +425,7 @@ const renderCharts = () => {
       },
       xAxis: {
         type: 'category',
-        data: data.map((item: any) => item.activity_type)
+        data: data.map((item) => item.activity_type)
       },
       yAxis: {
         type: 'value'
@@ -453,7 +434,7 @@ const renderCharts = () => {
         {
           name: '行为次数',
           type: 'bar',
-          data: data.map((item: any) => item.count),
+          data: data.map((item) => item.count),
           itemStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
               { offset: 0, color: '#f72585' },
@@ -494,51 +475,39 @@ onUnmounted(() => {
 
 <style scoped>
 .dashboard {
-  padding: 20px;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  margin: 20px 0;
-}
-
-.dashboard-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.dashboard-header h2 {
-  margin: 0;
-  font-size: 20px;
-  color: #333;
+  width: 100%;
 }
 
 .loading-container,
 .error-container {
-  padding: 40px 0;
+  padding: var(--space-10) 0;
   text-align: center;
+}
+
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.dashboard-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-5);
 }
 
 .overview-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-  margin-bottom: 30px;
-}
-
-.overview-card {
-  transition: all 0.3s ease;
-}
-
-.overview-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
 }
 
 .card-content {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: var(--space-4);
 }
 
 .card-icon {
@@ -548,69 +517,53 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-position: center;
-  background-size: 30px;
-  background-repeat: no-repeat;
+  font-size: 1.75rem;
+  flex-shrink: 0;
 }
 
 .school-icon {
-  background-color: rgba(67, 97, 238, 0.1);
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.18V9l-11-6z"/></svg>');
+  background-color: var(--primary-100);
+  color: var(--primary-600);
 }
 
 .forum-icon {
-  background-color: rgba(76, 201, 240, 0.1);
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234895ef"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/></svg>');
+  background-color: var(--info-bg);
+  color: var(--info-color);
 }
 
 .event-icon {
-  background-color: rgba(114, 9, 183, 0.1);
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%237209b7"><path d="M19 3h-1V2c0-.55-.45-1-1-1s-1 .45-1 1v1H8V2c0-.55-.45-1-1-1s-1 .45-1 1v1H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>');
+  background-color: var(--accent-orange-light);
+  color: var(--accent-orange);
 }
 
 .user-icon {
-  background-color: rgba(247, 37, 133, 0.1);
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23f72585"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>');
+  background-color: var(--error-bg);
+  color: var(--error-color);
 }
 
 .card-info h3 {
-  margin: 0 0 5px;
-  font-size: 14px;
-  color: #666;
-  font-weight: normal;
+  margin: 0 0 var(--space-1);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .card-value {
   margin: 0;
-  font-size: 24px;
-  font-weight: bold;
-  color: #333;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .charts-section {
-  margin-bottom: 30px;
+  margin-bottom: var(--space-6);
 }
 
 .chart-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
-}
-
-.chart-card {
-  transition: all 0.3s ease;
-}
-
-.chart-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.chart-header h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
 }
 
 .chart {
@@ -620,22 +573,66 @@ onUnmounted(() => {
 
 .last-updated {
   text-align: right;
-  font-size: 12px;
-  color: #999;
-  margin-top: 20px;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin-top: var(--space-5);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background-color: var(--primary-600);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-700);
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background-color: var(--border-color);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 @media (max-width: 768px) {
   .overview-cards {
     grid-template-columns: 1fr;
   }
-  
+
   .chart-row {
     grid-template-columns: 1fr;
   }
-  
+
   .chart {
     height: 250px;
+  }
+
+  .dashboard-toolbar {
+    justify-content: flex-start;
+  }
+
+  .last-updated {
+    text-align: left;
   }
 }
 </style>

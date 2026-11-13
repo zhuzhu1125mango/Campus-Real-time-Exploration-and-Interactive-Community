@@ -6,7 +6,6 @@ from .views import (
     BoardViewSet,
     TopicViewSet,
     PostViewSet,
-    NotificationViewSet,
     BookmarkViewSet,
     TagViewSet,
     CommentViewSet,
@@ -20,7 +19,6 @@ router.register(r'categories', CategoryViewSet)
 router.register(r'boards', BoardViewSet)
 router.register(r'topics', TopicViewSet)
 router.register(r'posts', PostViewSet)
-router.register(r'notifications', NotificationViewSet, basename='notification')
 router.register(r'bookmarks', BookmarkViewSet, basename='bookmark')
 router.register(r'tags', TagViewSet)
 router.register(r'comments', CommentViewSet)
@@ -45,8 +43,4 @@ urlpatterns = [
     path('posts/<int:post_id>/like/', PostViewSet.as_view({'post': 'like', 'delete': 'unlike'}), name='like-post'),
     path('posts/<int:post_id>/report/', PostViewSet.as_view({'post': 'report'}), name='report-post'),
     path('topics/<int:topic_id>/bookmark/', TopicViewSet.as_view({'post': 'bookmark', 'delete': 'unbookmark'}), name='bookmark-topic'),
-    
-    # 通知相关
-    path('notifications/mark-all-read/', NotificationViewSet.as_view({'post': 'mark_all_read'}), name='mark-all-notifications-read'),
-    path('notifications/<int:notification_id>/read/', NotificationViewSet.as_view({'post': 'mark_read'}), name='mark-notification-read'),
-] 
+]

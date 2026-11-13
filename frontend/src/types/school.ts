@@ -28,6 +28,7 @@ export interface School {
   faculty_count?: number
   national_rank?: number
   world_rank?: number
+  average_rating?: number
   is_verified?: boolean
   founded_year?: number
   admission_rate?: number
@@ -44,6 +45,8 @@ export interface Major {
   name: string
   code: string
   description: string
+  degree_type?: string
+  subject_category?: string
   employment_rate: number
   avg_salary: number
 }
@@ -118,6 +121,9 @@ export interface Event {
   capacity: number
   status: string
   school: number
+  registration_count?: number
+  registration_deadline?: string
+  is_registered?: boolean
   created_at: string
   updated_at: string
 }
@@ -140,8 +146,10 @@ export interface Post {
   tags?: string[]
 }
 
+export type RecommendationItem = School | Major | Post
+
 export interface RecommendationResponse {
-  recommendations: any[]
+  recommendations: RecommendationItem[]
   reasoning: string[]
 }
 
@@ -202,4 +210,45 @@ export interface NearbyEventParams {
 export interface PlaceParams {
   school_id?: number
   category?: PlaceCategory
+}
+
+export interface DashboardProvinceItem {
+  province: string
+  count: number
+}
+
+export interface DashboardActivityItem {
+  activity_type: string
+  count: number
+}
+
+export interface DashboardSchoolStats {
+  total_schools: number
+  type_distribution: { name: string; value: number }[]
+  level_distribution: { name: string; value: number }[]
+  province_distribution: DashboardProvinceItem[]
+}
+
+export interface DashboardForumStats {
+  total_posts: number
+  recent_posts: number
+  recent_comments: number
+}
+
+export interface DashboardEventStats {
+  total_events: number
+  status_distribution: { name: string; value: number }[]
+}
+
+export interface DashboardUserStats {
+  total_users: number
+  activity_stats: DashboardActivityItem[]
+}
+
+export interface DashboardStats {
+  school_stats: DashboardSchoolStats
+  forum_stats: DashboardForumStats
+  event_stats: DashboardEventStats
+  user_stats: DashboardUserStats
+  last_updated: string
 }

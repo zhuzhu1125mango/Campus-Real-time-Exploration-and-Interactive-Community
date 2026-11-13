@@ -1,6 +1,6 @@
 # Generated manually for adding Message indexes
 
-from django.db import migrations, models
+from django.db import migrations
 
 
 class Migration(migrations.Migration):
@@ -10,12 +10,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddIndex(
-            model_name='message',
-            index=models.Index(fields=['sender', 'receiver', 'created_at'], name='users_messag_sender__6c4c50_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='message',
-            index=models.Index(fields=['receiver', 'is_read', 'sender'], name='users_messag_receive_3e2c3e_idx'),
-        ),
+        # Message 模型已迁移到 private_messages app，索引由该 app 维护。
     ]

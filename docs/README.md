@@ -1,89 +1,85 @@
-# Campus-Real-time-Exploration-and-Interactive-Community - 文档中心
+# 项目文档中心
 
-欢迎来到项目文档中心，这里集中存放了项目的所有文档资料。
+本目录是 Campus Real-time Exploration and Interactive Community 的唯一文档入口。
+文档组织参考 [Diátaxis](https://diataxis.fr/) 的四种文档类型（入门、指南、参考、解释），
+并结合常见开源项目的目录习惯，按「读者目标」而不是按代码目录划分。
 
-## 文档目录
+> 文档基线：2026-11-13。所有接口路径、模型字段、环境变量均以当前仓库代码为准。
+> 代码变更导致行为变化时，应在同一个 PR 中同步更新对应文档。
 
-### 快速导航
+## 我应该读哪一篇
 
-| 文档 | 说明 |
-|------|------|
-| [README.md](../README.md) | 项目主说明 |
-| [部署指南](deployment.md) | 项目部署说明 |
-| [API 文档](api/) | API 接口文档 |
-| [测试报告](tests/) | 测试报告 |
+| 你的目标 | 建议阅读 |
+|---|---|
+| 第一次把项目跑起来 | [安装](getting-started/installation.md) → [快速开始](getting-started/quickstart.md) |
+| 配置环境变量、数据库、Redis、ES | [配置说明](getting-started/configuration.md) |
+| 参与开发、了解代码约定 | [开发指南](guides/development.md) |
+| 运行测试、补充测试 | [测试指南](guides/testing.md) |
+| 部署到测试/生产环境 | [部署指南](guides/deployment.md) |
+| 日常运维、排障 | [运维手册](guides/operations.md)、[故障排查](guides/troubleshooting.md) |
+| 理解系统设计 | [架构总览](architecture/overview.md) |
+| 查接口、字段、WebSocket 协议 | [参考文档](reference/api/README.md) |
+| 提交代码、了解安全要求 | [贡献指南](project/contributing.md)、[安全说明](project/security.md) |
 
-### 1. API 文档
+## 目录结构
 
-- [前端 API 调用文档](api/frontend_api.md) - 前端 API 调用示例
-
-### 2. 测试报告
-
-- [测试报告](tests/test_report.md) - 完整测试报告
-
-## 项目概述
-
-本项目是一个面向高校场景的实时互动社区平台，旨在为用户提供校园信息查询、论坛互动、在线学习、内容分享、私信沟通等功能。项目采用前后端分离架构，并同步开发微信小程序端：
-
-- **后端**: Python 3.12 + Django + Django REST Framework + Django Channels
-- **H5 前端**: Vue 3 + TypeScript + Pinia + Element Plus + Tailwind CSS
-- **微信小程序**: Uni-app + uni-ui
-- **实时通信**: WebSocket（Django Channels + Uvicorn）
-- **数据库**: MySQL 8.0
-- **依赖管理**: 后端 uv；前端 pnpm
-
-## 核心功能
-
-1. **院校查询与评价** - 学校列表、详情、专业查询、分数线查询、收藏
-2. **校园论坛** - 话题/板块、发帖（含审核）、评论回复、点赞/收藏
-3. **在线学习** - 课程列表、课程详情、报名学习、课时视频播放器、学习进度
-4. **内容中心** - 用户内容提交、状态管理、全局搜索
-5. **用户系统** - 注册登录、个人资料、密码重置、我的收藏
-6. **实时沟通** - 公共聊天室（WebSocket，消息持久化）、H5 私信（消息持久化、已读/未读、会话列表）；小程序端已同步支持公共聊天室入口
-7. **数据可视化** - 管理后台统计仪表盘
-
-> 说明：公共聊天室与 H5 私信共存；公共聊天室 WebSocket 路由为 `/ws/chat/public/`，私信 WebSocket 路由为 `/ws/chat/private/<user_id>/`。
-
-## 快速开始
-
-### 环境要求
-
-- Python 3.12.*
-- Node.js 18+
-- pnpm
-- uv
-- MySQL 8.0+（生产环境）
-
-### 后端启动
-
-```bash
-cd backend
-uv sync --frozen
-python start_server.py
+```text
+docs/
+├── README.md                       # 文档中心（本文件）
+├── getting-started/                # 入门：安装、快速开始、配置
+│   ├── installation.md
+│   ├── quickstart.md
+│   └── configuration.md
+├── guides/                         # 指南：面向具体任务的步骤
+│   ├── development.md              # 开发约定与扩展方式
+│   ├── testing.md                  # 测试策略与命令
+│   ├── deployment.md               # 开发/生产部署
+│   ├── operations.md               # 运维手册
+│   └── troubleshooting.md          # 常见故障排查
+├── architecture/                   # 解释：系统为什么这样设计
+│   ├── overview.md                 # 系统上下文与关键流程
+│   ├── backend.md                  # 后端分层、认证、权限
+│   ├── frontend.md                 # H5 架构
+│   ├── realtime.md                 # WebSocket / Channels
+│   └── async-search-cache.md       # Celery、Elasticsearch、缓存
+├── reference/                      # 参考：准确、可查的事实
+│   ├── api/                        # REST API 分模块文档
+│   │   ├── README.md               # 通用约定 + 接口索引
+│   │   ├── users.md
+│   │   ├── social.md
+│   │   ├── forum.md
+│   │   ├── schools.md
+│   │   ├── learning.md
+│   │   ├── content.md
+│   │   ├── chat-and-notifications.md
+│   │   └── feed-and-search.md
+│   ├── data-model.md               # 数据模型与表清单
+│   ├── background-jobs.md          # Celery 任务、积分规则、索引
+│   └── websocket-protocol.md       # WebSocket 消息协议
+├── project/                        # 项目治理
+│   ├── contributing.md             # 贡献流程与规范
+│   ├── security.md                 # 安全基线与漏洞上报
+│   ├── changelog.md                # 变更记录
+│   └── roadmap.md                  # 已知缺口与规划
+└── archive/                        # 历史文档（已过时，仅供追溯）
 ```
 
-后端默认运行在 `http://localhost:8000`。
+## 项目速览
 
-> 注意：WebSocket 需要 ASGI 服务器，项目已通过 `start_server.py` 使用 uvicorn 启动，请勿使用 Django 原生的 `runserver`。
+| 维度 | 说明 |
+|---|---|
+| 业务 | 院校查询、校园论坛、在线学习、内容中心、好友/私信、实时聊天、通知、积分、全局搜索 |
+| 后端 | Python 3.12、Django 6.0、DRF、Channels、Celery |
+| H5 | Vue 3、TypeScript、Pinia、Element Plus、UnoCSS、Vite |
+| 小程序 | Uni-app（`mp-weixin/`） |
+| 数据 | MySQL 8（可选主从）、Redis（WS/缓存拆分）、RabbitMQ、Elasticsearch 8 + ik |
+| 部署 | Docker Compose、Nginx、gunicorn + uvicorn worker、独立 WebSocket 进程 |
 
-### H5 前端启动
+## 文档写作约定
 
-```bash
-cd frontend
-pnpm install
-pnpm dev
-```
-
-前端默认运行在 `http://localhost:5173`。
-
-### 小程序启动
-
-使用 HBuilderX 或微信开发者工具打开 `mp-weixin/` 目录，按照 Uni-app 流程运行到微信小程序模拟器。
-
-### 部署说明
-
-详细部署步骤请参考 [部署指南](deployment.md)。
-
-## 联系方式
-
-如有问题或建议，请通过 Issue 联系我们。
+1. **事实优先**：接口路径以 `backend/config/urls.py` 与各 app 的 `urls.py` / DRF Router 为准；
+   环境变量以 `backend/config/settings.py`、`backend/.env.example`、根目录 `.env.example` 为准。
+2. **可执行**：命令默认在仓库根目录执行，涉及子目录时会显式标注 `cd`。
+3. **区分环境**：涉及 `DEBUG`、Redis、Channel Layer、ES 时，必须写清开发环境与生产环境的差异。
+4. **不记录密钥**：示例中的域名、证书路径、密码均为占位符，禁止提交真实凭据。
+5. **旧文档处理**：内容被替代后移入 `archive/`，并在文件名中保留归档时间，不直接静默删除。

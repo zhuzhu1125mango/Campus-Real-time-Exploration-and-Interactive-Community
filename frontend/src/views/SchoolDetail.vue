@@ -1,55 +1,59 @@
 <template>
-  <div class="school-detail-container">
+  <div class="school-detail-page container-wide page-padding">
     <div v-if="loading" class="loading-state">
       <div class="spinner"></div>
       <p>正在加载学校信息...</p>
     </div>
 
     <div v-else-if="error" class="error-state">
-      <div class="error-icon"></div>
+      <div class="error-icon"><span class="i-ep-warning" /></div>
       <h3>加载失败</h3>
       <p>{{ error }}</p>
-      <button @click="fetchSchoolDetail" class="retry-btn">重试</button>
+      <button class="retry-btn" @click="fetchSchoolDetail">重试</button>
     </div>
 
-    <div v-else-if="school" class="school-content">
-      <div class="school-header">
-        <img :src="school.logo || '/default-school-logo.png'" :alt="school.name" class="school-logo" />
-        <div class="school-title">
-          <h1>{{ school.name }}</h1>
-          <div class="school-tags">
-            <span class="school-badge" :class="getBadgeClass(school.school_level)">{{ school.school_level }}</span>
-            <span class="school-location">{{ school.province }}</span>
-            <span class="school-type">{{ school.school_type }}</span>
+    <template v-else-if="school">
+      <GlassCard :hover="false" class="school-header-card">
+        <div class="school-header">
+          <img :src="school.logo || '/default-school-logo.png'" :alt="school.name" class="school-logo" />
+          <div class="school-title">
+            <h1>{{ school.name }}</h1>
+            <div class="school-tags">
+              <span class="school-badge" :class="getBadgeClass(school.school_level)">
+                {{ school.school_level }}
+              </span>
+              <span class="school-location">{{ school.province }}</span>
+              <span class="school-type">{{ school.school_type }}</span>
+            </div>
           </div>
+          <button
+            class="favorite-btn"
+            :class="{ 'is-favorite': isFavorite, loading: favoriteLoading }"
+            :disabled="favoriteLoading"
+            @click="toggleFavorite"
+          >
+            <span class="favorite-icon">{{ isFavorite ? '♥' : '♡' }}</span>
+            <span class="favorite-text">{{ isFavorite ? '已收藏' : '收藏院校' }}</span>
+          </button>
         </div>
-        <button 
-          class="favorite-btn"
-          :class="{ 'is-favorite': isFavorite, 'loading': favoriteLoading }"
-          @click="toggleFavorite"
-          :disabled="favoriteLoading"
-        >
-          <span class="favorite-icon">{{ isFavorite ? '♥' : '♡' }}</span>
-          <span class="favorite-text">{{ isFavorite ? '已收藏' : '收藏院校' }}</span>
-        </button>
-      </div>
+      </GlassCard>
 
-      <div class="tab-container">
+      <GlassCard :hover="false" class="tab-card" padding="none">
         <div class="tabs">
-          <button 
-            v-for="tab in tabs" 
-            :key="tab.id" 
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="tab-btn"
             :class="{ active: activeTab === tab.id }"
             @click="activeTab = tab.id"
-            class="tab-btn"
           >
             {{ tab.name }}
           </button>
-          
+
           <router-link
             v-if="school"
-            :to="school.board_id ? `/forum/board/${school.board_id}` : `/forum/${Number(school.id)}`"
             class="forum-link"
+            :to="school.board_id ? `/forum/board/${school.board_id}` : `/forum/${Number(school.id)}`"
           >
             进入学校论坛
           </router-link>
@@ -58,28 +62,22 @@
         <div v-if="activeTab === 'overview'" class="tab-content">
           <div class="section">
             <h2>学校简介</h2>
-            <p>{{ school.introduction }}</p>
+            <p class="intro-text">{{ school.introduction }}</p>
           </div>
 
           <div class="section">
             <h2>基本信息</h2>
             <div class="info-grid">
-              <div class="info-item">
-                <span class="label">综合排名</span>
-                <span class="value">{{ school.national_rank || '暂无' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">录取率</span>
-                <span class="value">{{ school.admission_rate ? school.admission_rate + '%' : '暂无' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">办学层次</span>
-                <span class="value">{{ school.school_level || '暂无' }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">建校时间</span>
-                <span class="value">{{ school.founded_year || '暂无' }}</span>
-              </div>
+              <GlassCard
+                v-for="item in infoItems"
+                :key="item.label"
+                :hover="false"
+                padding="sm"
+                class="info-card"
+              >
+                <span class="label">{{ item.label }}</span>
+                <span class="value">{{ item.value }}</span>
+              </GlassCard>
             </div>
           </div>
         </div>
@@ -88,27 +86,28 @@
           <div class="section">
             <h2>专业设置</h2>
             <div class="search-majors">
-              <input 
-                type="text" 
-                v-model="majorSearch" 
-                placeholder="搜索专业..." 
+              <span class="i-ep-search major-search-icon" />
+              <input
+                v-model="majorSearch"
+                type="text"
+                placeholder="搜索专业..."
                 class="search-input"
               />
             </div>
-            
+
             <div v-if="filteredMajors.length === 0" class="empty-state">
               <p>未找到相关专业</p>
             </div>
-            
+
             <div v-else class="majors-grid">
-              <div v-for="major in filteredMajors" :key="major.id" class="major-card">
+              <GlassCard v-for="major in filteredMajors" :key="major.id" :hover="true" class="major-card">
                 <h3>{{ major.name }}</h3>
                 <p>{{ major.description }}</p>
                 <div class="major-stats">
                   <span>就业率: {{ major.employment_rate }}%</span>
                   <span>平均薪资: {{ major.avg_salary }}元/月</span>
                 </div>
-              </div>
+              </GlassCard>
             </div>
           </div>
         </div>
@@ -116,7 +115,7 @@
         <div v-if="activeTab === 'scores'" class="tab-content">
           <div class="section">
             <h2>历年分数线</h2>
-            
+
             <div class="filter-row">
               <div class="filter-item">
                 <label>省份</label>
@@ -127,7 +126,7 @@
                   </option>
                 </select>
               </div>
-              
+
               <div class="filter-item">
                 <label>年份</label>
                 <select v-model="selectedYear">
@@ -138,7 +137,7 @@
                 </select>
               </div>
             </div>
-            
+
             <div class="score-table">
               <table>
                 <thead>
@@ -165,45 +164,45 @@
         <div v-if="activeTab === 'ratings'" class="tab-content">
           <div class="section">
             <h2>用户评价</h2>
-            
-            <div class="rating-form" v-if="isLoggedIn">
+
+            <GlassCard v-if="isLoggedIn" :hover="false" class="rating-form-card">
               <h3>分享你的评价</h3>
               <div class="rating-stars">
-                <button 
-                  v-for="star in 5" 
+                <button
+                  v-for="star in 5"
                   :key="star"
-                  @click="userRating = star"
-                  :class="{ active: userRating >= star }"
                   class="star-btn"
+                  :class="{ active: userRating >= star }"
+                  @click="userRating = star"
                 >
                   ★
                 </button>
                 <span class="rating-text">{{ userRating }} 星</span>
               </div>
-              
-              <textarea 
-                v-model="userComment" 
-                placeholder="分享你对这所学校的看法..." 
+
+              <textarea
+                v-model="userComment"
+                placeholder="分享你对这所学校的看法..."
                 class="comment-input"
               ></textarea>
-              
-              <button @click="submitRating" class="submit-rating">提交评价</button>
-            </div>
-            
-            <div v-else class="login-notice">
+
+              <button class="submit-rating" @click="submitRating">提交评价</button>
+            </GlassCard>
+
+            <GlassCard v-else :hover="false" class="login-notice">
               <p>请登录后进行评价</p>
               <router-link to="/login" class="login-btn">去登录</router-link>
-            </div>
-            
+            </GlassCard>
+
             <div class="ratings-list">
               <h3>用户评价 ({{ ratings.length }})</h3>
-              
+
               <div v-if="ratings.length === 0" class="empty-ratings">
                 <p>暂无评价</p>
               </div>
-              
+
               <div v-else class="rating-items">
-                <div v-for="(rating, index) in ratings" :key="index" class="rating-item">
+                <GlassCard v-for="(rating, index) in ratings" :key="index" :hover="true" class="rating-item">
                   <div class="rating-header">
                     <div class="user-avatar">{{ rating.user.username.charAt(0) }}</div>
                     <div class="rating-info">
@@ -215,31 +214,21 @@
                     <div class="rating-date">{{ formatDate(rating.created_at) }}</div>
                   </div>
                   <div class="rating-comment">{{ rating.comment }}</div>
-                </div>
+                </GlassCard>
               </div>
-              
-              <div class="pagination" v-if="totalRatingPages > 1">
-                <button 
-                  :disabled="ratingPage === 1"
-                  @click="ratingPage--"
-                  class="page-btn"
-                >
-                  上一页
-                </button>
+
+              <div v-if="totalRatingPages > 1" class="pagination">
+                <button class="page-btn" :disabled="ratingPage === 1" @click="ratingPage--">上一页</button>
                 <span>{{ ratingPage }} / {{ totalRatingPages }}</span>
-                <button 
-                  :disabled="ratingPage === totalRatingPages"
-                  @click="ratingPage++"
-                  class="page-btn"
-                >
+                <button class="page-btn" :disabled="ratingPage === totalRatingPages" @click="ratingPage++">
                   下一页
                 </button>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </GlassCard>
+    </template>
   </div>
 </template>
 
@@ -250,6 +239,8 @@ import { schoolApi } from '../api/school'
 import type { School, SchoolRating } from '../types/school'
 import { useUserStore } from '../stores/userStore'
 import { ElMessage } from 'element-plus'
+import { getErrorMessage, getApiErrorMessage } from '../utils/error'
+import GlassCard from '../components/GlassCard.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -282,13 +273,23 @@ const tabs = [
   { id: 'ratings', name: '用户评价' }
 ]
 
+const infoItems = computed(() => {
+  if (!school.value) return []
+  return [
+    { label: '综合排名', value: school.value.national_rank || '暂无' },
+    { label: '录取率', value: school.value.admission_rate ? school.value.admission_rate + '%' : '暂无' },
+    { label: '办学层次', value: school.value.school_level || '暂无' },
+    { label: '建校时间', value: school.value.founded_year || '暂无' }
+  ]
+})
+
 // 筛选专业
 const filteredMajors = computed(() => {
   if (!school.value || !school.value.majors) return []
-  
+
   if (!majorSearch.value) return school.value.majors
-  
-  return school.value.majors.filter(major => 
+
+  return school.value.majors.filter((major) =>
     major.name.toLowerCase().includes(majorSearch.value.toLowerCase())
   )
 })
@@ -296,8 +297,8 @@ const filteredMajors = computed(() => {
 // 分数线筛选
 const filteredScores = computed(() => {
   if (!school.value || !school.value.admission_scores) return []
-  
-  return school.value.admission_scores.filter(score => {
+
+  return school.value.admission_scores.filter((score) => {
     if (selectedProvince.value && score.province !== selectedProvince.value) return false
     if (selectedYear.value && score.year !== parseInt(selectedYear.value)) return false
     return true
@@ -307,31 +308,31 @@ const filteredScores = computed(() => {
 // 省份列表
 const provinces = computed(() => {
   if (!school.value || !school.value.admission_scores) return []
-  
-  const provinces = new Set<string>()
-  school.value.admission_scores.forEach(score => {
-    if (score.province) provinces.add(score.province)
+
+  const set = new Set<string>()
+  school.value.admission_scores.forEach((score) => {
+    if (score.province) set.add(score.province)
   })
-  
-  return Array.from(provinces)
+
+  return Array.from(set)
 })
 
 // 年份列表
 const years = computed(() => {
   if (!school.value || !school.value.admission_scores) return []
-  
-  const years = new Set<number>()
-  school.value.admission_scores.forEach(score => {
-    years.add(score.year)
+
+  const set = new Set<number>()
+  school.value.admission_scores.forEach((score) => {
+    set.add(score.year)
   })
-  
-  return Array.from(years).sort((a, b) => b - a) // 降序排列
+
+  return Array.from(set).sort((a, b) => b - a)
 })
 
 // 根据学校层次获取徽章样式
 const getBadgeClass = (level: string | undefined) => {
   if (!level) return 'badge-normal'
-  
+
   switch (level) {
     case '985工程':
       return 'badge-985'
@@ -357,16 +358,16 @@ const fetchSchoolDetail = async () => {
     router.push('/schools')
     return
   }
-  
+
   loading.value = true
   error.value = ''
-  
+
   try {
     const response = await schoolApi.getSchool(Number(id))
     school.value = response
     isFavorite.value = response.is_favorited || false
-  } catch (err: any) {
-    error.value = err.message || '获取学校信息失败，请稍后重试'
+  } catch (err) {
+    error.value = getErrorMessage(err, '获取学校信息失败，请稍后重试')
     console.error('获取学校详情失败:', err)
   } finally {
     loading.value = false
@@ -376,12 +377,12 @@ const fetchSchoolDetail = async () => {
 // 获取学校评价
 const fetchSchoolRatings = async () => {
   if (!school.value) return
-  
+
   try {
     const response = await schoolApi.getSchoolRatings(school.value.id, {
       page: ratingPage.value
     })
-    
+
     ratings.value = response.results
     totalRatingPages.value = Math.ceil(response.count / 10)
   } catch (err) {
@@ -394,14 +395,13 @@ const submitRating = async () => {
   if (!school.value || !userRating.value || !userComment.value.trim()) {
     return
   }
-  
+
   try {
     await schoolApi.rateSchool(school.value.id, {
       rating: userRating.value,
       comment: userComment.value.trim()
     })
-    
-    // 重置表单并刷新评价列表
+
     userRating.value = 0
     userComment.value = ''
     ratingPage.value = 1
@@ -420,9 +420,9 @@ const toggleFavorite = async () => {
     }
     return
   }
-  
+
   if (favoriteLoading.value) return
-  
+
   favoriteLoading.value = true
   try {
     if (isFavorite.value) {
@@ -434,9 +434,8 @@ const toggleFavorite = async () => {
       isFavorite.value = true
       ElMessage.success('收藏成功')
     }
-  } catch (err: any) {
-    const msg = err.response?.data?.detail || err.message || '操作失败'
-    ElMessage.error(msg)
+  } catch (err) {
+    ElMessage.error(getApiErrorMessage(err, '操作失败'))
   } finally {
     favoriteLoading.value = false
   }
@@ -460,96 +459,108 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.school-detail-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
+.school-detail-page {
+  min-height: 100vh;
 }
 
-.loading-state, .error-state {
+.loading-state,
+.error-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 4rem 0;
+  padding: var(--space-12) 0;
   text-align: center;
+  color: var(--text-secondary);
 }
 
 .spinner {
   width: 50px;
   height: 50px;
-  border: 4px solid rgba(67, 97, 238, 0.2);
+  border: 4px solid var(--primary-200);
   border-radius: 50%;
-  border-top-color: #4361ee;
+  border-top-color: var(--primary-600);
   animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-4);
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .error-icon {
   width: 60px;
   height: 60px;
-  margin-bottom: 1rem;
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23e94560"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 11c-.55 0-1-.45-1-1V8c0-.55.45-1 1-1s1 .45 1 1v4c0 .55-.45 1-1 1zm1 4h-2v-2h2v2z"/></svg>');
-  background-repeat: no-repeat;
+  font-size: 2.5rem;
+  color: var(--error-color);
+  margin-bottom: var(--space-4);
+}
+
+.error-state h3 {
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
 }
 
 .retry-btn {
-  margin-top: 1rem;
+  margin-top: var(--space-4);
   padding: 0.6rem 1.5rem;
-  background-color: #4361ee;
-  color: white;
+  background-color: var(--primary-600);
+  color: var(--text-inverse);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: background-color 0.3s;
 }
 
 .retry-btn:hover {
-  background-color: #3a56d4;
+  background-color: var(--primary-700);
+}
+
+.school-header-card {
+  margin-bottom: var(--space-6);
 }
 
 .school-header {
   display: flex;
   align-items: center;
-  gap: 2rem;
-  margin-bottom: 2rem;
-  padding: 2rem;
-  background-color: white;
-  border-radius: 16px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  gap: var(--space-6);
 }
 
 .school-logo {
-  width: 160px;
-  height: 160px;
+  width: 140px;
+  height: 140px;
   object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid #eee;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.school-title {
+  flex: 1;
 }
 
 .school-title h1 {
-  margin: 0 0 1rem 0;
-  color: #333;
-  font-size: 2.2rem;
+  margin: 0 0 var(--space-3) 0;
+  color: var(--text-primary);
+  font-size: 2rem;
+  font-weight: 700;
 }
 
 .school-tags {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
 .school-badge {
-  padding: 0.4rem 0.8rem;
-  border-radius: 20px;
-  font-size: 0.9rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
   font-weight: 600;
-  color: white;
+  color: var(--text-inverse);
 }
 
 .badge-985 {
@@ -568,44 +579,44 @@ onMounted(() => {
   background-color: #607d8b;
 }
 
-.school-location, .school-type {
-  padding: 0.4rem 0.8rem;
-  background-color: #f5f5f5;
-  border-radius: 20px;
-  font-size: 0.9rem;
-  color: #666;
+.school-location,
+.school-type {
+  padding: 0.35rem 0.8rem;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }
 
-.tab-container {
-  background-color: white;
-  border-radius: 16px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+.tab-card {
   overflow: hidden;
 }
 
 .tabs {
   display: flex;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color-light);
+  background: var(--bg-tertiary);
+  padding: 0 var(--space-4);
 }
 
 .tab-btn {
-  padding: 1.2rem 2rem;
+  padding: var(--space-4) var(--space-5);
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
-  color: #666;
-  transition: all 0.3s;
+  color: var(--text-secondary);
+  transition: all 0.25s ease;
   position: relative;
 }
 
 .tab-btn:hover {
-  color: #4361ee;
+  color: var(--primary-600);
 }
 
 .tab-btn.active {
-  color: #4361ee;
+  color: var(--primary-600);
 }
 
 .tab-btn.active::after {
@@ -615,15 +626,25 @@ onMounted(() => {
   left: 0;
   width: 100%;
   height: 3px;
-  background-color: #4361ee;
+  background-color: var(--primary-600);
+  border-radius: 3px 3px 0 0;
+}
+
+.dark .tab-btn:hover,
+.dark .tab-btn.active {
+  color: var(--primary-400);
+}
+
+.dark .tab-btn.active::after {
+  background-color: var(--primary-400);
 }
 
 .tab-content {
-  padding: 2rem;
+  padding: var(--space-6);
 }
 
 .section {
-  margin-bottom: 2rem;
+  margin-bottom: var(--space-8);
 }
 
 .section:last-child {
@@ -631,163 +652,193 @@ onMounted(() => {
 }
 
 .section h2 {
-  margin: 0 0 1.5rem 0;
-  color: #333;
-  font-size: 1.5rem;
+  margin: 0 0 var(--space-4) 0;
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.intro-text {
+  color: var(--text-secondary);
+  line-height: 1.8;
 }
 
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
 }
 
-.info-item {
-  padding: 1.5rem;
-  background-color: #f8f9fa;
-  border-radius: 12px;
+.info-card {
   display: flex;
   flex-direction: column;
+  gap: var(--space-2);
 }
 
-.label {
-  color: #666;
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
+.info-card .label {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
 }
 
-.value {
-  color: #333;
+.info-card .value {
+  color: var(--text-primary);
   font-size: 1.4rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .search-majors {
-  margin-bottom: 1.5rem;
+  position: relative;
+  margin-bottom: var(--space-5);
+  max-width: 420px;
+}
+
+.major-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: var(--text-tertiary);
+  pointer-events: none;
 }
 
 .search-input {
   width: 100%;
-  padding: 0.8rem 1rem;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  font-size: 1rem;
+  padding: 10px 14px 10px 40px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary-400);
+  box-shadow: 0 0 0 3px var(--primary-100);
 }
 
 .empty-state {
   text-align: center;
-  padding: 2rem 0;
-  color: #666;
+  padding: var(--space-8) 0;
+  color: var(--text-secondary);
 }
 
 .majors-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
-}
-
-.major-card {
-  padding: 1.5rem;
-  background-color: #f8f9fa;
-  border-radius: 12px;
-  transition: all 0.3s;
-}
-
-.major-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
 }
 
 .major-card h3 {
-  margin: 0 0 0.8rem 0;
-  color: #333;
+  margin: 0 0 var(--space-2) 0;
+  color: var(--text-primary);
+  font-size: 1.1rem;
 }
 
 .major-card p {
-  margin: 0 0 1rem 0;
-  color: #666;
+  margin: 0 0 var(--space-3) 0;
+  color: var(--text-secondary);
   line-height: 1.5;
+  font-size: 0.9rem;
 }
 
 .major-stats {
   display: flex;
   justify-content: space-between;
-  color: #888;
-  font-size: 0.9rem;
-  border-top: 1px solid #e0e0e0;
-  padding-top: 0.8rem;
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+  border-top: 1px solid var(--border-color-light);
+  padding-top: var(--space-3);
 }
 
 .filter-row {
   display: flex;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
 .filter-item {
   flex: 1;
-  min-width: 200px;
+  min-width: 180px;
 }
 
 .filter-item label {
   display: block;
-  margin-bottom: 0.5rem;
-  color: #666;
-  font-size: 0.9rem;
+  margin-bottom: var(--space-2);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .filter-item select {
   width: 100%;
-  padding: 0.8rem;
-  border: 1px solid #eee;
-  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   font-size: 0.95rem;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  transition: all 0.2s ease;
+}
+
+.filter-item select:focus {
+  outline: none;
+  border-color: var(--primary-400);
+  box-shadow: 0 0 0 3px var(--primary-100);
 }
 
 .score-table {
   overflow-x: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color-light);
 }
 
-table {
+.score-table table {
   width: 100%;
   border-collapse: collapse;
 }
 
-th, td {
-  padding: 1rem;
+th,
+td {
+  padding: var(--space-3) var(--space-4);
   text-align: left;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color-light);
 }
 
 th {
-  background-color: #f8f9fa;
-  color: #333;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
   font-weight: 600;
 }
 
-.rating-form {
-  margin-bottom: 2rem;
-  padding: 1.5rem;
-  background-color: #f8f9fa;
-  border-radius: 12px;
+tr:last-child td {
+  border-bottom: none;
 }
 
-.rating-form h3 {
-  margin: 0 0 1rem 0;
-  color: #333;
+.rating-form-card {
+  margin-bottom: var(--space-6);
+}
+
+.rating-form-card h3 {
+  margin: 0 0 var(--space-3) 0;
+  color: var(--text-primary);
+  font-size: 1.1rem;
 }
 
 .rating-stars {
   display: flex;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-3);
 }
 
 .star-btn {
   background: none;
   border: none;
-  font-size: 1.8rem;
-  color: #ccc;
+  font-size: 1.6rem;
+  color: var(--text-tertiary);
   cursor: pointer;
   transition: color 0.2s;
 }
@@ -797,100 +848,108 @@ th {
 }
 
 .rating-text {
-  margin-left: 1rem;
-  color: #666;
+  margin-left: var(--space-3);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
 }
 
 .comment-input {
   width: 100%;
   height: 100px;
-  padding: 0.8rem;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  font-size: 1rem;
-  margin-bottom: 1rem;
+  padding: var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  margin-bottom: var(--space-3);
   resize: vertical;
+  transition: all 0.2s ease;
+}
+
+.comment-input:focus {
+  outline: none;
+  border-color: var(--primary-400);
+  box-shadow: 0 0 0 3px var(--primary-100);
 }
 
 .submit-rating {
-  padding: 0.8rem 1.5rem;
-  background-color: #4361ee;
-  color: white;
+  padding: 0.7rem 1.5rem;
+  background-color: var(--primary-600);
+  color: var(--text-inverse);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: background-color 0.3s;
 }
 
 .submit-rating:hover {
-  background-color: #3a56d4;
+  background-color: var(--primary-700);
 }
 
 .login-notice {
   text-align: center;
-  padding: 2rem;
-  background-color: #f8f9fa;
-  border-radius: 12px;
-  margin-bottom: 2rem;
+  padding: var(--space-8) var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.login-notice p {
+  color: var(--text-secondary);
+  margin-bottom: var(--space-4);
 }
 
 .login-btn {
   display: inline-block;
-  margin-top: 0.5rem;
   padding: 0.6rem 1.5rem;
-  background-color: #4361ee;
-  color: white;
-  border-radius: 8px;
-  text-decoration: none;
+  background-color: var(--primary-600);
+  color: var(--text-inverse);
+  border-radius: var(--radius-md);
   font-weight: 600;
-  transition: all 0.3s;
+  transition: background-color 0.3s;
 }
 
 .login-btn:hover {
-  background-color: #3a56d4;
+  background-color: var(--primary-700);
 }
 
 .ratings-list h3 {
-  margin: 0 0 1.5rem 0;
-  color: #333;
+  margin: 0 0 var(--space-4) 0;
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  font-weight: 700;
 }
 
 .empty-ratings {
   text-align: center;
-  padding: 2rem 0;
-  color: #666;
+  padding: var(--space-8) 0;
+  color: var(--text-secondary);
 }
 
 .rating-items {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-}
-
-.rating-item {
-  padding: 1.5rem;
-  background-color: #f8f9fa;
-  border-radius: 12px;
+  gap: var(--space-4);
 }
 
 .rating-header {
   display: flex;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-3);
 }
 
 .user-avatar {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  background-color: #4361ee;
-  color: white;
+  background: var(--primary-600);
+  color: var(--text-inverse);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  margin-right: 1rem;
+  margin-right: var(--space-3);
+  flex-shrink: 0;
 }
 
 .rating-info {
@@ -899,13 +958,13 @@ th {
 
 .rating-user {
   font-weight: 600;
-  color: #333;
-  margin-bottom: 0.2rem;
+  color: var(--text-primary);
+  margin-bottom: 2px;
 }
 
 .rating-stars-display span {
-  color: #ccc;
-  font-size: 1.2rem;
+  color: var(--text-tertiary);
+  font-size: 1.1rem;
 }
 
 .rating-stars-display span.filled {
@@ -913,36 +972,36 @@ th {
 }
 
 .rating-date {
-  color: #999;
-  font-size: 0.9rem;
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
 }
 
 .rating-comment {
-  color: #555;
-  line-height: 1.5;
+  color: var(--text-secondary);
+  line-height: 1.6;
 }
 
 .pagination {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 1rem;
-  margin-top: 2rem;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
 }
 
 .page-btn {
-  padding: 0.6rem 1rem;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  background-color: white;
-  color: #666;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s ease;
 }
 
 .page-btn:hover:not(:disabled) {
-  border-color: #4361ee;
-  color: #4361ee;
+  border-color: var(--primary-400);
+  color: var(--primary-600);
 }
 
 .page-btn:disabled {
@@ -951,51 +1010,51 @@ th {
 }
 
 .forum-link {
-  padding: 1.2rem 2rem;
-  background-color: #4361ee;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
-  text-decoration: none;
   margin-left: auto;
+  align-self: center;
+  padding: 0.5rem 1rem;
+  background: var(--primary-600);
+  color: var(--text-inverse);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: background-color 0.3s;
+  text-decoration: none;
 }
 
 .forum-link:hover {
-  background-color: #3a56d4;
+  background: var(--primary-700);
 }
 
 .favorite-btn {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.8rem 1.5rem;
-  background-color: white;
-  color: #4361ee;
-  border: 2px solid #4361ee;
-  border-radius: 8px;
+  gap: var(--space-2);
+  padding: 0.7rem 1.4rem;
+  background: var(--bg-primary);
+  color: var(--primary-600);
+  border: 1.5px solid var(--primary-600);
+  border-radius: var(--radius-md);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.25s ease;
   margin-left: auto;
   align-self: center;
 }
 
 .favorite-btn:hover:not(:disabled) {
-  background-color: #4361ee;
-  color: white;
+  background: var(--primary-600);
+  color: var(--text-inverse);
 }
 
 .favorite-btn.is-favorite {
-  background-color: #4361ee;
-  color: white;
+  background: var(--primary-600);
+  color: var(--text-inverse);
 }
 
 .favorite-btn.is-favorite:hover:not(:disabled) {
-  background-color: #e91e63;
-  border-color: #e91e63;
+  background: var(--error-color);
+  border-color: var(--error-color);
 }
 
 .favorite-btn:disabled {
@@ -1004,56 +1063,61 @@ th {
 }
 
 .favorite-icon {
-  font-size: 1.2rem;
+  font-size: 1.1rem;
 }
 
 @media (max-width: 768px) {
   .school-header {
     flex-direction: column;
-    padding: 1.5rem;
-    gap: 1rem;
     text-align: center;
+    gap: var(--space-4);
   }
-  
+
   .school-logo {
     width: 120px;
     height: 120px;
   }
-  
+
   .school-title h1 {
-    font-size: 1.8rem;
+    font-size: 1.6rem;
   }
-  
+
   .school-tags {
     justify-content: center;
   }
-  
+
   .favorite-btn {
     margin-left: 0;
     align-self: stretch;
     justify-content: center;
   }
-  
+
   .tabs {
     overflow-x: auto;
     white-space: nowrap;
+    padding: 0;
   }
-  
+
   .tab-btn {
-    padding: 1rem;
+    padding: var(--space-3) var(--space-4);
   }
-  
+
+  .forum-link {
+    display: none;
+  }
+
   .tab-content {
-    padding: 1.5rem;
+    padding: var(--space-4);
   }
-  
-  .info-grid, .majors-grid {
+
+  .info-grid,
+  .majors-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .filter-row {
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--space-3);
   }
 }
-</style> 
+</style>

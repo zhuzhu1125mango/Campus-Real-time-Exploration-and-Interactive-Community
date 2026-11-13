@@ -1,0 +1,57 @@
+# 敏感配置
+.env
+.env.*
+
+# Python 虚拟环境
+.venv/
+venv/
+env/
+
+# Python 缓存与编译产物
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 版本控制
+.git/
+.gitignore
+
+# 静态/媒体文件（由运行时生成或挂载）
+static/
+staticfiles/
+media/
+
+# 测试与覆盖率
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+.tox/
+
+# IDE / 编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 本地数据库
+*.sqlite3
+*.db
+
+# Celery 调度器
+celerybeat-schedule
+celerybeat-schedule.*
+
+# 日志
+*.log
+logs/
+
+# Docker 自身
+docker-compose*.yml
+Dockerfile*
+
+# 文档（可选，避免镜像膨胀）
+docs/

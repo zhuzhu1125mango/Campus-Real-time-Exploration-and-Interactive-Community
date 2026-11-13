@@ -35,7 +35,7 @@ class UserPublicSerializer(serializers.ModelSerializer):
         """从通用收藏模型中返回用户收藏的学校ID列表"""
         from django.contrib.contenttypes.models import ContentType
         from schools.models import School
-        from users.favorites import Favorite
+        from favorites.models import Favorite
         school_ct = ContentType.objects.get_for_model(School)
         return list(
             Favorite.objects.filter(
@@ -76,7 +76,7 @@ class UserSerializer(serializers.ModelSerializer):
         """从通用收藏模型中返回用户收藏的学校ID列表"""
         from django.contrib.contenttypes.models import ContentType
         from schools.models import School
-        from users.favorites import Favorite
+        from favorites.models import Favorite
         school_ct = ContentType.objects.get_for_model(School)
         return list(
             Favorite.objects.filter(

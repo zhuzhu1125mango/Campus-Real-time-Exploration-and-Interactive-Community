@@ -1,0 +1,95 @@
+# 生产环境 Docker Compose 覆盖配置
+#
+# 使用方式：
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 本文件重点做生产加固：
+# 1. 关闭 MySQL / Redis / RabbitMQ / Elasticsearch 对外端口暴露，仅保留 Nginx 80/443。
+# 2. 为 Nginx 挂载生产 HTTPS 配置。
+# 3. 强调 DJANGO_SECRET_KEY 必须来自环境变量，不可使用默认值。
+
+services:
+  # 内部服务：取消端口映射，仅通过 campus_network 互通
+  mysql:
+    ports: !reset []
+
+  redis-ws:
+    ports: !reset []
+
+  redis-cache:
+    ports: !reset []
+
+  rabbitmq:
+    ports: !reset []
+
+  elasticsearch:
+    ports: !reset []
+
+  # 初始化任务：仅运行一次，完成迁移、静态文件收集、重建搜索索引
+  django-init:
+    build: ./backend
+    command: ["./scripts/init_django.sh"]
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_DEBUG: "False"
+      DB_HOST: mysql
+      DB_NAME: ${DB_NAME:-university_exchange}
+      DB_USER: ${DB_USER:-campus}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      DB_REPLICA_HOST: ""
+      REDIS_WS_URL: redis://redis-ws:6379/0
+      REDIS_CACHE_URL: redis://redis-cache:6379/0
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER:-campus}:${RABBITMQ_PASSWORD:-campus}@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis-cache:6379/1
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_FALLBACK_TO_DB: "True"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+    volumes:
+      - ./backend/static:/app/static
+      - ./backend/media:/app/media
+    depends_on:
+      mysql:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    restart: "no"
+
+  # HTTP API：不暴露端口，仅由 Nginx 反向代理访问
+  django-http:
+    ports: !reset []
+    command: ["./scripts/start_http.sh"]
+    depends_on:
+      - django-init
+
+  # WebSocket：不暴露端口，仅由 Nginx 反向代理访问
+  django-ws:
+    ports: !reset []
+    depends_on:
+      - django-init
+
+  # Celery Worker：不暴露端口
+  celery-worker:
+    ports: !reset []
+    depends_on:
+      - django-init
+
+  # Nginx：对外仅暴露 80（HTTP 自动跳转 HTTPS）和 443（HTTPS）
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - PROD_DOMAIN=${PROD_DOMAIN}
+      - SSL_CERT_PATH=${SSL_CERT_PATH:-/etc/nginx/ssl/fullchain.pem}
+      - SSL_KEY_PATH=${SSL_KEY_PATH:-/etc/nginx/ssl/privkey.pem}
+    volumes:
+      - ./backend/static:/app/static:ro
+      - ./backend/media:/app/media:ro
+      # SSL 证书挂载路径（在 .env 中设置 SSL_CERT_HOST_PATH / SSL_KEY_HOST_PATH）
+      - ${SSL_CERT_HOST_PATH:-/etc/letsencrypt/live/example.com/fullchain.pem}:/etc/nginx/ssl/fullchain.pem:ro
+      - ${SSL_KEY_HOST_PATH:-/etc/letsencrypt/live/example.com/privkey.pem}:/etc/nginx/ssl/privkey.pem:ro
+    depends_on:
+      - django-http
+      - django-ws

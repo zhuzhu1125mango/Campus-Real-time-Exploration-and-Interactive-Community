@@ -64,17 +64,6 @@ export interface Post {
   updated_at: string
 }
 
-export interface Notification {
-  id: number
-  user: number
-  sender?: User
-  notification_type: string
-  content: string
-  post?: number
-  is_read: boolean
-  created_at: string
-}
-
 export interface ForumStats {
   user_count: number
   topic_count: number
@@ -110,13 +99,6 @@ export interface PostListResponse {
   next: string | null
   previous: string | null
   results: Post[]
-}
-
-export interface NotificationListResponse {
-  count: number
-  next: string | null
-  previous: string | null
-  results: Notification[]
 }
 
 export interface BookmarkListResponse {

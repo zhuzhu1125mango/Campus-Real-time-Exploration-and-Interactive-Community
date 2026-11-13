@@ -1,31 +1,42 @@
 import request from '../utils/request'
-import type { 
-  LoginForm, 
-  RegisterForm, 
-  TokenResponse, 
-  User, 
-  EmailLoginForm, 
+import type {
+  LoginForm,
+  RegisterForm,
+  TokenResponse,
+  User,
+  EmailLoginForm,
   PhoneLoginForm,
   SendCodeForm,
-  ResetPasswordForm
+  ResetPasswordForm,
+  PaginatedResponse,
+  Notification,
+  Favorite,
+  FriendRequest,
+  Activity,
+  ActivityComment,
+  UserPoints,
+  PointsRecordsResponse,
+  PointsLeaderboardItem,
+  DailyCheckinResult
 } from '../types/user'
 import type { Topic, Post } from '../types/forum'
+import type { Conversation, PrivateMessage, ConversationDetail } from '../types/chat'
 
 
 
 export const userApi = {
   // 用户名密码登录
-  login(data: LoginForm): Promise<any> {
+  login(data: LoginForm): Promise<TokenResponse> {
     return request.post('/users/users/login/', data)
   },
 
   // 邮箱验证码登录
-  emailCodeLogin(data: EmailLoginForm): Promise<any> {
+  emailCodeLogin(data: EmailLoginForm): Promise<TokenResponse> {
     return request.post('/users/users/email_code_login/', data)
   },
 
   // 手机验证码登录
-  phoneCodeLogin(data: PhoneLoginForm): Promise<any> {
+  phoneCodeLogin(data: PhoneLoginForm): Promise<TokenResponse> {
     return request.post('/users/users/phone_code_login/', data)
   },
 
@@ -66,7 +77,7 @@ export const userApi = {
   },
 
   // 更新用户信息（统一走 request 封装，支持 multipart 文件上传）
-  updateProfile(data: FormData | Record<string, any>) {
+  updateProfile(data: FormData | Record<string, unknown>) {
     if (data instanceof FormData) {
       return request.patch<User>('/users/users/update_me/', data, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -88,7 +99,7 @@ export const userApi = {
 
   // 获取收藏的学校
   getFavoriteSchools() {
-    return request.get<Array<{ id: number; content_type: string; object_id: number; category: string; note?: string; content_type_name?: string; content_object_name?: string; content_object: any }>>('/users/favorites/by_category/', {
+    return request.get<Favorite[]>('/users/favorites/by_category/', {
       params: { category: 'school' }
     })
   },
@@ -124,12 +135,12 @@ export const userApi = {
 
   // 获取通知列表
   getNotifications(params?: { page?: number; page_size?: number; unread?: boolean; type?: string }) {
-    return request.get('/users/notifications/', { params })
+    return request.get<PaginatedResponse<Notification>>('/users/notifications/', { params })
   },
 
   // 获取未读通知数
   getUnreadNotificationsCount() {
-    return request.get('/users/notifications/count/')
+    return request.get<{ unread_count: number }>('/users/notifications/count/')
   },
   
   // 标记所有通知为已读
@@ -163,17 +174,17 @@ export const userApi = {
   },
 
   // 获取当前用户信息
-  getCurrentUser(): Promise<any> {
+  getCurrentUser(): Promise<User> {
     return request.get('/users/users/me/')
   },
 
   // 获取用户资料
-  getUserProfile(userId: number | string): Promise<any> {
+  getUserProfile(userId: number | string): Promise<User> {
     return request.get(`/users/users/${userId}/`)
   },
 
   // 更新用户资料
-  updateUserProfile(data: Partial<any>): Promise<any> {
+  updateUserProfile(data: Partial<User>): Promise<User> {
     return request.patch('/users/users/me/', data)
   },
   
@@ -206,129 +217,129 @@ export const userApi = {
   // 好友系统相关API
   
   // 获取好友列表
-  getFriends(): Promise<{ friends: any[]; count: number }> {
+  getFriends(): Promise<{ friends: User[]; count: number }> {
     return request.get('/users/friends/friend_list/')
   },
-  
+
   // 发送好友请求
-  sendFriendRequest(receiverId: number): Promise<any> {
+  sendFriendRequest(receiverId: number): Promise<FriendRequest> {
     return request.post('/users/friend-requests/', { receiver: receiverId })
   },
-  
+
   // 获取收到的好友请求
-  getReceivedFriendRequests(): Promise<any[]> {
+  getReceivedFriendRequests(): Promise<FriendRequest[]> {
     return request.get('/users/friend-requests/received/')
   },
-  
+
   // 获取发送的好友请求
-  getSentFriendRequests(): Promise<any[]> {
+  getSentFriendRequests(): Promise<FriendRequest[]> {
     return request.get('/users/friend-requests/sent/')
   },
-  
+
   // 接受好友请求
-  acceptFriendRequest(requestId: number): Promise<any> {
+  acceptFriendRequest(requestId: number): Promise<FriendRequest> {
     return request.post(`/users/friend-requests/${requestId}/accept/`)
   },
-  
+
   // 拒绝好友请求
-  rejectFriendRequest(requestId: number): Promise<any> {
+  rejectFriendRequest(requestId: number): Promise<FriendRequest> {
     return request.post(`/users/friend-requests/${requestId}/reject/`)
   },
-  
+
   // 移除好友
-  removeFriend(friendId: number): Promise<any> {
+  removeFriend(friendId: number): Promise<{ success: boolean }> {
     return request.post('/users/friends/remove/', { friend_id: friendId })
   },
-  
+
   // 检查是否是好友
   checkFriendship(userId: number): Promise<{ is_friend: boolean }> {
     return request.get(`/users/friends/check/?user_id=${userId}`)
   },
-  
+
   // 搜索用户
-  searchUsers(query: string): Promise<any[]> {
+  searchUsers(query: string): Promise<User[]> {
     return request.get(`/users/users/search/?q=${encodeURIComponent(query)}`)
   },
   
   // 私信系统相关API
   
   // 获取所有对话
-  getConversations(): Promise<any[]> {
+  getConversations(): Promise<Conversation[]> {
     return request.get('/users/messages/conversations/')
   },
-  
+
   // 获取与特定用户的消息列表
-  getMessages(userId: number): Promise<any[]> {
+  getMessages(userId: number): Promise<PrivateMessage[]> {
     return request.get(`/users/messages/${userId}/`)
   },
-  
+
   // 获取与特定用户的对话
-  getConversation(userId: number, page?: number, pageSize?: number): Promise<any> {
+  getConversation(userId: number, page?: number, pageSize?: number): Promise<ConversationDetail> {
     const params: Record<string, number> = { user_id: userId }
     if (page !== undefined) params.page = page
     if (pageSize !== undefined) params.page_size = pageSize
     return request.get('/users/messages/conversation/', { params })
   },
-  
+
   // 发送私信
-  sendMessage(receiverId: number, data: { content: string }): Promise<any> {
+  sendMessage(receiverId: number, data: { content: string }): Promise<PrivateMessage> {
     return request.post(`/users/messages/${receiverId}/`, data)
   },
-  
+
   // 获取未读消息数量
   getUnreadMessagesCount(): Promise<{ unread_count: number }> {
     return request.get('/users/messages/unread_count/')
   },
-  
+
   // 标记消息为已读
-  markMessageAsRead(messageId: number): Promise<any> {
+  markMessageAsRead(messageId: number): Promise<{ success: boolean }> {
     return request.post(`/users/messages/${messageId}/mark_read/`)
   },
-  
+
   // 标记与特定用户的所有消息为已读
-  markMessagesAsRead(userId: number): Promise<any> {
+  markMessagesAsRead(userId: number): Promise<{ success: boolean }> {
     return request.post(`/users/messages/${userId}/mark_read/`)
   },
-  
+
   // 标记所有消息为已读
-  markAllMessagesAsRead(): Promise<any> {
+  markAllMessagesAsRead(): Promise<{ success: boolean }> {
     return request.post('/users/messages/mark_all_read/')
   },
   
   // 个人动态相关API
   
   // 获取动态列表
-  getActivities(params?: { page?: number; page_size?: number; type?: string }): Promise<{ count: number; next: string | null; previous: string | null; results: any[] }> {
+  getActivities(params?: { page?: number; page_size?: number; type?: string }): Promise<PaginatedResponse<Activity>> {
     return request.get('/users/activities/', { params })
   },
-  
+
   // 获取动态详情
-  getActivityDetail(activityId: number | string): Promise<any> {
+  getActivityDetail(activityId: number | string): Promise<Activity> {
     return request.get(`/users/activities/${activityId}/`)
   },
-  
+
   // 创建动态
-  createActivity(data: { activity_type: string; content?: string; target_content_type?: string; target_object_id?: number; target_title?: string; target_url?: string; is_public?: boolean }): Promise<any> {
+  createActivity(data: { activity_type: string; content?: string; target_content_type?: string; target_object_id?: number; target_title?: string; target_url?: string; is_public?: boolean }): Promise<Activity> {
     return request.post('/users/activities/', data)
   },
-  
+
   // 获取动态评论
-  getActivityComments(activityId: number | string): Promise<any[]> {
+  getActivityComments(activityId: number | string): Promise<ActivityComment[]> {
     return request.get(`/users/activities/${activityId}/comments/`)
   },
-  
+
   // 点赞动态
   likeActivity(activityId: number | string): Promise<{ status: string }> {
     return request.post(`/users/activities/${activityId}/like/`)
   },
-  
+
   // 取消点赞动态
   unlikeActivity(activityId: number | string): Promise<{ status: string }> {
     return request.post(`/users/activities/${activityId}/unlike/`)
   },
-  
+
   // 获取关注动态
-  getActivityFeed(params?: { page?: number }): Promise<{ count: number; next: string | null; previous: string | null; results: any[] }> {
+  getActivityFeed(params?: { page?: number }): Promise<PaginatedResponse<Activity>> {
     return request.get('/users/activities/feed/', { params })
   },
 
@@ -341,65 +352,36 @@ export const userApi = {
   unfollowUser(userId: number | string): Promise<{ status: string }> {
     return request.post(`/users/users/${userId}/unfollow/`)
   },
-  
+
   // 获取我的动态
-  getMyActivities(params?: { page?: number }): Promise<{ count: number; next: string | null; previous: string | null; results: any[] }> {
+  getMyActivities(params?: { page?: number }): Promise<PaginatedResponse<Activity>> {
     return request.get('/users/activities/my_activities/', { params })
   },
-  
+
   // 创建评论
-  createActivityComment(data: { activity: number; content: string; parent?: number }): Promise<any> {
+  createActivityComment(data: { activity: number; content: string; parent?: number }): Promise<ActivityComment> {
     return request.post('/users/activity-comments/', data)
   },
 
   // 积分系统相关API
-  
+
   // 获取用户积分信息
-  getUserPoints(userId: number | string): Promise<{
-    points: number
-    level: number
-    level_name: string
-    level_progress: number
-    next_level_points: number
-  }> {
+  getUserPoints(userId: number | string): Promise<UserPoints> {
     return request.get(`/users/users/${userId}/points/`)
   },
-  
+
   // 获取积分排行榜
-  getPointsLeaderboard(): Promise<{
-    rank: number
-    user_id: number
-    username: string
-    avatar: string | null
-    points: number
-    level: number
-    level_name: string
-  }[]> {
+  getPointsLeaderboard(): Promise<PointsLeaderboardItem[]> {
     return request.get('/users/points-leaderboard/')
   },
-  
+
   // 每日签到
-  dailyCheckin(): Promise<{
-    message: string
-    points: number
-    total_points: number
-  }> {
+  dailyCheckin(): Promise<DailyCheckinResult> {
     return request.post('/users/users/daily_checkin/')
   },
-  
+
   // 获取用户积分记录
-  getUserPointsRecords(userId: number | string): Promise<{
-    count: number
-    next: string | null
-    previous: string | null
-    results: {
-      id: number
-      action: string
-      points: number
-      description: string
-      created_at: string
-    }[]
-  }> {
+  getUserPointsRecords(userId: number | string): Promise<PointsRecordsResponse> {
     return request.get(`/users/users/${userId}/points_records/`)
   }
 } 

@@ -314,18 +314,25 @@ class ChatAPITestBase(APITestCase):
 class RecentMessagesAPITests(ChatAPITestBase):
     """recent_messages 接口测试"""
 
-    def test_recent_messages_returns_recent_messages(self):
-        """GET /api/chat/messages/recent_messages/ 应返回最近消息，按时间倒序。"""
+    def test_recent_messages_authenticated_returns_paginated_messages(self):
+        """已认证用户 GET /api/chat/messages/recent_messages/ 应返回分页的最近消息，按时间倒序。"""
         user = self.create_user('recent_user')
+        self.authenticate(user)
         ChatMessage.objects.create(user=user, content='older')
         ChatMessage.objects.create(user=user, content='newer')
 
         response = self.client.get('/api/chat/messages/recent_messages/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        contents = [m['content'] for m in response.data]
+        self.assertIn('results', response.data)
+        contents = [m['content'] for m in response.data['results']]
         self.assertEqual(len(contents), 2)
         self.assertIn('older', contents)
         self.assertIn('newer', contents)
+
+    def test_recent_messages_unauthenticated_returns_401(self):
+        """未认证用户访问 recent_messages 应返回 401。"""
+        response = self.client.get('/api/chat/messages/recent_messages/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 @override_settings(REST_FRAMEWORK=DISABLE_THROTTLE_SETTINGS)

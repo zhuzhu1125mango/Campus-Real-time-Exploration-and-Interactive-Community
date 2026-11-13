@@ -73,11 +73,13 @@
 </template>
 
 <script setup lang="ts">
+import { logger } from '@/utils/logger'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from '../composables/useToast'
 import { userApi } from '../api/user'
 import { useUserStore } from '../stores/userStore'
+import type { Notification, User } from '../types/user'
 
 const { showToast } = useToast()
 const router = useRouter()
@@ -87,7 +89,7 @@ const userStore = useUserStore()
 const isOpen = ref(false)
 const loading = ref(false)
 const unreadCount = ref(0)
-const notifications = ref<any[]>([])
+const notifications = ref<Notification[]>([])
 const activeTab = ref('all')
 const dropdownContent = ref<HTMLElement | null>(null)
 
@@ -147,13 +149,8 @@ const fetchNotifications = async () => {
     // 使用userApi获取通知
     const response = await userApi.getNotifications()
     // 确保正确获取通知数据
-    let fetchedNotifications = []
-    if (response && response.data) {
-      fetchedNotifications = response.data
-    } else {
-      fetchedNotifications = response
-    }
-    
+    const fetchedNotifications = response.results
+
     // 合并本地通知和服务器通知，避免覆盖WebSocket收到的新通知
     if (Array.isArray(fetchedNotifications)) {
       // 创建一个Map来存储所有通知，使用id作为键
@@ -191,11 +188,7 @@ const fetchUnreadCount = async () => {
   try {
     // 使用userApi获取未读通知数
     const response = await userApi.getUnreadNotificationsCount()
-    if (response && response.data && typeof response.data.unread_count !== 'undefined') {
-      unreadCount.value = response.data.unread_count
-    } else {
-      unreadCount.value = 0
-    }
+    unreadCount.value = response.unread_count
   } catch (error) {
     console.error('获取未读数失败:', error)
     unreadCount.value = 0
@@ -232,7 +225,7 @@ const markAllAsRead = async () => {
 }
 
 // 点击通知项
-const handleNotificationClick = async (notification: any) => {
+const handleNotificationClick = async (notification: Notification) => {
   // 关闭下拉菜单
   isOpen.value = false
   
@@ -261,21 +254,21 @@ const handleNotificationClick = async (notification: any) => {
     // 私信通知：优先使用 sender.id 构建跳转路径
     const senderId = notification.sender?.id
     if (senderId) {
-      console.log(`[通知跳转] 跳转到私聊页面: /chat/${senderId}`)
+      logger.log(`[通知跳转] 跳转到私聊页面: /chat/${senderId}`)
       router.push(`/chat/${senderId}`)
     } else if (notification.url) {
-      console.log(`[通知跳转] 使用通知URL跳转: ${notification.url}`)
+      logger.log(`[通知跳转] 使用通知URL跳转: ${notification.url}`)
       router.push(notification.url)
     }
   } else if (notification.url) {
     // 其他类型通知使用 url 字段
-    console.log(`[通知跳转] 跳转到: ${notification.url}`)
+    logger.log(`[通知跳转] 跳转到: ${notification.url}`)
     router.push(notification.url)
   }
 }
 
 // 获取发送者头像样式
-const getSenderAvatarStyle = (sender: any) => {
+const getSenderAvatarStyle = (sender: User) => {
   if (sender?.avatar) {
     return { backgroundImage: `url(${sender.avatar})` }
   }

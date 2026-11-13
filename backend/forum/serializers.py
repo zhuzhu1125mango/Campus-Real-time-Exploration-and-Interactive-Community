@@ -1,8 +1,10 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from notifications.notification_sender import notify_forum_event
+from users.tasks import queue_update_user_points
 from .models import (
     Category, Board, Topic, Post, Attachment,
-    Like, Tag, Report, Notification, Bookmark,
+    Like, Tag, Report, Bookmark,
     Comment, CommentLike
 )
 from django.utils import timezone
@@ -343,13 +345,13 @@ class PostAuditSerializer(serializers.ModelSerializer):
         
         # 如果审核不通过，通知作者
         if instance.content_status == 'rejected' and instance.author != self.context['request'].user:
-            Notification.objects.create(
-                user=instance.author,
+            notify_forum_event(
+                recipient=instance.author,
                 sender=self.context['request'].user,
-                notification_type='system',
+                forum_type='system',
+                message=f"您的帖子 \"{instance.topic.title}\" 未通过审核，原因：{instance.review_note}",
                 topic=instance.topic,
                 post=instance,
-                message=f"您的帖子 \"{instance.topic.title}\" 未通过审核，原因：{instance.review_note}"
             )
         
         instance.save()
@@ -394,22 +396,6 @@ class BookmarkSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
-
-
-class NotificationSerializer(serializers.ModelSerializer):
-    """通知序列化器"""
-    sender_username = serializers.CharField(source='sender.username', read_only=True)
-    
-    class Meta:
-        model = Notification
-        fields = (
-            'id', 'user', 'sender', 'sender_username', 'notification_type',
-            'topic', 'post', 'message', 'is_read', 'created_at'
-        )
-        read_only_fields = (
-            'user', 'sender', 'notification_type', 'topic',
-            'post', 'message', 'created_at'
-        )
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -457,12 +443,15 @@ class CommentCreateSerializer(serializers.ModelSerializer):
         
         # 创建评论通知（如果评论的不是自己的帖子）
         if comment.post.author != self.context['request'].user:
-            Notification.objects.create(
-                user=comment.post.author,
+            notify_forum_event(
+                recipient=comment.post.author,
                 sender=self.context['request'].user,
-                notification_type='topic_reply',
+                forum_type='topic_reply',
+                message=f"{self.context['request'].user.username} 评论了您的帖子",
                 post=comment.post,
-                message=f"{self.context['request'].user.username} 评论了您的帖子"
             )
-        
+
+        # 异步发放评论积分
+        queue_update_user_points(self.context['request'].user.id, 'comment')
+
         return comment

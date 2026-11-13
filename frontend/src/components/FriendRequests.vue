@@ -46,12 +46,13 @@
 import { ref, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
 import { userApi } from '../api/user'
+import type { FriendRequest } from '../types/user'
 
 const { showToast } = useToast()
 
 // 状态数据
 const loading = ref(false)
-const requests = ref<any[]>([])
+const requests = ref<FriendRequest[]>([])
 
 // 获取好友请求列表
 const fetchFriendRequests = async () => {

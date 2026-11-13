@@ -1,0 +1,230 @@
+# 本文件提供两种典型用法：
+# 1. 全容器运行：docker compose up -d
+# 2. 仅 Docker 跑基础设施，宿主机跑前后端：
+#    docker compose up -d mysql redis-ws redis-cache rabbitmq elasticsearch
+#    然后在宿主机启动 Django / Vue / Celery
+services:
+  # MySQL 主库
+  mysql:
+    image: mysql:8.0
+    container_name: campus_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-123456}
+      MYSQL_DATABASE: ${DB_NAME:-university_exchange}
+      MYSQL_USER: ${DB_USER:-campus}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-123456}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - campus_network
+
+  # WebSocket 专用 Redis
+  redis-ws:
+    image: redis:7-alpine
+    container_name: campus_redis_ws
+    volumes:
+      - redis_ws_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - campus_network
+
+  # 业务缓存专用 Redis
+  redis-cache:
+    image: redis:7-alpine
+    container_name: campus_redis_cache
+    volumes:
+      - redis_cache_data:/data
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - campus_network
+
+  # RabbitMQ 消息队列
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: campus_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-campus}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-campus}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - campus_network
+
+  # Elasticsearch 搜索引擎（单节点开发环境，内置 ik 中文分词）
+  elasticsearch:
+    build:
+      context: ./elasticsearch
+      dockerfile: Dockerfile
+    container_name: campus_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+    networks:
+      - campus_network
+
+  # Django HTTP API 服务
+  django-http:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: campus_django_http
+    command: ["./scripts/start_http.sh"]
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_DEBUG: "False"
+      DB_HOST: mysql
+      DB_NAME: ${DB_NAME:-university_exchange}
+      DB_USER: ${DB_USER:-campus}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      DB_REPLICA_HOST: ""  # 本地开发关闭真正读写分离；生产环境填入从库地址
+      REDIS_WS_URL: redis://redis-ws:6379/0
+      REDIS_CACHE_URL: redis://redis-cache:6379/0
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER:-campus}:${RABBITMQ_PASSWORD:-campus}@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis-cache:6379/1
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_FALLBACK_TO_DB: "True"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+    volumes:
+      - ./backend/media:/app/media
+      - ./backend/static:/app/static
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - campus_network
+
+  # Django WebSocket 服务
+  django-ws:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: campus_django_ws
+    command: ["./scripts/start_ws.sh"]
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_DEBUG: "False"
+      DB_HOST: mysql
+      DB_NAME: ${DB_NAME:-university_exchange}
+      DB_USER: ${DB_USER:-campus}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      REDIS_WS_URL: redis://redis-ws:6379/0
+      REDIS_CACHE_URL: redis://redis-cache:6379/0
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER:-campus}:${RABBITMQ_PASSWORD:-campus}@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis-cache:6379/1
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_FALLBACK_TO_DB: "True"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis-ws:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - campus_network
+
+  # Celery Worker
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: campus_celery_worker
+    command: ["./scripts/start_worker.sh"]
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DB_HOST: mysql
+      DB_NAME: ${DB_NAME:-university_exchange}
+      DB_USER: ${DB_USER:-campus}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      REDIS_WS_URL: redis://redis-ws:6379/0
+      REDIS_CACHE_URL: redis://redis-cache:6379/0
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER:-campus}:${RABBITMQ_PASSWORD:-campus}@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis-cache:6379/1
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_FALLBACK_TO_DB: "True"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - campus_network
+
+  # Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: campus_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./backend/static:/app/static:ro
+      - ./backend/media:/app/media:ro
+    depends_on:
+      - django-http
+      - django-ws
+    networks:
+      - campus_network
+
+volumes:
+  mysql_data:
+  redis_ws_data:
+  redis_cache_data:
+  rabbitmq_data:
+  elasticsearch_data:
+
+networks:
+  campus_network:
+    driver: bridge

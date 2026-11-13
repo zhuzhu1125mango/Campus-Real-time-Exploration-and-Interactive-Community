@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { userApi } from '../api/user'
+import { getApiErrorMessage } from '../utils/error'
 import { useUserStore } from '../stores/userStore'
 
 interface Props {
@@ -50,9 +51,9 @@ const toggleFollow = async (event: MouseEvent) => {
     }
     innerFollowing.value = nextState
     emit('update', nextState)
-  } catch (error: any) {
+  } catch (error) {
     console.error('关注操作失败:', error)
-    ElMessage.error(error?.response?.data?.detail || '操作失败，请重试')
+    ElMessage.error(getApiErrorMessage(error, '操作失败，请重试'))
   } finally {
     loading.value = false
   }

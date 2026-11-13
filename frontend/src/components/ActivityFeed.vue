@@ -44,7 +44,7 @@
       <div v-for="activity in activities" :key="activity.id" class="activity-item">
         <div class="activity-header">
           <div class="user-info" @click="goToUserProfile(activity.user?.id)">
-            <img :src="activity.user.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'" :alt="activity.user.username" class="avatar">
+            <img :src="activity.user.avatar || '/trae-api/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'" :alt="activity.user.username" class="avatar">
             <div class="user-details">
               <h4 class="username">{{ activity.user.username }}</h4>
               <span class="activity-type">{{ getActivityTypeText(activity.activity_type) }}</span>
@@ -68,10 +68,10 @@
           </div>
         </div>
         <div class="activity-actions">
-          <button 
-            class="action-btn like-btn" 
+          <button
+            class="action-btn like-btn"
             :class="{ 'liked': activity.is_liked }"
-            @click="toggleLike(activity.id, activity.is_liked)"
+            @click="toggleLike(activity.id, !!activity.is_liked)"
           >
             <span class="icon">❤️</span>
             <span class="count">{{ activity.likes_count }}</span>
@@ -86,7 +86,7 @@
         <div v-if="showComments === activity.id" class="activity-comments">
           <div class="comments-list">
             <div v-for="comment in activity.comments" :key="comment.id" class="comment-item">
-              <img :src="comment.user.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'" :alt="comment.user.username" class="avatar">
+              <img :src="comment.user.avatar || '/trae-api/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'" :alt="comment.user.username" class="avatar">
               <div class="comment-content">
                 <div class="comment-header">
                   <span class="username">{{ comment.user.username }}</span>
@@ -95,7 +95,7 @@
                 <p>{{ comment.content }}</p>
                 <div v-if="comment.replies && comment.replies.length > 0" class="replies-list">
                   <div v-for="reply in comment.replies" :key="reply.id" class="reply-item">
-                    <img :src="reply.user.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'" :alt="reply.user.username" class="avatar">
+                    <img :src="reply.user.avatar || '/trae-api/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'" :alt="reply.user.username" class="avatar">
                     <div class="reply-content">
                       <div class="reply-header">
                         <span class="username">{{ reply.user.username }}</span>
@@ -110,7 +110,7 @@
             </div>
           </div>
           <div class="comment-form">
-            <img :src="currentUser?.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'" :alt="currentUser?.username" class="avatar">
+            <img :src="currentUser?.avatar || '/trae-api/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'" :alt="currentUser?.username" class="avatar">
             <div class="form-content">
               <textarea v-model="commentForm.content" placeholder="写下你的评论..." rows="2"></textarea>
               <div class="form-actions">
@@ -134,15 +134,16 @@ import { ref, onMounted, computed } from 'vue'
 import { userApi } from '../api/user'
 import { useUserStore } from '../stores/userStore'
 import { useRouter } from 'vue-router'
+import type { Activity, User } from '../types/user'
 
 const props = defineProps<{
   title?: string
   feedType?: 'all' | 'feed' | 'my'
 }>()
 
-const title = props.title || '动态' 
+const title = props.title || '动态'
 const feedType = props.feedType || 'all'
-const activities = ref<any[]>([])
+const activities = ref<Activity[]>([])
 const showCreateForm = ref(false)
 const showComments = ref<number | null>(null)
 const userStore = useUserStore()
@@ -190,7 +191,7 @@ const formatTime = (timeStr: string): string => {
   return date.toLocaleDateString()
 }
 
-const showFollowButton = (user: any) => {
+const showFollowButton = (user: User) => {
   return userStore.isLoggedIn && user?.id && Number(user.id) !== Number(currentUser.value?.id)
 }
 
@@ -199,7 +200,7 @@ const goToUserProfile = (userId: number) => {
   router.push(`/user-profile/${userId}`)
 }
 
-const toggleFollow = async (activity: any) => {
+const toggleFollow = async (activity: Activity) => {
   const user = activity.user
   if (!user?.id || followLoadingIds.value.has(activity.id)) return
   followLoadingIds.value.add(activity.id)

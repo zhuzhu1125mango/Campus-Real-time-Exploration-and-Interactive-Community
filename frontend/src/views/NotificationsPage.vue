@@ -1,74 +1,90 @@
 <template>
-  <div class="notifications-page">
-    <div class="page-header">
-      <h1>通知中心</h1>
-      <div class="header-actions">
-        <button 
-          class="btn-mark-all" 
-          @click="markAllAsRead" 
-          :disabled="loading || unreadCount === 0"
-        >
-          全部标为已读
-        </button>
-        <button 
-          class="btn-delete-read" 
-          @click="deleteAllRead" 
-          :disabled="loading"
-        >
-          删除已读通知
-        </button>
+  <div class="notifications-page container-medium page-padding">
+    <SectionHeader
+      title="通知中心"
+      subtitle="管理系统通知与互动消息"
+      icon="i-ep-message"
+    />
+
+    <GlassCard :hover="false" class="filters-card" padding="md">
+      <div class="notification-filters">
+        <div class="filter-tabs">
+          <button
+            v-for="tab in tabs"
+            :key="tab.type"
+            @click="activeTab = tab.type"
+            :class="['tab-button', { active: activeTab === tab.type }]"
+          >
+            {{ tab.name }}
+            <span v-if="tab.type === 'all' && totalCount > 0" class="count">({{ totalCount }})</span>
+            <span v-else-if="tab.count > 0" class="count">({{ tab.count }})</span>
+          </button>
+        </div>
+
+        <div class="filter-buttons">
+          <button
+            class="btn btn-secondary"
+            :class="{ active: filterUnread }"
+            @click="filterUnread = !filterUnread"
+          >
+            <span class="i-ep-bell" />
+            只看未读
+          </button>
+        </div>
       </div>
-    </div>
-    
-    <div class="notification-filters">
-      <div class="filter-tabs">
-        <button 
-          v-for="tab in tabs" 
-          :key="tab.type"
-          @click="activeTab = tab.type" 
-          :class="['tab-button', { active: activeTab === tab.type }]"
-        >
-          {{ tab.name }}
-          <span v-if="tab.type === 'all' && totalCount > 0" class="count">({{ totalCount }})</span>
-          <span v-else-if="tab.count > 0" class="count">({{ tab.count }})</span>
-        </button>
+    </GlassCard>
+
+    <GlassCard :hover="false" class="notifications-card">
+      <div class="notifications-toolbar">
+        <h2 class="card-title">通知列表</h2>
+        <div class="toolbar-actions">
+          <button
+            class="btn btn-primary"
+            @click="markAllAsRead"
+            :disabled="loading || unreadCount === 0"
+          >
+            <span class="i-ep-check" />
+            全部标为已读
+          </button>
+          <button
+            class="btn btn-secondary"
+            @click="deleteAllRead"
+            :disabled="loading"
+          >
+            <span class="i-ep-delete" />
+            删除已读通知
+          </button>
+        </div>
       </div>
-      
-      <div class="filter-buttons">
-        <button 
-          class="btn-filter" 
-          :class="{ active: filterUnread }"
-          @click="filterUnread = !filterUnread"
-        >
-          <span class="unread-dot"></span> 只看未读
-        </button>
-      </div>
-    </div>
-    
-    <div class="notifications-container">
+
       <div v-if="loading" class="loading-state">
-        <div class="loading-spinner"></div>
+        <div class="loading-spinner" />
         <p>加载中...</p>
       </div>
-      
+
       <div v-else-if="filteredNotifications.length === 0" class="empty-state">
-        <div class="empty-icon"></div>
+        <div class="empty-icon">
+          <span class="i-ep-message" />
+        </div>
         <p>暂无{{ getActiveTabName() }}通知</p>
       </div>
-      
+
       <div v-else class="notifications-list">
-        <div 
-          v-for="notification in filteredNotifications" 
-          :key="notification.id" 
+        <div
+          v-for="notification in filteredNotifications"
+          :key="notification.id"
           :class="['notification-card', { 'unread': !notification.is_read }]"
         >
           <div class="notification-header">
             <div class="notification-avatar">
-              <div v-if="notification.sender" 
-                   class="avatar-img" 
-                   :style="getSenderAvatarStyle(notification.sender)">
+              <div
+                v-if="notification.sender"
+                class="avatar-img"
+                :style="getSenderAvatarStyle(notification.sender)"
+              />
+              <div v-else class="system-icon">
+                <span class="i-ep-set-up" />
               </div>
-              <div v-else class="system-icon"></div>
             </div>
             <div class="notification-info">
               <h3 class="notification-title">{{ notification.title }}</h3>
@@ -78,42 +94,44 @@
               </div>
             </div>
             <div class="notification-actions">
-              <button 
-                v-if="!notification.is_read" 
-                class="btn-mark-read" 
+              <button
+                v-if="!notification.is_read"
+                class="action-btn"
                 title="标记为已读"
                 @click.stop="markAsRead(notification.id)"
               >
-                <span class="read-icon"></span>
+                <span class="i-ep-check action-icon" />
               </button>
-              <button 
-                class="btn-delete" 
+              <button
+                class="action-btn"
                 title="删除通知"
                 @click.stop="deleteNotification(notification.id)"
               >
-                <span class="delete-icon"></span>
+                <span class="i-ep-delete action-icon" />
               </button>
             </div>
           </div>
-          
+
           <div class="notification-content">
             {{ notification.content }}
           </div>
-          
+
           <div class="notification-footer" v-if="notification.url">
-            <a :href="notification.url" class="btn-link" target="_blank" rel="noopener noreferrer">
-              <span class="link-icon"></span> 查看详情
+            <a :href="notification.url" class="detail-link" target="_blank" rel="noopener noreferrer">
+              <span class="i-ep-right" />
+              查看详情
             </a>
           </div>
         </div>
-        
+
         <div v-if="hasMoreNotifications && !loading" class="load-more">
-          <button @click="loadMoreNotifications" class="btn-load-more">
+          <button @click="loadMoreNotifications" class="btn btn-secondary">
+            <span class="i-ep-bottom" />
             加载更多
           </button>
         </div>
       </div>
-    </div>
+    </GlassCard>
   </div>
 </template>
 
@@ -121,6 +139,9 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { userApi } from '../api/user'
 import { useToast } from '../composables/useToast'
+import type { Notification, User } from '../types/user'
+import GlassCard from '../components/GlassCard.vue'
+import SectionHeader from '../components/SectionHeader.vue'
 
 interface Tab {
   type: string
@@ -130,7 +151,7 @@ interface Tab {
 
 // 状态数据
 const loading = ref(false)
-const notifications = ref<any[]>([])
+const notifications = ref<Notification[]>([])
 const page = ref(1)
 const perPage = ref(10)
 const activeTab = ref('all')
@@ -174,12 +195,12 @@ const filteredNotifications = computed(() => {
   if (activeTab.value !== 'all') {
     filtered = filtered.filter(item => item.notification_type === activeTab.value)
   }
-  
+
   // 过滤未读通知
   if (filterUnread.value) {
     filtered = filtered.filter(item => !item.is_read)
   }
-  
+
   return filtered
 })
 
@@ -213,18 +234,14 @@ const fetchNotifications = async (reset = true) => {
 
     // 更新数据
     if (reset) {
-      notifications.value = response.results || response
+      notifications.value = response.results
     } else {
-      notifications.value = [...notifications.value, ...(response.results || response)]
+      notifications.value = [...notifications.value, ...response.results]
     }
 
     // 更新分页信息
-    if (response.count !== undefined) {
-      totalCount.value = response.count
-      hasMoreNotifications.value = notifications.value.length < response.count
-    } else {
-      hasMoreNotifications.value = false
-    }
+    totalCount.value = response.count
+    hasMoreNotifications.value = notifications.value.length < response.count
 
     // 获取各类型的数量
     fetchTypeCounts()
@@ -270,7 +287,7 @@ const fetchTypeCounts = async () => {
 const fetchUnreadCount = async () => {
   try {
     const response = await userApi.getUnreadNotificationsCount()
-    unreadCount.value = response.unread_count
+    unreadCount.value = response.unread_count ?? 0
   } catch (error) {
     console.error('获取未读数失败:', error)
   }
@@ -371,7 +388,7 @@ const deleteAllRead = async () => {
 }
 
 // 获取发送者头像样式
-const getSenderAvatarStyle = (sender: any) => {
+const getSenderAvatarStyle = (sender: User) => {
   if (sender?.avatar) {
     return { backgroundImage: `url(${sender.avatar})` }
   }
@@ -387,7 +404,7 @@ const formatTime = (dateString: string) => {
   const diffMin = Math.floor(diffSec / 60)
   const diffHour = Math.floor(diffMin / 60)
   const diffDay = Math.floor(diffHour / 24)
-  
+
   if (diffSec < 60) {
     return '刚刚'
   } else if (diffMin < 60) {
@@ -413,158 +430,94 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.notifications-page {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.page-header h1 {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: #333;
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  gap: 1rem;
-}
-
-.btn-mark-all, .btn-delete-read {
-  padding: 0.6rem 1rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s;
-  border: none;
-}
-
-.btn-mark-all {
-  background-color: #4361ee;
-  color: white;
-}
-
-.btn-mark-all:hover:not(:disabled) {
-  background-color: #3a56d4;
-}
-
-.btn-delete-read {
-  background-color: #f44336;
-  color: white;
-}
-
-.btn-delete-read:hover:not(:disabled) {
-  background-color: #d32f2f;
-}
-
-.btn-mark-all:disabled, .btn-delete-read:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
+.filters-card {
+  margin-bottom: var(--space-5);
 }
 
 .notification-filters {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
-  background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  padding: 0.5rem 1rem;
+  gap: var(--space-4);
 }
 
 .filter-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: var(--space-2);
 }
 
 .tab-button {
-  background: none;
+  background: transparent;
   border: none;
-  padding: 0.7rem 1rem;
-  color: #666;
+  padding: var(--space-2) var(--space-4);
+  color: var(--text-secondary);
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  border-radius: 6px;
-  transition: all 0.3s;
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
 }
 
 .tab-button:hover {
-  background-color: rgba(67, 97, 238, 0.05);
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
 }
 
 .tab-button.active {
-  color: #4361ee;
-  background-color: rgba(67, 97, 238, 0.1);
+  color: var(--primary-600);
+  background: var(--primary-50);
   font-weight: 600;
 }
 
+.dark .tab-button.active {
+  color: var(--primary-400);
+  background: var(--bg-tertiary);
+}
+
 .count {
-  margin-left: 5px;
+  margin-left: var(--space-1);
   font-size: 0.8rem;
   opacity: 0.7;
 }
 
 .filter-buttons {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-3);
+  flex-shrink: 0;
 }
 
-.btn-filter {
+.notifications-toolbar {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  background: none;
-  border: 1px solid #eee;
-  padding: 0.5rem 0.8rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  color: #666;
-  cursor: pointer;
-  transition: all 0.3s;
+  margin-bottom: var(--space-5);
+  gap: var(--space-4);
 }
 
-.btn-filter:hover {
-  border-color: #4361ee;
-  color: #4361ee;
+.card-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-.btn-filter.active {
-  background-color: rgba(67, 97, 238, 0.1);
-  color: #4361ee;
-  border-color: #4361ee;
+.toolbar-actions {
+  display: flex;
+  gap: var(--space-3);
 }
 
-.unread-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: #4361ee;
-  margin-right: 6px;
-}
-
-.loading-state, .empty-state {
+.loading-state,
+.empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 4rem 0;
-  color: #888;
-  background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  padding: var(--space-10) 0;
+  color: var(--text-secondary);
+  text-align: center;
 }
 
 .loading-spinner {
@@ -572,9 +525,9 @@ onMounted(() => {
   height: 40px;
   border: 3px solid rgba(67, 97, 238, 0.2);
   border-radius: 50%;
-  border-top-color: #4361ee;
+  border-top-color: var(--primary-500);
   animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-3);
 }
 
 @keyframes spin {
@@ -582,65 +535,70 @@ onMounted(() => {
 }
 
 .empty-icon {
-  width: 80px;
-  height: 80px;
-  margin-bottom: 1rem;
-  opacity: 0.3;
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"><path d="M18 17v-7c0-2.5-1.62-4.64-4-5.47V4c0-.83-.67-1.5-1.5-1.5S11 3.17 11 4v.48C8.62 5.36 7 7.5 7 10v7l-2 2v1h16v-1l-3-2zm-4 5c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2z"/></svg>');
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--primary-50);
+  color: var(--primary-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-4);
+  font-size: 2rem;
 }
 
 .notifications-list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 .notification-card {
-  background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
   overflow: hidden;
-  transition: all 0.3s;
+  transition: all 0.25s ease;
 }
 
 .notification-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  border-color: var(--primary-600);
+  box-shadow: var(--shadow-md);
 }
 
 .notification-card.unread {
-  border-left: 4px solid #4361ee;
+  border-left: 4px solid var(--primary-600);
 }
 
 .notification-header {
   display: flex;
-  padding: 1rem;
-  border-bottom: 1px solid #f0f0f0;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-color-light);
   position: relative;
+  gap: var(--space-3);
 }
 
 .notification-avatar {
-  margin-right: 1rem;
+  flex-shrink: 0;
 }
 
-.avatar-img, .system-icon {
-  width: 50px;
-  height: 50px;
+.avatar-img,
+.system-icon {
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  background-color: #f0f0f0;
+  background-color: var(--bg-tertiary);
   background-size: cover;
   background-position: center;
 }
 
 .system-icon {
-  background-color: #4361ee;
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M2.5 19h19v2h-19v-2zm19.57-9.36c-.21-.8-1.04-1.28-1.84-1.06L14.92 10 8.46 3.92l-1.21.84 5.13 7.49-5.88 1.56c-.8.21-1.28 1.04-1.06 1.84.22.8 1.04 1.28 1.85 1.07L19.23 13c.8-.23 1.28-1.05 1.07-1.85z"/></svg>');
-  background-size: 50%;
-  background-repeat: no-repeat;
-  background-position: center;
+  background-color: var(--primary-600);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
 }
 
 .notification-info {
@@ -649,143 +607,164 @@ onMounted(() => {
 }
 
 .notification-title {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 600;
-  color: #333;
-  margin-top: 0;
-  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-2);
 }
 
 .notification-meta {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-3);
   font-size: 0.85rem;
-  color: #888;
+  color: var(--text-tertiary);
 }
 
 .notification-type {
-  color: #4361ee;
+  color: var(--primary-600);
 }
 
 .notification-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
+  flex-shrink: 0;
 }
 
-.btn-mark-read, .btn-delete {
+.action-btn {
   width: 36px;
   height: 36px;
   border-radius: 50%;
   border: none;
-  background-color: #f5f5f5;
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s;
+  transition: all 0.2s ease;
 }
 
-.btn-mark-read:hover {
-  background-color: #e3f2fd;
+.action-btn:hover {
+  background-color: var(--border-color);
+  color: var(--text-primary);
 }
 
-.btn-delete:hover {
-  background-color: #ffebee;
-}
-
-.read-icon, .delete-icon {
-  width: 20px;
-  height: 20px;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
-}
-
-.read-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%232196f3"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>');
-}
-
-.delete-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23f44336"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>');
+.action-icon {
+  font-size: 1.1rem;
 }
 
 .notification-content {
-  padding: 1.2rem;
+  padding: var(--space-4);
   line-height: 1.6;
-  color: #444;
+  color: var(--text-secondary);
 }
 
 .notification-footer {
-  padding: 0.8rem 1.2rem;
-  border-top: 1px solid #f0f0f0;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-color-light);
 }
 
-.btn-link {
+.detail-link {
   display: inline-flex;
   align-items: center;
-  color: #4361ee;
+  gap: var(--space-1);
+  color: var(--primary-600);
   text-decoration: none;
   font-weight: 500;
   font-size: 0.9rem;
-  transition: all 0.3s;
+  transition: all 0.2s;
 }
 
-.btn-link:hover {
-  text-decoration: underline;
-}
-
-.link-icon {
-  width: 18px;
-  height: 18px;
-  margin-right: 6px;
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>');
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
+.detail-link:hover {
+  color: var(--primary-500);
 }
 
 .load-more {
   text-align: center;
-  margin-top: 1.5rem;
+  margin-top: var(--space-4);
 }
 
-.btn-load-more {
-  padding: 0.7rem 2rem;
-  background-color: white;
-  color: #4361ee;
-  border: 1px solid #4361ee;
-  border-radius: 8px;
-  font-size: 0.9rem;
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s;
+  border: none;
+  transition: all 0.2s ease;
 }
 
-.btn-load-more:hover {
-  background-color: rgba(67, 97, 238, 0.05);
+.btn-primary {
+  background-color: var(--primary-600);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-700);
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--border-color);
+}
+
+.btn-secondary.active {
+  color: var(--primary-600);
+  background: var(--primary-50);
+}
+
+.dark .btn-secondary.active {
+  color: var(--primary-400);
+  background: var(--bg-tertiary);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @media (max-width: 768px) {
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-  
   .notification-filters {
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--space-3);
     align-items: flex-start;
   }
-  
+
   .filter-tabs {
     width: 100%;
     overflow-x: auto;
-    padding-bottom: 0.5rem;
+    padding-bottom: var(--space-2);
   }
-  
+
   .tab-button {
     white-space: nowrap;
   }
+
+  .notifications-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .notification-header {
+    flex-wrap: wrap;
+  }
+
+  .notification-actions {
+    width: 100%;
+    justify-content: flex-end;
+    margin-top: var(--space-2);
+  }
 }
-</style> 
+</style>

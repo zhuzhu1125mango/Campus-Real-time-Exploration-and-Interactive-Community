@@ -1,196 +1,16 @@
-<template>
-  <div class="board-detail-container">
-    <div v-if="loading" class="loading-container">
-      <div class="loading-spinner large"></div>
-      <p>加载中...</p>
-    </div>
-    
-    <template v-else>
-      <!-- 版块信息 -->
-      <div class="board-header">
-        <div class="board-info">
-          <h1 class="board-title">{{ board.name }}</h1>
-          <p class="board-description">{{ board.description }}</p>
-        </div>
-        <div class="board-actions" v-if="isLoggedIn">
-          <button class="btn-new-topic" @click="showNewTopicForm = true">
-            <span class="icon-plus"></span>
-            发布新主题
-          </button>
-        </div>
-      </div>
-
-      <!-- 新主题表单 -->
-      <div v-if="showNewTopicForm" class="new-topic-form-container">
-        <div class="new-topic-form">
-          <h2>发布新主题</h2>
-          <form @submit.prevent="submitTopic">
-            <div class="form-group">
-              <label for="topic-title">标题</label>
-              <input
-                id="topic-title"
-                v-model="newTopic.title"
-                type="text"
-                required
-                placeholder="请输入主题标题"
-              />
-            </div>
-            <div class="form-group">
-              <label for="topic-content">内容</label>
-              <RichTextEditor
-                v-model="newTopic.content"
-                placeholder="请输入主题内容"
-              />
-            </div>
-            <div class="form-group">
-              <label for="topic-tags">标签</label>
-              <div class="tags-input-container">
-                <div v-for="(tag, index) in newTopic.tags" :key="index" class="tag-item">
-                  {{ tag }}
-                  <span class="tag-remove" @click="removeTag(index)">×</span>
-                </div>
-                <input
-                  id="topic-tags"
-                  v-model="tagInput"
-                  @keydown.enter.prevent="addTag"
-                  @keydown.tab.prevent="addTag"
-                  @keydown.comma.prevent="addTag"
-                  placeholder="输入标签后按Enter添加"
-                  class="tag-input"
-                />
-              </div>
-              <div class="tags-helper">用标签归类你的主题，多个标签用回车分隔</div>
-            </div>
-            <div class="form-actions">
-              <button type="button" class="btn-cancel" @click="showNewTopicForm = false">取消</button>
-              <button type="submit" class="btn-submit" :disabled="submitting">
-                <span v-if="submitting" class="loading-spinner"></span>
-                <span>{{ submitting ? '发布中...' : '发布' }}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <!-- 主题列表 -->
-      <div class="topics-container">
-        <div class="topics-header">
-          <div class="topics-filter">
-            <button 
-              class="filter-btn" 
-              :class="{ active: filter === 'latest' }" 
-              @click="setFilter('latest')"
-            >
-              最新
-            </button>
-            <button 
-              class="filter-btn" 
-              :class="{ active: filter === 'hot' }" 
-              @click="setFilter('hot')"
-            >
-              热门
-            </button>
-          </div>
-          <div class="topics-search">
-            <input 
-              type="text" 
-              v-model="searchQuery" 
-              placeholder="搜索主题..." 
-              @keyup.enter="searchTopics"
-            />
-            <button class="search-btn" @click="searchTopics">搜索</button>
-          </div>
-        </div>
-        
-        <table class="topics-table" v-if="topics.length > 0">
-          <thead>
-            <tr>
-              <th class="topic-title-col">主题</th>
-              <th class="topic-author-col">作者</th>
-              <th class="topic-stats-col">统计</th>
-              <th class="topic-last-post-col">最后回复</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="topic in topics" :key="topic.id" class="topic-row" @click="goToTopicDetail(topic.id)">
-              <td class="topic-title-cell">
-                <div class="topic-status" :class="getTopicStatusClass(topic)"></div>
-                <div class="topic-info">
-                  <h3 class="topic-title">{{ topic.title }}</h3>
-                  <div class="topic-meta">
-                    <span class="topic-date">发布于 {{ formatDate(topic.created_at) }}</span>
-                    <div v-if="topic.tags && topic.tags.length > 0" class="topic-tags">
-                      <span v-for="tag in topic.tags" :key="tag.id" class="topic-tag">
-                        {{ tag.name }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </td>
-              <td class="topic-author-cell">
-                <div class="author-info">
-                  <img v-if="topic.author.avatar" :src="topic.author.avatar" alt="avatar" class="author-avatar" />
-                  <div v-else class="author-avatar-placeholder">{{ topic.author.username.substring(0, 1) }}</div>
-                  <span class="author-name">{{ topic.author.username }}</span>
-                </div>
-              </td>
-              <td class="topic-stats-cell">
-                <div class="topic-stats">
-                  <div class="stat-item">
-                    <span class="icon-view"></span>
-                    <span>{{ topic.views }}</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="icon-reply"></span>
-                    <span>{{ topic.post_count - 1 }}</span>
-                  </div>
-                </div>
-              </td>
-              <td class="topic-last-post-cell">
-                <div class="last-post-time">{{ formatDate(topic.updated_at) }}</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        
-        <div v-else class="empty-topics">
-          <div class="empty-icon"></div>
-          <p>暂无主题，来发布第一个主题吧！</p>
-        </div>
-        
-        <!-- 分页 -->
-        <div v-if="totalPages > 1" class="pagination">
-          <button 
-            class="btn-page" 
-            :disabled="currentPage === 1" 
-            @click="changePage(currentPage - 1)"
-          >
-            上一页
-          </button>
-          <span class="page-info">{{ currentPage }} / {{ totalPages }}</span>
-          <button 
-            class="btn-page" 
-            :disabled="currentPage === totalPages" 
-            @click="changePage(currentPage + 1)"
-          >
-            下一页
-          </button>
-        </div>
-      </div>
-    </template>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { forumApi } from '../api/forum'
 import type { Board, Topic } from '../types/forum'
-import config from '../utils/config'
+import { useUserStore } from '../stores/userStore'
 import RichTextEditor from '../components/RichTextEditor.vue'
+import GlassCard from '../components/GlassCard.vue'
+import SectionHeader from '../components/SectionHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
 // 状态
 const board = ref<Board>({} as Board)
@@ -215,7 +35,7 @@ const tagInput = ref('')
 
 // 计算属性
 const isLoggedIn = computed(() => {
-  return !!localStorage.getItem(config.jwt.accessTokenKey)
+  return userStore.isLoggedIn
 })
 
 const totalPages = computed(() => {
@@ -227,7 +47,7 @@ const fetchBoard = async () => {
   try {
     const boardId = Number(route.params.boardId)
     if (!boardId) return
-    
+
     const response = await forumApi.getBoard(boardId)
     board.value = response
   } catch (error) {
@@ -241,7 +61,7 @@ const fetchTopics = async () => {
   try {
     const boardId = Number(route.params.boardId)
     if (!boardId) return
-    
+
     const response = await forumApi.getTopics(boardId, currentPage.value)
     topics.value = response.results
     totalTopics.value = response.count
@@ -269,7 +89,7 @@ const removeTag = (index: number) => {
 // 提交新主题
 const submitTopic = async () => {
   if (!board.value.id) return
-  
+
   submitting.value = true
   try {
     await forumApi.createTopic(board.value.id, {
@@ -277,13 +97,13 @@ const submitTopic = async () => {
       content: newTopic.content,
       tags: newTopic.tags
     })
-    
+
     // 重置表单
     newTopic.title = ''
     newTopic.content = ''
     newTopic.tags = []
     showNewTopicForm.value = false
-    
+
     // 刷新主题列表
     currentPage.value = 1
     await fetchTopics()
@@ -329,11 +149,11 @@ const getTopicStatusClass = (topic: Topic) => {
 // 格式化日期
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '未知'
-  
+
   const date = new Date(dateStr)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
-  
+
   // 小于一天，显示相对时间
   if (diff < 24 * 60 * 60 * 1000) {
     const hours = Math.floor(diff / (60 * 60 * 1000))
@@ -343,7 +163,7 @@ const formatDate = (dateStr: string) => {
     }
     return `${hours}小时前`
   }
-  
+
   // 显示年月日
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
@@ -355,174 +175,316 @@ onMounted(async () => {
 })
 </script>
 
+<template>
+  <div class="board-detail-page container-wide page-padding">
+    <div v-if="loading && topics.length === 0" class="loading-state">
+      <div class="loading-spinner"></div>
+      <p>加载中...</p>
+    </div>
+
+    <template v-else>
+      <!-- 版块信息 -->
+      <SectionHeader
+        :title="board.name || '版块详情'"
+        :subtitle="board.description || ''"
+        icon="i-ep-grid"
+        :action="isLoggedIn ? { label: '发布新主题', onClick: () => showNewTopicForm = true } : undefined"
+      />
+
+      <!-- 新主题表单弹窗 -->
+      <div v-if="showNewTopicForm" class="modal-overlay" @click.self="showNewTopicForm = false">
+        <GlassCard :hover="false" class="new-topic-modal">
+          <h2 class="form-title">发布新主题</h2>
+          <form @submit.prevent="submitTopic">
+            <div class="form-group">
+              <label for="topic-title">标题</label>
+              <input
+                id="topic-title"
+                v-model="newTopic.title"
+                type="text"
+                required
+                placeholder="请输入主题标题"
+                class="form-input"
+              />
+            </div>
+            <div class="form-group">
+              <label for="topic-content">内容</label>
+              <RichTextEditor
+                v-model="newTopic.content"
+                placeholder="请输入主题内容"
+              />
+            </div>
+            <div class="form-group">
+              <label for="topic-tags">标签</label>
+              <div class="tags-input-container">
+                <div v-for="(tag, index) in newTopic.tags" :key="index" class="tag-item">
+                  {{ tag }}
+                  <span class="tag-remove" @click="removeTag(index)">×</span>
+                </div>
+                <input
+                  id="topic-tags"
+                  v-model="tagInput"
+                  class="tag-input"
+                  placeholder="输入标签后按Enter添加"
+                  @keydown.enter.prevent="addTag"
+                  @keydown.tab.prevent="addTag"
+                  @keydown.comma.prevent="addTag"
+                />
+              </div>
+              <div class="tags-helper">用标签归类你的主题，多个标签用回车分隔</div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" @click="showNewTopicForm = false">
+                取消
+              </button>
+              <button type="submit" class="btn btn-primary" :disabled="submitting">
+                <span v-if="submitting" class="loading-spinner small"></span>
+                <span>{{ submitting ? '发布中...' : '发布' }}</span>
+              </button>
+            </div>
+          </form>
+        </GlassCard>
+      </div>
+
+      <!-- 主题列表 -->
+      <GlassCard :hover="false" class="topics-card">
+        <div class="topics-header">
+          <div class="topics-filter">
+            <button
+              class="filter-btn"
+              :class="{ active: filter === 'latest' }"
+              @click="setFilter('latest')"
+            >
+              最新
+            </button>
+            <button
+              class="filter-btn"
+              :class="{ active: filter === 'hot' }"
+              @click="setFilter('hot')"
+            >
+              热门
+            </button>
+          </div>
+          <div class="topics-search">
+            <span class="i-ep-search search-icon" />
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="搜索主题..."
+              @keyup.enter="searchTopics"
+            />
+            <button class="search-btn" @click="searchTopics">
+              <span class="i-ep-search" />
+            </button>
+          </div>
+        </div>
+
+        <div v-if="topics.length > 0" class="topics-list">
+          <div
+            v-for="topic in topics"
+            :key="topic.id"
+            class="topic-row"
+            @click="goToTopicDetail(topic.id)"
+          >
+            <div class="topic-main">
+              <div class="topic-title-line">
+                <div class="topic-status" :class="getTopicStatusClass(topic)"></div>
+                <h3 class="topic-title">{{ topic.title }}</h3>
+              </div>
+              <div class="topic-meta">
+                <span class="topic-date">发布于 {{ formatDate(topic.created_at) }}</span>
+                <div v-if="topic.tags && topic.tags.length > 0" class="topic-tags">
+                  <span v-for="tag in topic.tags" :key="tag.id" class="topic-tag">
+                    {{ tag.name }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="topic-author">
+              <img v-if="topic.author.avatar" :src="topic.author.avatar" alt="avatar" class="author-avatar" />
+              <div v-else class="author-avatar-placeholder">{{ topic.author.username.substring(0, 1) }}</div>
+              <span class="author-name">{{ topic.author.username }}</span>
+            </div>
+            <div class="topic-stats">
+              <span class="stat-item">
+                <span class="i-ep-view stat-icon" />
+                {{ topic.views }}
+              </span>
+              <span class="stat-item">
+                <span class="i-ep-chat-dot-round stat-icon" />
+                {{ topic.post_count - 1 }}
+              </span>
+            </div>
+            <div class="topic-last-post">
+              {{ formatDate(topic.updated_at) }}
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="empty-topics">
+          <span class="i-ep-document empty-icon" />
+          <p>暂无主题，来发布第一个主题吧！</p>
+        </div>
+
+        <!-- 分页 -->
+        <div v-if="totalPages > 1" class="pagination">
+          <button
+            class="btn btn-secondary"
+            :disabled="currentPage === 1"
+            @click="changePage(currentPage - 1)"
+          >
+            上一页
+          </button>
+          <span class="page-info">{{ currentPage }} / {{ totalPages }}</span>
+          <button
+            class="btn btn-secondary"
+            :disabled="currentPage === totalPages"
+            @click="changePage(currentPage + 1)"
+          >
+            下一页
+          </button>
+        </div>
+      </GlassCard>
+    </template>
+  </div>
+</template>
+
 <style scoped>
-.board-detail-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
+.board-detail-page {
+  color: var(--text-primary);
 }
 
-.loading-container {
+.loading-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 50px 0;
+  justify-content: center;
+  padding: 5rem 0;
+  color: var(--text-secondary);
 }
 
 .loading-spinner {
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-radius: 50%;
-  border-top: 4px solid #3498db;
   width: 40px;
   height: 40px;
+  border: 3px solid var(--primary-200);
+  border-top-color: var(--primary-600);
+  border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 15px;
+  margin-bottom: 1rem;
+}
+
+.loading-spinner.small {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+  margin: 0;
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  to { transform: rotate(360deg); }
 }
 
-.board-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
-}
-
-.board-title {
-  font-size: 28px;
-  margin: 0 0 8px 0;
-  color: #333;
-}
-
-.board-description {
-  margin: 0;
-  color: #666;
-}
-
-.board-actions {
-  display: flex;
-}
-
-.btn-new-topic {
-  display: flex;
-  align-items: center;
-  padding: 10px 20px;
-  background-color: #3498db;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.btn-new-topic:hover {
-  background-color: #2980b9;
-}
-
-.icon-plus::before {
-  content: "+";
-  font-size: 18px;
-  margin-right: 5px;
-}
-
-/* 新主题表单 */
-.new-topic-form-container {
+/* 新主题表单弹窗 */
+.modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  padding: 1rem;
 }
 
-.new-topic-form {
-  width: 90%;
+.new-topic-modal {
+  width: 100%;
   max-width: 800px;
-  background-color: white;
-  border-radius: 8px;
-  padding: 30px;
-  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
-.new-topic-form h2 {
-  margin-top: 0;
-  margin-bottom: 20px;
-  color: #333;
+.form-title {
+  margin: 0 0 1.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 1.25rem;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
 }
 
-.form-group input,
-.form-group textarea {
+.form-input {
   width: 100%;
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 16px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
 }
 
-.form-group textarea {
-  resize: vertical;
-  min-height: 200px;
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary-500);
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 15px;
-  margin-top: 30px;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
 }
 
-.btn-cancel {
-  padding: 10px 20px;
-  background-color: #f1f1f1;
-  border: none;
-  border-radius: 4px;
-  color: #333;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-submit {
-  padding: 10px 20px;
-  background-color: #3498db;
-  border: none;
-  border-radius: 4px;
-  color: white;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
+.btn {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
 }
 
-.btn-submit:disabled {
-  background-color: #95a5a6;
+.btn-primary {
+  background-color: var(--primary-600);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-700);
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--border-color);
+}
+
+.btn:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
 /* 主题列表 */
-.topics-container {
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+.topics-card {
   overflow: hidden;
 }
 
@@ -530,310 +492,284 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 20px;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #eee;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color-light);
+  gap: 1rem;
 }
 
 .topics-filter {
   display: flex;
-  gap: 10px;
+  gap: 0.5rem;
 }
 
 .filter-btn {
-  padding: 6px 15px;
-  background-color: transparent;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  color: #666;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
+.filter-btn:hover {
+  border-color: var(--primary-400);
+  color: var(--primary-600);
+}
+
 .filter-btn.active {
-  background-color: #3498db;
-  border-color: #3498db;
+  background-color: var(--primary-600);
+  border-color: var(--primary-600);
   color: white;
 }
 
 .topics-search {
   display: flex;
+  align-items: center;
+  max-width: 280px;
+}
+
+.topics-search .search-icon {
+  margin-right: 0.5rem;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
 }
 
 .topics-search input {
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px 0 0 4px;
-  width: 240px;
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  border-right: none;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.topics-search input:focus {
+  outline: none;
+  border-color: var(--primary-500);
 }
 
 .search-btn {
-  padding: 8px 15px;
-  background-color: #3498db;
-  border: none;
-  border-radius: 0 4px 4px 0;
+  padding: 0.5rem 0.875rem;
+  background: var(--primary-600);
   color: white;
+  border: none;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   cursor: pointer;
+  transition: background 0.2s;
 }
 
-.topics-table {
-  width: 100%;
-  border-collapse: collapse;
+.search-btn:hover {
+  background: var(--primary-700);
 }
 
-.topics-table th {
-  padding: 15px 20px;
-  text-align: left;
-  font-weight: 500;
-  color: #666;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #eee;
+.topics-list {
+  display: flex;
+  flex-direction: column;
 }
 
 .topic-row {
+  display: grid;
+  grid-template-columns: 3fr 1fr 1fr 1fr;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border-color-light);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background 0.2s;
 }
 
 .topic-row:hover {
-  background-color: #f9f9f9;
+  background: var(--bg-tertiary);
+  margin: 0 -1.25rem;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
 }
 
-.topic-row td {
-  padding: 15px 20px;
-  border-bottom: 1px solid #eee;
+.topic-main {
+  min-width: 0;
 }
 
-.topic-title-col {
-  width: 50%;
-}
-
-.topic-author-col {
-  width: 15%;
-}
-
-.topic-stats-col {
-  width: 15%;
-}
-
-.topic-last-post-col {
-  width: 20%;
-}
-
-.topic-title-cell {
+.topic-title-line {
   display: flex;
   align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
 .topic-status {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  margin-right: 15px;
+  flex-shrink: 0;
 }
 
 .status-normal {
-  background-color: #2ecc71;
+  background-color: var(--success-color);
 }
 
 .status-pinned {
-  background-color: #e74c3c;
+  background-color: var(--error-color);
 }
 
 .status-closed {
-  background-color: #95a5a6;
-}
-
-.topic-info {
-  flex: 1;
+  background-color: var(--text-tertiary);
 }
 
 .topic-title {
-  margin: 0 0 5px 0;
-  font-size: 16px;
-  color: #333;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topic-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 0.75rem;
 }
 
 .topic-date {
-  color: #999;
-  font-size: 13px;
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
 }
 
 .topic-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 0.375rem;
 }
 
 .topic-tag {
-  background-color: #e1f5fe;
-  color: #0288d1;
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 12px;
+  background-color: var(--primary-50);
+  color: var(--primary-700);
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-full);
 }
 
-.author-info {
+.topic-author {
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
-.author-avatar, 
+.author-avatar,
 .author-avatar-placeholder {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  margin-right: 10px;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .author-avatar-placeholder {
-  background-color: #3498db;
+  background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.author-name {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topic-stats {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
 }
 
 .stat-item {
   display: flex;
   align-items: center;
-  gap: 5px;
-  color: #666;
-  font-size: 13px;
+  gap: 0.375rem;
 }
 
-.icon-view::before {
-  content: "👁️";
+.stat-icon {
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
 }
 
-.icon-reply::before {
-  content: "💬";
-}
-
-.last-post-time {
-  font-size: 13px;
-  color: #666;
+.topic-last-post {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  text-align: right;
 }
 
 .empty-topics {
-  padding: 50px 20px;
-  text-align: center;
-  color: #666;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3rem 0;
+  color: var(--text-secondary);
 }
 
 .empty-icon {
-  font-size: 48px;
-  margin-bottom: 20px;
-  opacity: 0.3;
-}
-
-.empty-icon::before {
-  content: "📋";
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.4;
 }
 
 .pagination {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 20px;
-  gap: 20px;
-}
-
-.btn-page {
-  padding: 8px 15px;
-  background-color: #f1f1f1;
-  border: none;
-  border-radius: 4px;
-  color: #333;
-  cursor: pointer;
-}
-
-.btn-page:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  padding-top: 1.5rem;
+  margin-top: 1rem;
+  border-top: 1px solid var(--border-color-light);
+  gap: 1rem;
 }
 
 .page-info {
-  color: #666;
-}
-
-@media (max-width: 768px) {
-  .board-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 15px;
-  }
-  
-  .topics-header {
-    flex-direction: column;
-    gap: 15px;
-    align-items: stretch;
-  }
-  
-  .topics-search input {
-    width: 100%;
-  }
-  
-  .topic-author-col, 
-  .topic-stats-col, 
-  .topic-last-post-col,
-  .topic-author-cell, 
-  .topic-stats-cell, 
-  .topic-last-post-cell {
-    display: none;
-  }
-  
-  .topic-title-col {
-    width: 100%;
-  }
+  color: var(--text-secondary);
+  font-size: 0.875rem;
 }
 
 /* 标签相关样式 */
 .tags-input-container {
   display: flex;
   flex-wrap: wrap;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 5px;
-  gap: 5px;
-  min-height: 42px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.5rem;
+  gap: 0.5rem;
+  min-height: 46px;
+  background: var(--bg-primary);
 }
 
 .tag-item {
   display: flex;
   align-items: center;
-  background-color: #e1f5fe;
-  color: #0288d1;
-  border-radius: 20px;
-  padding: 4px 10px;
-  font-size: 14px;
+  background-color: var(--primary-50);
+  color: var(--primary-700);
+  border-radius: var(--radius-full);
+  padding: 0.25rem 0.625rem;
+  font-size: 0.875rem;
 }
 
 .tag-remove {
-  margin-left: 6px;
-  font-size: 16px;
+  margin-left: 0.375rem;
+  font-size: 1rem;
   font-weight: bold;
   cursor: pointer;
-  color: #0288d1;
-}
-
-.tag-remove:hover {
-  color: #01579b;
 }
 
 .tag-input {
@@ -841,13 +777,49 @@ onMounted(async () => {
   outline: none;
   flex: 1;
   min-width: 100px;
-  padding: 6px 4px;
-  font-size: 14px;
+  padding: 0.25rem;
+  font-size: 0.875rem;
+  background: transparent;
+  color: var(--text-primary);
 }
 
 .tags-helper {
-  margin-top: 5px;
-  font-size: 12px;
-  color: #666;
+  margin-top: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
 }
-</style> 
+
+@media (max-width: 768px) {
+  .topics-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .topics-search {
+    max-width: none;
+  }
+
+  .topic-row {
+    grid-template-columns: 1fr auto;
+    gap: 0.75rem 0.5rem;
+  }
+
+  .topic-main {
+    grid-column: 1 / -1;
+  }
+
+  .topic-author {
+    grid-column: 1;
+  }
+
+  .topic-stats {
+    grid-column: 2;
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  .topic-last-post {
+    display: none;
+  }
+}
+</style>

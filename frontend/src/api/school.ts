@@ -1,7 +1,8 @@
 import request from '@/utils/request'
 import type {
   School, SchoolRating, SchoolQueryParams, SchoolListResponse, ImportCsvResponse,
-  EventListResponse, Event as SchoolEvent, Place, CheckIn, NearbyPlaceParams, NearbyEventParams, PlaceParams
+  EventListResponse, Event as SchoolEventType, Place, CheckIn, NearbyPlaceParams, NearbyEventParams, PlaceParams,
+  RecommendationResponse, DashboardStats
 } from '@/types/school'
 import type { Board } from '@/types/forum'
 
@@ -110,7 +111,7 @@ export const schoolApi = {
 
   // 获取个性化推荐
   getRecommendations(params?: { type?: string, limit?: number }) {
-    return request.get<any>('/schools/recommendations/', { params })
+    return request.get<RecommendationResponse>('/schools/recommendations/', { params })
   },
 
   // 获取活动列表
@@ -120,7 +121,7 @@ export const schoolApi = {
 
   // 获取活动详情
   getEvent(id: number) {
-    return request.get(`/schools/events/${id}/`)
+    return request.get<SchoolEventType>(`/schools/events/${id}/`)
   },
 
   // 报名活动
@@ -159,8 +160,8 @@ export const schoolApi = {
   },
 
   // 获取仪表盘综合统计数据
-  getDashboardStats() {
-    return request.get('/schools/stats/dashboard/')
+  getDashboardStats(): Promise<DashboardStats> {
+    return request.get<DashboardStats>('/schools/stats/dashboard/')
   },
 
   // 探索：获取附近地点
@@ -170,7 +171,7 @@ export const schoolApi = {
 
   // 探索：获取附近活动
   getNearbyEvents(params: NearbyEventParams) {
-    return request.get<SchoolEvent[]>('/schools/explore/nearby_events/', { params })
+    return request.get<SchoolEventType[]>('/schools/explore/nearby_events/', { params })
   },
 
   // 探索：获取地点列表

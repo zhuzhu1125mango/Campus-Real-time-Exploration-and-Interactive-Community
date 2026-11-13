@@ -41,7 +41,7 @@
       
       <div class="recommendation-list" v-if="activeTab === 'schools'">
         <el-row :gutter="20">
-          <el-col v-for="school in recommendations" :key="school.id" :xs="24" :sm="12" :md="8" :lg="6">
+          <el-col v-for="school in (recommendations as School[])" :key="school.id" :xs="24" :sm="12" :md="8" :lg="6">
             <el-card class="recommendation-card" @click="goToSchoolDetail(school.id)">
               <template #header>
                 <div class="school-header">
@@ -68,7 +68,7 @@
       
       <div class="recommendation-list" v-else-if="activeTab === 'majors'">
         <el-row :gutter="20">
-          <el-col v-for="major in recommendations" :key="major.id" :xs="24" :sm="12" :md="8" :lg="6">
+          <el-col v-for="major in (recommendations as Major[])" :key="major.id" :xs="24" :sm="12" :md="8" :lg="6">
             <el-card class="recommendation-card" @click="goToMajorDetail(major.id)">
               <template #header>
                 <div class="major-header">
@@ -88,7 +88,7 @@
       </div>
       
       <div class="recommendation-list" v-else-if="activeTab === 'posts'">
-        <el-card v-for="post in recommendations" :key="post.id" class="post-card" @click="goToPostDetail(post.id)">
+        <el-card v-for="post in (recommendations as Post[])" :key="post.id" class="post-card" @click="goToPostDetail(post.id)">
           <template #header>
             <div class="post-header">
               <h3>{{ post.title }}</h3>
@@ -116,6 +116,7 @@ import { useRouter } from 'vue-router'
 import { Location, School as SchoolIcon, Top, Star, InfoFilled, Collection, Suitcase, Money, User, ChatLineSquare, View } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { schoolApi } from '@/api/school'
+import type { RecommendationItem, School, Major, Post } from '@/types/school'
 
 interface RecommendationTab {
   label: string
@@ -135,7 +136,7 @@ const props = defineProps({
 
 const router = useRouter()
 const activeTab = ref('schools')
-const recommendations = ref<any[]>([])
+const recommendations = ref<RecommendationItem[]>([])
 const reasoning = ref<string[]>([])
 const loading = ref(false)
 const error = ref('')

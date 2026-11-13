@@ -7,6 +7,7 @@ from django.db.models import Q, Avg, Count, F
 from django.db import transaction
 from django.utils import timezone
 from django.core.cache import cache
+from core.cache_utils import cached_result, build_cache_key, build_query_cache_key, get_default_timeout
 import csv
 import io
 from .models import (
@@ -23,6 +24,48 @@ from .serializers import (
 from forum.models import Post as ForumPost
 from forum.serializers import PostSerializer as ForumPostSerializer
 from users.throttles import SearchThrottle, WriteThrottle
+from users.tasks import queue_update_user_points
+from users.models import PointsRecord
+from search.services import SearchService
+from core.base_viewsets import (
+    BaseModelViewSet,
+    PublicReadOnlyModelViewSet,
+    AuthenticatedModelViewSet,
+)
+
+
+class _SchoolNotFoundError(Exception):
+    """院校对比时部分学校不存在的内部异常。"""
+
+
+def _calculate_consecutive_checkin_days(user, today):
+    """计算用户截止到 today 的连续签到天数（按日期去重）。"""
+    from datetime import timedelta
+    checkin_datetimes = CheckIn.objects.filter(
+        user=user,
+        created_at__lte=today + timedelta(days=1)
+    ).values_list('created_at', flat=True)
+    date_set = {dt.date() for dt in checkin_datetimes}
+
+    consecutive = 0
+    current = today
+    while current in date_set:
+        consecutive += 1
+        current -= timedelta(days=1)
+    return consecutive
+
+
+def _has_points_record_today(user, action, today):
+    """检查用户今天是否已有指定 action 的积分记录。"""
+    from datetime import datetime, time as dt_time, timedelta
+    start_of_day = timezone.make_aware(datetime.combine(today, dt_time.min))
+    end_of_day = timezone.make_aware(datetime.combine(today + timedelta(days=1), dt_time.min))
+    return PointsRecord.objects.filter(
+        user=user,
+        action=action,
+        created_at__range=(start_of_day, end_of_day)
+    ).exists()
+
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
@@ -30,63 +73,56 @@ def test_connection(request):
     """测试API连接"""
     return Response({"message": "API连接成功", "status": "OK"}, status=status.HTTP_200_OK)
 
+
 # 添加学校视图集
-class SchoolViewSet(viewsets.ModelViewSet):
+class SchoolViewSet(PublicReadOnlyModelViewSet):
     """学校视图集"""
     queryset = School.objects.all()
     serializer_class = SchoolSerializer
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['name', 'english_name', 'abbreviation', 'code']
+    filter_backends = [filters.OrderingFilter]
     ordering_fields = ['name', 'founded_year', 'national_rank', 'student_count']
     ordering = ['national_rank', 'name']
-
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'forums', 'majors', 'admission_scores', 'ratings', 'compare']:
-            return [permissions.AllowAny()]
-
-        # 尊重 @action(permission_classes=[...]) 的显式声明
-        action = getattr(self, self.action, None)
-        action_permission_classes = getattr(action, 'kwargs', {}).get('permission_classes')
-        if action_permission_classes:
-            return [permission() for permission in action_permission_classes]
-
-        return [permissions.IsAdminUser()]
-
-    def get_throttles(self):
-        if self.action == 'list':
-            return [SearchThrottle()]
-        if self.action in ['rate', 'favorite', 'unfavorite', 'compare']:
-            return [WriteThrottle()]
-        return super().get_throttles()
+    prefetch_related_fields = ['majors__major', 'admission_scores', 'board']
+    permission_config = {
+        'list': [permissions.AllowAny],
+        'retrieve': [permissions.AllowAny],
+        'forums': [permissions.AllowAny],
+        'majors': [permissions.AllowAny],
+        'admission_scores': [permissions.AllowAny],
+        'ratings': [permissions.AllowAny],
+        'compare': [permissions.AllowAny],
+        'import_csv': [permissions.IsAdminUser],
+        'rate': [permissions.IsAuthenticated],
+        'favorite': [permissions.IsAuthenticated],
+        'unfavorite': [permissions.IsAuthenticated],
+        'create': [permissions.IsAdminUser],
+        'update': [permissions.IsAdminUser],
+        'partial_update': [permissions.IsAdminUser],
+        'destroy': [permissions.IsAdminUser],
+    }
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'rate': [WriteThrottle],
+        'favorite': [WriteThrottle],
+        'unfavorite': [WriteThrottle],
+        'compare': [WriteThrottle],
+        'create': [WriteThrottle],
+        'update': [WriteThrottle],
+        'partial_update': [WriteThrottle],
+        'destroy': [WriteThrottle],
+    }
 
     def perform_create(self, serializer):
         """创建学校时自动为其创建论坛板块"""
         school = serializer.save()
-        # 延迟导入避免循环引用
-        from forum.models import Board, Category
-        category, _ = Category.objects.get_or_create(
-            name='院校专区',
-            defaults={
-                'description': '各高校的讨论板块',
-                'icon': 'el-icon-school',
-                'order': 100
-            }
-        )
-        Board.objects.get_or_create(
-            school=school,
-            defaults={
-                'name': f'{school.name}论坛',
-                'description': f'欢迎来到{school.name}论坛，这里是校友交流、分享资讯的地方。',
-                'category': category,
-                'icon': 'el-icon-school',
-                'order': 0
-            }
-        )
+        from schools.services.board_service import get_or_create_school_board
+        get_or_create_school_board(school)
         return school
 
     def get_queryset(self):
-        # 预取关联数据，避免 N+1 查询
-        queryset = School.objects.prefetch_related('majors__major', 'admission_scores', 'board')
+        # 预取关联数据，避免 N+1 查询（由基类统一处理）
+        queryset = super().get_queryset()
 
         # 筛选条件
         province = self.request.query_params.get('province')
@@ -103,11 +139,18 @@ class SchoolViewSet(viewsets.ModelViewSet):
 
         search = self.request.query_params.get('search')
         if search:
-            queryset = queryset.filter(
-                Q(name__icontains=search) |
-                Q(english_name__icontains=search) |
-                Q(abbreviation__icontains=search)
-            )
+            # 优先使用 Elasticsearch；ES 不可用时自动降级为 LIKE 搜索
+            service = SearchService()
+            es_ids = list(service.search_schools(search, limit=200).values_list('pk', flat=True))
+            if es_ids:
+                queryset = queryset.filter(pk__in=es_ids)
+            else:
+                # 降级或 ES 返回空时回退到 LIKE
+                queryset = queryset.filter(
+                    Q(name__icontains=search) |
+                    Q(english_name__icontains=search) |
+                    Q(abbreviation__icontains=search)
+                )
 
         sort_by = self.request.query_params.get('sort_by')
         if sort_by == 'ranking':
@@ -121,30 +164,34 @@ class SchoolViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         """缓存序列化后的结果，避免缓存 QuerySet 对象"""
-        cache_key = f'schools_list_{request.query_params.urlencode()}'
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            return Response(cached_data)
+        cache_key = build_query_cache_key('schools', 'list', request.query_params.urlencode())
 
-        queryset = self.filter_queryset(self.get_queryset())
-        page = self.paginate_queryset(queryset)
-        serializer = self.get_serializer(
-            page if page is not None else queryset,
-            many=True,
-            context={'request': request}
+        def _load():
+            queryset = self.filter_queryset(self.get_queryset())
+            page = self.paginate_queryset(queryset)
+            serializer = self.get_serializer(
+                page if page is not None else queryset,
+                many=True,
+                context={'request': request}
+            )
+            data = serializer.data
+
+            if page is not None:
+                return self.get_paginated_response(data).data
+            return data
+
+        result = cached_result(
+            key=cache_key,
+            loader=_load,
+            timeout=get_default_timeout('hot'),
+            namespace='schools',
+            compress=True,
         )
-        data = serializer.data
 
-        if page is not None:
-            response = self.get_paginated_response(data)
-            result = response.data
-        else:
-            response = Response(data)
-            result = data
-
-        # 缓存序列化结果，有效期5分钟
-        cache.set(cache_key, result, 300)
-        return response
+        # cached_result 缓存的是 Response.data，需要重新包装为 Response
+        if isinstance(result, dict) and ('results' in result or 'count' in result):
+            return Response(result)
+        return Response(result)
     
     @action(detail=False, methods=['post'], permission_classes=[permissions.IsAdminUser])
     @parser_classes([MultiPartParser, FormParser])
@@ -192,25 +239,8 @@ class SchoolViewSet(viewsets.ModelViewSet):
                         }
                     )
                     # 确保学校论坛板块存在
-                    from forum.models import Board, Category
-                    category, _ = Category.objects.get_or_create(
-                        name='院校专区',
-                        defaults={
-                            'description': '各高校的讨论板块',
-                            'icon': 'el-icon-school',
-                            'order': 100
-                        }
-                    )
-                    Board.objects.get_or_create(
-                        school=school,
-                        defaults={
-                            'name': f'{school.name}论坛',
-                            'description': f'欢迎来到{school.name}论坛，这里是校友交流、分享资讯的地方。',
-                            'category': category,
-                            'icon': 'el-icon-school',
-                            'order': 0
-                        }
-                    )
+                    from schools.services.board_service import get_or_create_school_board
+                    get_or_create_school_board(school)
                     success_count += 1
                 except Exception as e:
                     error_count += 1
@@ -234,28 +264,10 @@ class SchoolViewSet(viewsets.ModelViewSet):
         school = self.get_object()
 
         # 延迟导入避免循环引用
-        from forum.models import Board, Category
         from forum.serializers import BoardDetailSerializer
+        from schools.services.board_service import get_or_create_school_board
 
-        category, _ = Category.objects.get_or_create(
-            name='院校专区',
-            defaults={
-                'description': '各高校的讨论板块',
-                'icon': 'el-icon-school',
-                'order': 100
-            }
-        )
-
-        board, created = Board.objects.get_or_create(
-            school=school,
-            defaults={
-                'name': f'{school.name}论坛',
-                'description': f'欢迎来到{school.name}论坛，这里是校友交流、分享资讯的地方。',
-                'category': category,
-                'icon': 'el-icon-school',
-                'order': 0
-            }
-        )
+        board, created = get_or_create_school_board(school)
 
         serializer = BoardDetailSerializer(board, context={'request': request})
         return Response(serializer.data)
@@ -382,10 +394,10 @@ class SchoolViewSet(viewsets.ModelViewSet):
             return Response({"detail": "已经收藏过此学校"}, status=status.HTTP_400_BAD_REQUEST)
         
         user.favorite_schools.add(school)
-        
+
         # 同步到通用收藏模型
         from django.contrib.contenttypes.models import ContentType
-        from users.favorites import Favorite
+        from favorites.models import Favorite
         content_type = ContentType.objects.get_for_model(school)
         Favorite.objects.get_or_create(
             user=user,
@@ -393,9 +405,12 @@ class SchoolViewSet(viewsets.ModelViewSet):
             object_id=school.id,
             defaults={'category': 'school'}
         )
-        
+
+        # 异步发放收藏积分
+        queue_update_user_points(user.id, 'favorite', description='收藏学校')
+
         return Response({"detail": "收藏成功"}, status=status.HTTP_200_OK)
-    
+
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def unfavorite(self, request, pk=None):
         """取消收藏学校"""
@@ -413,7 +428,7 @@ class SchoolViewSet(viewsets.ModelViewSet):
         
         # 同步删除通用收藏记录
         from django.contrib.contenttypes.models import ContentType
-        from users.favorites import Favorite
+        from favorites.models import Favorite
         content_type = ContentType.objects.get_for_model(school)
         Favorite.objects.filter(
             user=user,
@@ -435,118 +450,129 @@ class SchoolViewSet(viewsets.ModelViewSet):
         if len(school_ids) > 4:
             return Response({"detail": "最多只能对比4所院校"}, status=status.HTTP_400_BAD_REQUEST)
         
-        # 构建缓存键
-        cache_key = f'schools_compare_{"-".join(sorted(map(str, school_ids)))}'
+        cache_key = build_cache_key('schools', 'compare', '-'.join(sorted(map(str, school_ids))))
         
-        # 尝试从缓存获取
-        cached_result = cache.get(cache_key)
-        if cached_result:
-            return Response(cached_result, status=status.HTTP_200_OK)
-        
-        # 获取学校信息
-        schools = School.objects.filter(id__in=school_ids)
-        if len(schools) != len(school_ids):
-            return Response({"detail": "部分院校不存在"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # 构建对比数据
-        compare_data = []
-        for school in schools:
-            school_data = {
-                'id': school.id,
-                'name': school.name,
-                'abbreviation': school.abbreviation,
-                'province': school.province,
-                'city': school.city,
-                'school_type': dict(School.SCHOOL_TYPES).get(school.school_type, school.school_type),
-                'school_level': dict(School.SCHOOL_LEVELS).get(school.school_level, school.school_level),
-                'founded_year': school.founded_year,
-                'national_rank': school.national_rank,
-                'student_count': school.student_count,
-                'faculty_count': school.faculty_count,
-                'campus_area': school.campus_area,
-                'website': school.website,
-                'description': school.description,
-                'majors': [],
-                'admission_scores': [],
-                'average_rating': 0
+        def _load():
+            # 获取学校信息
+            schools = School.objects.filter(id__in=school_ids)
+            if len(schools) != len(school_ids):
+                # 用异常跳出缓存流程，让外层返回 400
+                raise _SchoolNotFoundError()
+            
+            # 构建对比数据
+            compare_data = []
+            for school in schools:
+                school_data = {
+                    'id': school.id,
+                    'name': school.name,
+                    'abbreviation': school.abbreviation,
+                    'province': school.province,
+                    'city': school.city,
+                    'school_type': dict(School.SCHOOL_TYPES).get(school.school_type, school.school_type),
+                    'school_level': dict(School.SCHOOL_LEVELS).get(school.school_level, school.school_level),
+                    'founded_year': school.founded_year,
+                    'national_rank': school.national_rank,
+                    'student_count': school.student_count,
+                    'faculty_count': school.faculty_count,
+                    'campus_area': school.campus_area,
+                    'website': school.website,
+                    'description': school.description,
+                    'majors': [],
+                    'admission_scores': [],
+                    'average_rating': 0
+                }
+                
+                # 获取学校专业
+                school_majors = SchoolMajor.objects.filter(school=school, is_active=True)[:10]
+                for sm in school_majors:
+                    school_data['majors'].append({
+                        'id': sm.major.id,
+                        'name': sm.major.name,
+                        'code': sm.major.code,
+                        'degree_type': dict(Major.DEGREE_TYPES).get(sm.major.degree_type, sm.major.degree_type),
+                        'subject_category': dict(Major.SUBJECT_CATEGORIES).get(sm.major.subject_category, sm.major.subject_category)
+                    })
+                
+                # 获取录取分数线
+                scores = AdmissionScore.objects.filter(school=school).order_by('-year')[:5]
+                for score in scores:
+                    school_data['admission_scores'].append({
+                        'year': score.year,
+                        'province': score.province,
+                        'score_type': score.score_type,
+                        'min_score': score.min_score,
+                        'avg_score': score.avg_score,
+                        'ranking': score.ranking
+                    })
+                
+                # 获取平均评分
+                avg_rating = SchoolRating.objects.filter(school=school).aggregate(Avg('rating'))['rating__avg']
+                school_data['average_rating'] = round(avg_rating, 1) if avg_rating else 0
+                
+                compare_data.append(school_data)
+            
+            fields = [
+                {'key': 'name', 'label': '学校名称', 'type': 'text'},
+                {'key': 'abbreviation', 'label': '简称', 'type': 'text'},
+                {'key': 'province', 'label': '省份', 'type': 'text'},
+                {'key': 'city', 'label': '城市', 'type': 'text'},
+                {'key': 'school_type', 'label': '学校类型', 'type': 'text'},
+                {'key': 'school_level', 'label': '办学层次', 'type': 'text'},
+                {'key': 'founded_year', 'label': '建校时间', 'type': 'number'},
+                {'key': 'national_rank', 'label': '全国排名', 'type': 'number'},
+                {'key': 'student_count', 'label': '学生人数', 'type': 'number'},
+                {'key': 'faculty_count', 'label': '教职工人数', 'type': 'number'},
+                {'key': 'campus_area', 'label': '校园面积', 'type': 'number'},
+                {'key': 'average_rating', 'label': '平均评分', 'type': 'number'}
+            ]
+            
+            return {
+                'schools': compare_data,
+                'fields': fields
             }
-            
-            # 获取学校专业
-            school_majors = SchoolMajor.objects.filter(school=school, is_active=True)[:10]  # 只取前10个专业
-            for sm in school_majors:
-                school_data['majors'].append({
-                    'id': sm.major.id,
-                    'name': sm.major.name,
-                    'code': sm.major.code,
-                    'degree_type': dict(Major.DEGREE_TYPES).get(sm.major.degree_type, sm.major.degree_type),
-                    'subject_category': dict(Major.SUBJECT_CATEGORIES).get(sm.major.subject_category, sm.major.subject_category)
-                })
-            
-            # 获取录取分数线
-            scores = AdmissionScore.objects.filter(school=school).order_by('-year')[:5]  # 只取近5年数据
-            for score in scores:
-                school_data['admission_scores'].append({
-                    'year': score.year,
-                    'province': score.province,
-                    'score_type': score.score_type,
-                    'min_score': score.min_score,
-                    'avg_score': score.avg_score,
-                    'ranking': score.ranking
-                })
-            
-            # 获取平均评分
-            avg_rating = SchoolRating.objects.filter(school=school).aggregate(Avg('rating'))['rating__avg']
-            school_data['average_rating'] = round(avg_rating, 1) if avg_rating else 0
-            
-            compare_data.append(school_data)
         
-        # 定义对比字段
-        fields = [
-            {'key': 'name', 'label': '学校名称', 'type': 'text'},
-            {'key': 'abbreviation', 'label': '简称', 'type': 'text'},
-            {'key': 'province', 'label': '省份', 'type': 'text'},
-            {'key': 'city', 'label': '城市', 'type': 'text'},
-            {'key': 'school_type', 'label': '学校类型', 'type': 'text'},
-            {'key': 'school_level', 'label': '办学层次', 'type': 'text'},
-            {'key': 'founded_year', 'label': '建校时间', 'type': 'number'},
-            {'key': 'national_rank', 'label': '全国排名', 'type': 'number'},
-            {'key': 'student_count', 'label': '学生人数', 'type': 'number'},
-            {'key': 'faculty_count', 'label': '教职工人数', 'type': 'number'},
-            {'key': 'campus_area', 'label': '校园面积', 'type': 'number'},
-            {'key': 'average_rating', 'label': '平均评分', 'type': 'number'}
-        ]
-        
-        result = {
-            'schools': compare_data,
-            'fields': fields
-        }
-        
-        # 缓存结果，有效期10分钟
-        cache.set(cache_key, result, 600)
+        try:
+            result = cached_result(
+                key=cache_key,
+                loader=_load,
+                timeout=get_default_timeout('hot'),
+                namespace='schools',
+                compress=True,
+            )
+        except _SchoolNotFoundError:
+            return Response({"detail": "部分院校不存在"}, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(result, status=status.HTTP_200_OK)
 
+
 # 添加专业视图集
-class MajorViewSet(viewsets.ModelViewSet):
+class MajorViewSet(PublicReadOnlyModelViewSet):
     """专业视图集"""
     queryset = Major.objects.all()
     serializer_class = MajorSerializer
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['name', 'code', 'description']
+    filter_backends = [filters.OrderingFilter]
     ordering_fields = ['name', 'degree_type', 'subject_category']
     ordering = ['name']
-
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'schools', 'ratings']:
-            return [permissions.AllowAny()]
-
-        # 尊重 @action(permission_classes=[...]) 的显式声明
-        action = getattr(self, self.action, None)
-        action_permission_classes = getattr(action, 'kwargs', {}).get('permission_classes')
-        if action_permission_classes:
-            return [permission() for permission in action_permission_classes]
-
-        return [permissions.IsAdminUser()]
+    permission_config = {
+        'list': [permissions.AllowAny],
+        'retrieve': [permissions.AllowAny],
+        'schools': [permissions.AllowAny],
+        'ratings': [permissions.AllowAny],
+        'rate': [permissions.IsAuthenticated],
+        'create': [permissions.IsAdminUser],
+        'update': [permissions.IsAdminUser],
+        'partial_update': [permissions.IsAdminUser],
+        'destroy': [permissions.IsAdminUser],
+    }
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'rate': [WriteThrottle],
+        'create': [WriteThrottle],
+        'update': [WriteThrottle],
+        'partial_update': [WriteThrottle],
+        'destroy': [WriteThrottle],
+    }
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -559,9 +585,17 @@ class MajorViewSet(viewsets.ModelViewSet):
         subject_category = self.request.query_params.get('subject_category')
         if subject_category:
             queryset = queryset.filter(subject_category=subject_category)
-        
+
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(code__icontains=search) |
+                Q(description__icontains=search)
+            )
+
         return queryset
-    
+
     @action(detail=True, methods=['get'])
     def schools(self, request, pk=None):
         """获取开设此专业的学校列表"""
@@ -626,17 +660,20 @@ class MajorViewSet(viewsets.ModelViewSet):
             'created': created
         }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
+
 # 添加录取分数线视图集
-class AdmissionScoreViewSet(viewsets.ModelViewSet):
+class AdmissionScoreViewSet(BaseModelViewSet):
     """录取分数线视图集"""
     queryset = AdmissionScore.objects.all()
     serializer_class = AdmissionScoreSerializer
-    permission_classes = [permissions.IsAdminUser]
-    
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [permissions.IsAuthenticatedOrReadOnly()]
-        return super().get_permissions()
+    permission_config = {
+        'list': [permissions.IsAuthenticatedOrReadOnly],
+        'retrieve': [permissions.IsAuthenticatedOrReadOnly],
+        'create': [permissions.IsAdminUser],
+        'update': [permissions.IsAdminUser],
+        'partial_update': [permissions.IsAdminUser],
+        'destroy': [permissions.IsAdminUser],
+    }
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -663,6 +700,7 @@ class AdmissionScoreViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(score_type=score_type)
         
         return queryset
+
 
 # 添加省份API视图
 @api_view(['GET'])
@@ -808,29 +846,14 @@ def get_recommendations(request):
             recommendation_service = RecommendationService(user)
             
             if recommendation_type == 'schools':
-                # 获取学校推荐
                 result = recommendation_service.get_school_recommendations(limit)
-                serializer = SchoolSerializer(result['schools'], many=True)
-                return Response({
-                    'recommendations': serializer.data,
-                    'reasoning': result['reasoning']
-                }, status=status.HTTP_200_OK)
+                return Response(result, status=status.HTTP_200_OK)
             elif recommendation_type == 'majors':
-                # 获取专业推荐
                 result = recommendation_service.get_major_recommendations(limit)
-                serializer = MajorSerializer(result['majors'], many=True)
-                return Response({
-                    'recommendations': serializer.data,
-                    'reasoning': result['reasoning']
-                }, status=status.HTTP_200_OK)
+                return Response(result, status=status.HTTP_200_OK)
             elif recommendation_type == 'posts':
-                # 获取帖子推荐
-                result = recommendation_service.get_post_recommendations(limit)
-                serializer = ForumPostSerializer(result['posts'], many=True, context={'request': request})
-                return Response({
-                    'recommendations': serializer.data,
-                    'reasoning': result['reasoning']
-                }, status=status.HTTP_200_OK)
+                result = recommendation_service.get_post_recommendations(limit, request=request)
+                return Response(result, status=status.HTTP_200_OK)
             else:
                 return Response(
                     {"detail": "无效的推荐类型"},
@@ -908,27 +931,30 @@ def get_recommendations(request):
                 status=status.HTTP_400_BAD_REQUEST)
 
 
-class EventViewSet(viewsets.ModelViewSet):
+class EventViewSet(PublicReadOnlyModelViewSet):
     """校园活动视图集"""
     queryset = Event.objects.all()
     serializer_class = EventSerializer
-
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [permissions.AllowAny()]
-
-        # 尊重 @action(permission_classes=[...]) 的显式声明
-        action = getattr(self, self.action, None)
-        action_permission_classes = getattr(action, 'kwargs', {}).get('permission_classes')
-        if action_permission_classes:
-            return [permission() for permission in action_permission_classes]
-
-        return [permissions.IsAdminUser()]
-
-    def get_throttles(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'register', 'cancel_registration']:
-            return [WriteThrottle()]
-        return super().get_throttles()
+    permission_config = {
+        'list': [permissions.AllowAny],
+        'retrieve': [permissions.AllowAny],
+        'register': [permissions.IsAuthenticated],
+        'cancel_registration': [permissions.IsAuthenticated],
+        'create': [permissions.IsAdminUser],
+        'update': [permissions.IsAdminUser],
+        'partial_update': [permissions.IsAdminUser],
+        'destroy': [permissions.IsAdminUser],
+    }
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'create': [WriteThrottle],
+        'update': [WriteThrottle],
+        'partial_update': [WriteThrottle],
+        'destroy': [WriteThrottle],
+        'register': [WriteThrottle],
+        'cancel_registration': [WriteThrottle],
+    }
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -1017,11 +1043,11 @@ class EventViewSet(viewsets.ModelViewSet):
         
         return Response({"detail": "报名已取消"}, status=status.HTTP_200_OK)
 
-class EventRegistrationViewSet(viewsets.ModelViewSet):
+
+class EventRegistrationViewSet(AuthenticatedModelViewSet):
     """活动报名视图集"""
     queryset = EventRegistration.objects.all()
     serializer_class = EventRegistrationSerializer
-    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         """只返回当前用户的报名记录"""
@@ -1031,6 +1057,7 @@ class EventRegistrationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """自动设置用户为当前用户"""
         serializer.save(user=self.request.user)
+
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
@@ -1294,14 +1321,31 @@ class ExploreViewSet(viewsets.ViewSet):
         place.checkin_count = CheckIn.objects.filter(place=place).count()
         place.save(update_fields=['checkin_count', 'updated_at'])
 
-        # 增加用户积分（PointsRecord 信号会自动更新 user.points）
-        from users.models import PointsRecord
-        PointsRecord.objects.create(
-            user=request.user,
-            action='daily_checkin',
-            points=5,
+        # 异步发放打卡积分
+        queue_update_user_points(
+            request.user.id,
+            'daily_checkin',
             description=f'打卡 {place.name}'
         )
+
+        # 连续签到积分（里程碑奖励，当天首次达到时发放）
+        consecutive_days = _calculate_consecutive_checkin_days(request.user, today)
+        if consecutive_days >= 3 and not _has_points_record_today(
+            request.user, 'consecutive_checkin_3', today
+        ):
+            queue_update_user_points(
+                request.user.id,
+                'consecutive_checkin_3',
+                description=f'连续打卡 {consecutive_days} 天'
+            )
+        if consecutive_days >= 7 and not _has_points_record_today(
+            request.user, 'consecutive_checkin_7', today
+        ):
+            queue_update_user_points(
+                request.user.id,
+                'consecutive_checkin_7',
+                description=f'连续打卡 {consecutive_days} 天'
+            )
 
         serializer = CheckInSerializer(checkin, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)

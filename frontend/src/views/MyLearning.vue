@@ -1,55 +1,68 @@
 <template>
-  <div class="my-learning-page">
-    <div class="my-learning-header">
-      <h1>我的学习</h1>
-      <p>管理你的课程学习进度</p>
-    </div>
+  <div class="my-learning-page container-wide page-padding">
+    <SectionHeader
+      title="我的学习"
+      subtitle="管理你正在学习的课程"
+      icon="i-ep-notebook"
+    />
 
-    <div class="my-learning-body">
+    <GlassCard :hover="false" class="my-learning-card">
       <div v-if="loading" class="loading-state">
-        <div class="loading-spinner"></div>
+        <div class="loading-spinner" />
         <p>加载中...</p>
       </div>
 
-      <template v-else>
-        <div v-if="enrollments.length === 0" class="empty-state">
-          <p>你还没有报名任何课程</p>
-          <button class="btn btn-primary" @click="goLearning">去发现课程</button>
+      <div v-else-if="enrollments.length === 0" class="empty-state">
+        <div class="empty-icon">
+          <span class="i-ep-notebook" />
         </div>
+        <p>你还没有报名任何课程</p>
+        <button class="btn btn-primary" @click="goLearning">
+          <span class="i-ep-right" />
+          去发现课程
+        </button>
+      </div>
 
-        <div v-else class="enrollment-list">
-          <div
-            v-for="enrollment in enrollments"
-            :key="enrollment.id"
-            class="enrollment-card"
-            @click="goCourse(enrollment.course.id)"
-          >
-            <img
-              :src="enrollment.course.cover_image || defaultCover"
-              :alt="enrollment.course.title"
-              class="enrollment-cover"
-            />
-            <div class="enrollment-info">
-              <h3 class="course-title">{{ enrollment.course.title }}</h3>
-              <p class="course-desc">{{ enrollment.course.description.substring(0, 80) }}...</p>
-              <div class="progress-bar">
-                <div class="progress-fill" :style="{ width: `${enrollment.progress}%` }"></div>
-              </div>
-              <div class="progress-meta">
-                <span>学习进度 {{ enrollment.progress.toFixed(0) }}%</span>
-                <span v-if="enrollment.is_completed" class="completed-badge">已完成</span>
-                <span v-else>学习中</span>
-              </div>
+      <div v-else class="enrollment-list">
+        <div
+          v-for="enrollment in enrollments"
+          :key="enrollment.id"
+          class="enrollment-card"
+          @click="goCourse(enrollment.course.id)"
+        >
+          <img
+            :src="enrollment.course.cover_image || defaultCover"
+            :alt="enrollment.course.title"
+            class="enrollment-cover"
+          />
+          <div class="enrollment-info">
+            <h3 class="course-title">{{ enrollment.course.title }}</h3>
+            <p class="course-desc">{{ enrollment.course.description.substring(0, 80) }}...</p>
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: `${enrollment.progress}%` }" />
             </div>
-            <div class="enrollment-action">
-              <button class="btn btn-primary" @click.stop="goCourse(enrollment.course.id)">
-                {{ enrollment.is_completed ? '复习' : '继续学习' }}
-              </button>
+            <div class="progress-meta">
+              <span class="progress-text">
+                <span class="i-ep-timer meta-icon" />
+                学习进度 {{ enrollment.progress.toFixed(0) }}%
+              </span>
+              <span v-if="enrollment.is_completed" class="completed-badge">
+                <span class="i-ep-check meta-icon" />
+                已完成
+              </span>
+              <span v-else class="status-text">学习中</span>
             </div>
           </div>
+          <div class="enrollment-action">
+            <button class="btn btn-primary" @click.stop="goCourse(enrollment.course.id)">
+              <span v-if="enrollment.is_completed" class="i-ep-refresh" />
+              <span v-else class="i-ep-right" />
+              {{ enrollment.is_completed ? '复习' : '继续学习' }}
+            </button>
+          </div>
         </div>
-      </template>
-    </div>
+      </div>
+    </GlassCard>
   </div>
 </template>
 
@@ -58,22 +71,24 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { learningApi } from '../api/learning'
+import { getApiErrorMessage } from '../utils/error'
 import type { Enrollment } from '../types/learning'
+import GlassCard from '@/components/GlassCard.vue'
+import SectionHeader from '@/components/SectionHeader.vue'
 
 const router = useRouter()
 
 const enrollments = ref<Enrollment[]>([])
 const loading = ref(false)
-const defaultCover = 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=campus%20online%20course%20cover%20image&image_size=landscape_16_9'
+const defaultCover = '/trae-api/api/ide/v1/text_to_image?prompt=campus%20online%20course%20cover%20image&image_size=landscape_16_9'
 
 const loadEnrollments = async () => {
   loading.value = true
   try {
     const response = await learningApi.getEnrollments()
     enrollments.value = response.results
-  } catch (error: any) {
-    const msg = error?.response?.data?.detail || '加载学习记录失败'
-    ElMessage.error(msg)
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '加载学习记录失败'))
   } finally {
     loading.value = false
   }
@@ -94,33 +109,11 @@ onMounted(() => {
 
 <style scoped>
 .my-learning-page {
-  min-height: 100vh;
-  background: #f5f7fa;
+  min-height: calc(100vh - 200px);
 }
 
-.my-learning-header {
-  background: linear-gradient(135deg, #4361ee 0%, #3a56d4 100%);
-  color: #fff;
-  padding: 48px 24px;
-  text-align: center;
-}
-
-.my-learning-header h1 {
-  font-size: 32px;
-  font-weight: 700;
-  margin: 0 0 8px;
-}
-
-.my-learning-header p {
-  font-size: 16px;
-  opacity: 0.9;
-  margin: 0;
-}
-
-.my-learning-body {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 32px 24px 60px;
+.my-learning-card {
+  min-height: 400px;
 }
 
 .loading-state,
@@ -129,76 +122,66 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 80px 20px;
-  color: #666;
+  padding: var(--space-10) 0;
+  color: var(--text-secondary);
+  text-align: center;
 }
 
 .loading-spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid rgba(67, 97, 238, 0.2);
-  border-top-color: #4361ee;
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--primary-200);
+  border-top-color: var(--primary-600);
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-3);
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-.empty-state p {
-  font-size: 16px;
-  margin-bottom: 20px;
-}
-
-.btn {
-  padding: 10px 24px;
-  border-radius: 6px;
-  border: none;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-primary {
-  background: #4361ee;
-  color: #fff;
-}
-
-.btn-primary:hover {
-  background: #3a56d4;
+.empty-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--primary-50);
+  color: var(--primary-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-4);
+  font-size: 2rem;
 }
 
 .enrollment-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .enrollment-card {
   display: flex;
   align-items: center;
-  gap: 20px;
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  gap: var(--space-5);
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  border: 1px solid var(--border-color);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.25s ease;
 }
 
 .enrollment-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  border-color: var(--primary-600);
+  box-shadow: var(--shadow-md);
 }
 
 .enrollment-cover {
   width: 160px;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   flex-shrink: 0;
 }
 
@@ -206,51 +189,99 @@ onMounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
 .course-title {
-  font-size: 18px;
+  font-size: 1.1rem;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .course-desc {
-  font-size: 14px;
-  color: #666;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .progress-bar {
   height: 8px;
-  background: #e8e8e8;
-  border-radius: 4px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-full);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: #4361ee;
-  border-radius: 4px;
+  background: linear-gradient(90deg, var(--primary-500), var(--primary-600));
+  border-radius: var(--radius-full);
   transition: width 0.3s ease;
 }
 
 .progress-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 13px;
-  color: #666;
+  align-items: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.progress-text,
+.status-text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .completed-badge {
-  color: #27ae60;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--success-color);
   font-weight: 600;
+}
+
+.meta-icon {
+  font-size: 1rem;
 }
 
 .enrollment-action {
   flex-shrink: 0;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background-color: var(--primary-600);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-700);
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background-color: var(--border-color);
 }
 
 @media (max-width: 768px) {

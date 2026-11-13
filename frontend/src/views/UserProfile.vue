@@ -1,204 +1,231 @@
 <template>
-  <div class="user-profile-container">
-    <div v-if="loading" class="loading-container">
-      <div class="loading-spinner large"></div>
+  <div class="user-profile-page container-wide page-padding">
+    <SectionHeader
+      title="用户主页"
+      icon="i-ep-user-filled"
+    />
+
+    <div v-if="loading" class="loading-state">
+      <div class="loading-spinner"></div>
       <p>加载中...</p>
     </div>
-    
+
     <template v-else>
-      <!-- 用户基本信息 -->
-      <div class="user-header">
-        <div class="avatar-container">
-          <img v-if="user.avatar" :src="user.avatar" alt="用户头像" class="user-avatar" />
-          <div v-else class="avatar-placeholder">{{ user.username ? user.username.substring(0, 1).toUpperCase() : '?' }}</div>
-        </div>
-        <div class="user-info">
-          <h1 class="username">{{ user.username }}</h1>
-          <div class="user-meta">
-            <span class="join-date">注册于 {{ formatDate(stats.join_date) }}</span>
-            <span v-if="user.location" class="location">
-              <i class="location-icon"></i>
-              {{ user.location }}
-            </span>
-          </div>
-          <div class="user-bio" v-if="user.bio">{{ user.bio }}</div>
-        </div>
-        <FollowButton
-          v-if="showFollowButton"
-          :user-id="user.id"
-          :following="user.is_following"
-          size="md"
-          @update="handleFollowUpdate"
-        />
-      </div>
-      
-      <!-- 用户统计信息 -->
-      <div class="user-stats">
-        <div class="stat-item">
-          <div class="stat-value">{{ stats.topic_count }}</div>
-          <div class="stat-label">主题</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value">{{ stats.post_count }}</div>
-          <div class="stat-label">帖子</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value">{{ stats.reply_count }}</div>
-          <div class="stat-label">回复</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value">{{ user.following_count ?? 0 }}</div>
-          <div class="stat-label">关注</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value">{{ user.follower_count ?? 0 }}</div>
-          <div class="stat-label">粉丝</div>
-        </div>
-      </div>
-      
-      <!-- 活跃板块 -->
-      <div class="active-boards" v-if="stats.active_boards && stats.active_boards.length > 0">
-        <h3 class="section-title">活跃板块</h3>
-        <div class="boards-list">
-          <router-link
-            v-for="board in stats.active_boards"
-            :key="board.id"
-            :to="`/forum/board/${board.id}`"
-            class="board-item"
-          >
-            <span class="board-name">{{ board.name }}</span>
-            <span class="board-post-count">{{ board.post_count }}篇帖子</span>
-          </router-link>
-        </div>
-      </div>
-      
-      <!-- 内容标签页 -->
-      <div class="content-tabs">
-        <div 
-          class="tab-item" 
-          :class="{ active: activeTab === 'topics' }"
-          @click="setActiveTab('topics')"
-        >
-          主题
-        </div>
-        <div 
-          class="tab-item" 
-          :class="{ active: activeTab === 'posts' }"
-          @click="setActiveTab('posts')"
-        >
-          回复
-        </div>
-      </div>
-      
-      <!-- 主题列表 -->
-      <div v-if="activeTab === 'topics'" class="topics-list">
-        <div v-if="loadingTopics" class="loading-container small">
-          <div class="loading-spinner"></div>
-          <p>加载中...</p>
-        </div>
-        
-        <div v-else-if="topics.length === 0" class="empty-list">
-          <p>暂无主题</p>
-        </div>
-        
-        <div v-else class="topic-items">
-          <div 
-            v-for="topic in topics" 
-            :key="topic.id"
-            class="topic-item"
-            @click="goToTopic(topic.id)"
-          >
-            <div class="topic-header">
-              <h3 class="topic-title">{{ topic.title }}</h3>
-              <span class="topic-date">{{ formatDate(topic.created_at) }}</span>
+      <!-- 用户基本信息、统计、活跃板块 -->
+      <GlassCard :hover="false" class="profile-info-card">
+        <div class="user-header">
+          <div class="avatar-container">
+            <img v-if="user.avatar" :src="user.avatar" alt="用户头像" class="user-avatar" />
+            <div v-else class="avatar-placeholder">
+              <span class="i-ep-user avatar-icon" />
             </div>
-            <div class="topic-footer">
-              <span class="topic-board">{{ (topic as any).board_name || '未知板块' }}</span>
-              <div class="topic-stats">
-                <span class="stat-views">{{ topic.views || 0 }} 浏览</span>
-                <span class="stat-replies">{{ (topic.post_count || 0) - 1 }} 回复</span>
+          </div>
+          <div class="user-info">
+            <h1 class="username">{{ user.username }}</h1>
+            <div class="user-meta">
+              <span class="join-date">
+                <span class="i-ep-calendar meta-icon" />
+                注册于 {{ formatDate(stats.join_date) }}
+              </span>
+              <span v-if="user.location" class="location">
+                <span class="i-ep-location meta-icon" />
+                {{ user.location }}
+              </span>
+            </div>
+            <div class="user-bio" v-if="user.bio">{{ user.bio }}</div>
+          </div>
+          <FollowButton
+            v-if="showFollowButton"
+            :user-id="user.id"
+            :following="user.is_following"
+            size="md"
+            @update="handleFollowUpdate"
+          />
+        </div>
+
+        <!-- 用户统计信息 -->
+        <div class="user-stats">
+          <div class="stat-item">
+            <div class="stat-value">{{ stats.topic_count }}</div>
+            <div class="stat-label">主题</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ stats.post_count }}</div>
+            <div class="stat-label">帖子</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ stats.reply_count }}</div>
+            <div class="stat-label">回复</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ user.following_count ?? 0 }}</div>
+            <div class="stat-label">关注</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{ user.follower_count ?? 0 }}</div>
+            <div class="stat-label">粉丝</div>
+          </div>
+        </div>
+
+        <!-- 活跃板块 -->
+        <div class="active-boards" v-if="stats.active_boards && stats.active_boards.length > 0">
+          <h3 class="section-title">
+            <span class="i-ep-grid section-icon" />
+            活跃板块
+          </h3>
+          <div class="boards-list">
+            <router-link
+              v-for="board in stats.active_boards"
+              :key="board.id"
+              :to="`/forum/board/${board.id}`"
+              class="board-item"
+            >
+              <span class="board-name">{{ board.name }}</span>
+              <span class="board-post-count">{{ board.post_count }} 篇帖子</span>
+            </router-link>
+          </div>
+        </div>
+      </GlassCard>
+
+      <!-- 内容标签页与列表 -->
+      <GlassCard :hover="false" class="content-card">
+        <div class="content-tabs">
+          <div
+            class="tab-item"
+            :class="{ active: activeTab === 'topics' }"
+            @click="setActiveTab('topics')"
+          >
+            <span class="i-ep-document tab-icon" />
+            主题
+          </div>
+          <div
+            class="tab-item"
+            :class="{ active: activeTab === 'posts' }"
+            @click="setActiveTab('posts')"
+          >
+            <span class="i-ep-chat-dot-round tab-icon" />
+            回复
+          </div>
+        </div>
+
+        <!-- 主题列表 -->
+        <div v-if="activeTab === 'topics'" class="topics-list">
+          <div v-if="loadingTopics" class="loading-state small">
+            <div class="loading-spinner"></div>
+            <p>加载中...</p>
+          </div>
+
+          <div v-else-if="topics.length === 0" class="empty-list">
+            <span class="i-ep-document empty-icon" />
+            <p>暂无主题</p>
+          </div>
+
+          <div v-else class="topic-items">
+            <div
+              v-for="topic in topics"
+              :key="topic.id"
+              class="topic-item"
+              @click="goToTopic(topic.id)"
+            >
+              <div class="topic-header">
+                <h3 class="topic-title">{{ topic.title }}</h3>
+                <span class="topic-date">{{ formatDate(topic.created_at) }}</span>
+              </div>
+              <div class="topic-footer">
+                <span class="topic-board">{{ (topic as any).board_name || '未知板块' }}</span>
+                <div class="topic-stats">
+                  <span class="stat-views">
+                    <span class="i-ep-view stat-icon" />
+                    {{ topic.views || 0 }} 浏览
+                  </span>
+                  <span class="stat-replies">
+                    <span class="i-ep-chat-dot-round stat-icon" />
+                    {{ (topic.post_count || 0) - 1 }} 回复
+                  </span>
+                </div>
               </div>
             </div>
           </div>
+
+          <!-- 主题分页 -->
+          <div v-if="topicTotalPages > 1" class="pagination">
+            <button
+              class="btn btn-secondary"
+              :disabled="topicPage === 1"
+              @click="changePage('topics', topicPage - 1)"
+            >
+              上一页
+            </button>
+            <span class="page-info">{{ topicPage }} / {{ topicTotalPages }}</span>
+            <button
+              class="btn btn-secondary"
+              :disabled="topicPage === topicTotalPages"
+              @click="changePage('topics', topicPage + 1)"
+            >
+              下一页
+            </button>
+          </div>
         </div>
-        
-        <!-- 主题分页 -->
-        <div v-if="topicTotalPages > 1" class="pagination">
-          <button 
-            class="btn-page" 
-            :disabled="topicPage === 1" 
-            @click="changePage('topics', topicPage - 1)"
-          >
-            上一页
-          </button>
-          <span class="page-info">{{ topicPage }} / {{ topicTotalPages }}</span>
-          <button 
-            class="btn-page" 
-            :disabled="topicPage === topicTotalPages" 
-            @click="changePage('topics', topicPage + 1)"
-          >
-            下一页
-          </button>
-        </div>
-      </div>
-      
-      <!-- 帖子列表 -->
-      <div v-if="activeTab === 'posts'" class="posts-list">
-        <div v-if="loadingPosts" class="loading-container small">
-          <div class="loading-spinner"></div>
-          <p>加载中...</p>
-        </div>
-        
-        <div v-else-if="posts.length === 0" class="empty-list">
-          <p>暂无回复</p>
-        </div>
-        
-        <div v-else class="post-items">
-          <div 
-            v-for="post in posts" 
-            :key="post.id"
-            class="post-item"
-            @click="goToPost(post.topic, post.id)"
-          >
-            <div class="post-header">
-              <div class="post-topic">回复：{{ (post as any).topic_title || '未知主题' }}</div>
-              <span class="post-date">{{ formatDate(post.created_at) }}</span>
-            </div>
-            <div class="post-content">
-              <div class="post-preview">{{ getPostPreview(post.content) }}</div>
-            </div>
-            <div class="post-footer">
-              <div v-if="(post as any).is_edited" class="post-edited">
-                (已编辑于 {{ formatDate((post as any).edited_at || '') }})
+
+        <!-- 帖子列表 -->
+        <div v-if="activeTab === 'posts'" class="posts-list">
+          <div v-if="loadingPosts" class="loading-state small">
+            <div class="loading-spinner"></div>
+            <p>加载中...</p>
+          </div>
+
+          <div v-else-if="posts.length === 0" class="empty-list">
+            <span class="i-ep-chat-dot-round empty-icon" />
+            <p>暂无回复</p>
+          </div>
+
+          <div v-else class="post-items">
+            <div
+              v-for="post in posts"
+              :key="post.id"
+              class="post-item"
+              @click="goToPost(post.topic, post.id)"
+            >
+              <div class="post-header">
+                <div class="post-topic">回复：{{ (post as any).topic_title || '未知主题' }}</div>
+                <span class="post-date">{{ formatDate(post.created_at) }}</span>
               </div>
-              <div class="post-status" v-if="(post as any).content_status !== 'approved'">
-                <span class="status-badge" :class="(post as any).content_status">
-                  {{ getStatusText((post as any).content_status || 'approved') }}
-                </span>
+              <div class="post-content">
+                <div class="post-preview">{{ getPostPreview(post.content) }}</div>
+              </div>
+              <div class="post-footer">
+                <div v-if="(post as any).is_edited" class="post-edited">
+                  (已编辑于 {{ formatDate((post as any).edited_at || '') }})
+                </div>
+                <div class="post-status" v-if="(post as any).content_status !== 'approved'">
+                  <span class="status-badge" :class="(post as any).content_status">
+                    {{ getStatusText((post as any).content_status || 'approved') }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
+
+          <!-- 帖子分页 -->
+          <div v-if="postTotalPages > 1" class="pagination">
+            <button
+              class="btn btn-secondary"
+              :disabled="postPage === 1"
+              @click="changePage('posts', postPage - 1)"
+            >
+              上一页
+            </button>
+            <span class="page-info">{{ postPage }} / {{ postTotalPages }}</span>
+            <button
+              class="btn btn-secondary"
+              :disabled="postPage === postTotalPages"
+              @click="changePage('posts', postPage + 1)"
+            >
+              下一页
+            </button>
+          </div>
         </div>
-        
-        <!-- 帖子分页 -->
-        <div v-if="postTotalPages > 1" class="pagination">
-          <button 
-            class="btn-page" 
-            :disabled="postPage === 1" 
-            @click="changePage('posts', postPage - 1)"
-          >
-            上一页
-          </button>
-          <span class="page-info">{{ postPage }} / {{ postTotalPages }}</span>
-          <button 
-            class="btn-page" 
-            :disabled="postPage === postTotalPages" 
-            @click="changePage('posts', postPage + 1)"
-          >
-            下一页
-          </button>
-        </div>
-      </div>
+      </GlassCard>
     </template>
   </div>
 </template>
@@ -210,6 +237,8 @@ import { userApi } from '@/api/user'
 import { stripHtml } from '@/utils/xss'
 import { useUserStore } from '@/stores/userStore'
 import FollowButton from '@/components/FollowButton.vue'
+import GlassCard from '@/components/GlassCard.vue'
+import SectionHeader from '@/components/SectionHeader.vue'
 import type { User } from '@/types/user'
 import type { Topic, Post } from '@/types/forum'
 
@@ -271,13 +300,13 @@ const fetchUserProfile = async () => {
       userApi.getUserProfile(userId),
       userApi.getUserProfileStats(userId)
     ])
-    
+
     user.value = userResponse
     stats.value = statsResponse
-    
+
     // 加载主题列表
     await fetchUserTopics()
-    
+
   } catch (error) {
     console.error('获取用户资料失败:', error)
   } finally {
@@ -291,11 +320,11 @@ const fetchUserTopics = async () => {
   try {
     const userId = Array.isArray(route.params.id) ? route.params.id[0] : route.params.id || 'me'
     const response = await userApi.getUserTopics(userId, topicPage.value)
-    
+
     topics.value = response.results
     topicTotalCount.value = response.count
     topicTotalPages.value = Math.ceil(topicTotalCount.value / 10)
-    
+
   } catch (error) {
     console.error('获取用户主题失败:', error)
   } finally {
@@ -309,11 +338,11 @@ const fetchUserPosts = async () => {
   try {
     const userId = Array.isArray(route.params.id) ? route.params.id[0] : route.params.id || 'me'
     const response = await userApi.getUserPosts(userId, postPage.value)
-    
+
     posts.value = response.results
     postTotalCount.value = response.count
     postTotalPages.value = Math.ceil(postTotalCount.value / 10)
-    
+
   } catch (error) {
     console.error('获取用户帖子失败:', error)
   } finally {
@@ -336,7 +365,7 @@ const handleFollowUpdate = (following: boolean) => {
 // 切换标签页
 const setActiveTab = (tab: string) => {
   activeTab.value = tab
-  
+
   if (tab === 'posts' && posts.value.length === 0) {
     fetchUserPosts()
   }
@@ -383,11 +412,11 @@ const getStatusText = (status: string) => {
 // 格式化日期
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '未知'
-  
+
   const date = new Date(dateStr)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
-  
+
   // 小于一天，显示相对时间
   if (diff < 24 * 60 * 60 * 1000) {
     const hours = Math.floor(diff / (60 * 60 * 1000))
@@ -397,7 +426,7 @@ const formatDate = (dateStr: string) => {
     }
     return `${hours}小时前`
   }
-  
+
   // 显示年月日
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
@@ -409,53 +438,64 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.user-profile-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
+.user-profile-page {
+  color: var(--text-primary);
 }
 
-.loading-container {
+.loading-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 50px 0;
+  justify-content: center;
+  padding: 5rem 0;
+  color: var(--text-secondary);
 }
 
-.loading-container.small {
-  padding: 20px 0;
+.loading-state.small {
+  padding: 2.5rem 0;
 }
 
 .loading-spinner {
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-radius: 50%;
-  border-top: 4px solid #3498db;
   width: 40px;
   height: 40px;
+  border: 3px solid var(--primary-200);
+  border-top-color: var(--primary-600);
+  border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 15px;
+  margin-bottom: 1rem;
 }
 
 .loading-spinner.small {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-width: 2px;
+  margin-bottom: 0.75rem;
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  to { transform: rotate(360deg); }
+}
+
+.profile-info-card {
+  margin-bottom: var(--space-5);
+}
+
+.content-card {
+  overflow: hidden;
 }
 
 /* 用户头部信息 */
 .user-header {
   display: flex;
   align-items: center;
-  margin-bottom: 30px;
+  gap: var(--space-5);
+  padding-bottom: var(--space-6);
+  margin-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border-color-light);
 }
 
 .avatar-container {
-  margin-right: 20px;
+  flex-shrink: 0;
 }
 
 .user-avatar,
@@ -467,308 +507,380 @@ onMounted(() => {
 }
 
 .avatar-placeholder {
-  background-color: #3498db;
+  background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36px;
-  font-weight: bold;
+}
+
+.avatar-icon {
+  width: 48px;
+  height: 48px;
 }
 
 .user-info {
   flex: 1;
+  min-width: 0;
 }
 
 .username {
-  font-size: 24px;
-  margin: 0 0 10px 0;
-  color: #333;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 var(--space-2);
+  color: var(--text-primary);
+  line-height: 1.3;
 }
 
 .user-meta {
   display: flex;
-  gap: 15px;
-  color: #666;
-  margin-bottom: 10px;
-  font-size: 14px;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+  font-size: 0.875rem;
+}
+
+.join-date,
+.location {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.meta-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 .user-bio {
-  color: #666;
-  line-height: 1.4;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 /* 用户统计信息 */
 .user-stats {
   display: flex;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  margin-bottom: 30px;
+  margin-bottom: var(--space-6);
   overflow: hidden;
 }
 
 .stat-item {
   flex: 1;
-  padding: 20px;
+  padding: var(--space-4) var(--space-2);
   text-align: center;
-  border-right: 1px solid #eee;
+  border-right: 1px solid var(--border-color-light);
 }
 
 .stat-item:last-child {
   border-right: none;
 }
 
-.follow-btn {
-  margin-left: auto;
-  padding: 8px 20px;
-  background-color: #4361ee;
-  color: white;
-  border: none;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.follow-btn:hover {
-  background-color: #3a56d4;
-}
-
-.follow-btn.following {
-  background-color: #f0f0f0;
-  color: #666;
-}
-
-.follow-btn.following:hover {
-  background-color: #e0e0e0;
-}
-
-.follow-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
 .stat-value {
-  font-size: 24px;
-  font-weight: bold;
-  color: #3498db;
-  margin-bottom: 5px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary-600);
+  margin-bottom: var(--space-1);
 }
 
 .stat-label {
-  font-size: 14px;
-  color: #666;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
 }
 
 /* 活跃板块 */
 .active-boards {
-  margin-bottom: 30px;
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border-color-light);
 }
 
 .section-title {
-  font-size: 18px;
-  margin: 0 0 15px 0;
-  color: #333;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 var(--space-4);
+  color: var(--text-primary);
+}
+
+.section-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--primary-600);
 }
 
 .boards-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .board-item {
   display: flex;
   flex-direction: column;
-  padding: 15px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
   text-decoration: none;
-  color: #333;
-  transition: all 0.2s;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
 }
 
 .board-item:hover {
-  background-color: #e9ecef;
+  background: var(--primary-50);
+  border-color: var(--primary-200);
 }
 
 .board-name {
   font-weight: 500;
-  margin-bottom: 5px;
+  margin-bottom: var(--space-1);
 }
 
 .board-post-count {
-  font-size: 12px;
-  color: #666;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
 }
 
 /* 内容标签页 */
 .content-tabs {
   display: flex;
-  margin-bottom: 20px;
-  border-bottom: 1px solid #eee;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-color-light);
 }
 
 .tab-item {
-  padding: 10px 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
   cursor: pointer;
   font-weight: 500;
-  color: #666;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+}
+
+.tab-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .tab-item:hover {
-  color: #3498db;
+  border-color: var(--primary-400);
+  color: var(--primary-600);
 }
 
 .tab-item.active {
-  color: #3498db;
-  border-bottom-color: #3498db;
+  background: var(--primary-600);
+  border-color: var(--primary-600);
+  color: white;
 }
 
 /* 空列表 */
 .empty-list {
-  padding: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-12) 0;
+  color: var(--text-secondary);
   text-align: center;
-  color: #666;
-  background-color: #f8f9fa;
-  border-radius: 8px;
 }
 
-/* 主题列表 */
-.topic-items {
-  margin-bottom: 20px;
-}
-
-.topic-item {
-  margin-bottom: 15px;
-  padding: 15px;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.topic-item:hover {
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
-}
-
-.topic-header {
+.empty-list .empty-icon {
+  width: 56px;
+  height: 56px;
+  margin-bottom: var(--space-3);
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 10px;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
 }
 
-.topic-title {
-  margin: 0;
-  font-size: 16px;
-  color: #333;
-}
-
-.topic-date {
-  font-size: 12px;
-  color: #999;
-  white-space: nowrap;
-}
-
-.topic-footer {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #666;
-}
-
-.topic-board {
-  background-color: #e9ecef;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.topic-stats {
-  display: flex;
-  gap: 10px;
-}
-
-/* 帖子列表 */
+/* 列表项 */
+.topic-items,
 .post-items {
-  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
 }
 
+.topic-item,
 .post-item {
-  margin-bottom: 15px;
-  padding: 15px;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border-color-light);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.2s ease;
 }
 
+.topic-item:first-child,
+.post-item:first-child {
+  padding-top: 0;
+}
+
+.topic-item:last-child,
+.post-item:last-child {
+  border-bottom: none;
+}
+
+.topic-item:hover,
 .post-item:hover {
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+  background-color: var(--bg-tertiary);
+  margin: 0 calc(-1 * var(--space-5));
+  padding-left: var(--space-5);
+  padding-right: var(--space-5);
 }
 
+.topic-item:first-child:hover,
+.post-item:first-child:hover {
+  padding-top: var(--space-4);
+}
+
+.topic-header,
 .post-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 10px;
+  margin-bottom: var(--space-2);
+  gap: var(--space-3);
+}
+
+.topic-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
 }
 
 .post-topic {
-  font-weight: 500;
-  color: #333;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
 }
 
+.topic-date,
 .post-date {
-  font-size: 12px;
-  color: #999;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.post-content {
-  margin-bottom: 10px;
-}
-
-.post-preview {
-  font-size: 14px;
-  color: #666;
-  line-height: 1.5;
-}
-
+.topic-footer,
 .post-footer {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-  color: #999;
+  align-items: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  gap: var(--space-3);
+}
+
+.topic-board {
+  background: var(--primary-50);
+  color: var(--primary-700);
+  padding: 0.125rem var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.topic-stats {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.stat-views,
+.stat-replies {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.stat-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.post-content {
+  margin-bottom: var(--space-2);
+}
+
+.post-preview {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 .post-edited {
   font-style: italic;
+  color: var(--text-tertiary);
 }
 
 .status-badge {
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 0.125rem var(--space-2);
+  border-radius: var(--radius-sm);
   color: white;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .status-badge.pending {
-  background-color: #f39c12;
+  background-color: var(--warning-color);
 }
 
 .status-badge.rejected {
-  background-color: #e74c3c;
+  background-color: var(--error-color);
 }
 
 .status-badge.flagged {
-  background-color: #e67e22;
+  background-color: var(--accent-orange);
+}
+
+/* 按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background-color: var(--primary-600);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-700);
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--border-color);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* 分页 */
@@ -776,59 +888,79 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-top: 20px;
-  margin-bottom: 30px;
-  gap: 15px;
+  margin-top: var(--space-6);
+  gap: var(--space-4);
 }
 
-.btn-page {
-  padding: 8px 15px;
-  background-color: #f1f1f1;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
+.page-info {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
 }
 
-.btn-page:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-page:not(:disabled):hover {
-  background-color: #e9ecef;
-}
-
+/* 响应式 */
 @media (max-width: 768px) {
   .user-header {
     flex-direction: column;
     align-items: center;
     text-align: center;
+    gap: var(--space-4);
   }
-  
-  .avatar-container {
-    margin-right: 0;
-    margin-bottom: 20px;
+
+  .user-info {
+    width: 100%;
   }
-  
+
+  .user-meta {
+    justify-content: center;
+  }
+
   .user-stats {
     flex-direction: column;
   }
-  
+
   .stat-item {
     border-right: none;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border-color-light);
+    padding: var(--space-3) var(--space-2);
   }
-  
+
   .stat-item:last-child {
     border-bottom: none;
   }
-  
+
+  .active-boards {
+    text-align: center;
+  }
+
+  .section-title {
+    justify-content: center;
+  }
+
+  .boards-list {
+    justify-content: center;
+  }
+
+  .content-tabs {
+    justify-content: center;
+  }
+
   .topic-header,
   .post-header,
-  .topic-footer {
+  .topic-footer,
+  .post-footer {
     flex-direction: column;
-    gap: 5px;
+    gap: var(--space-1);
+  }
+
+  .topic-stats {
+    gap: var(--space-3);
+  }
+
+  .topic-item:hover,
+  .post-item:hover {
+    margin: 0 calc(-1 * var(--space-4));
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
   }
 }
-</style> 
+</style>

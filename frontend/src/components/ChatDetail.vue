@@ -97,6 +97,7 @@
 </template>
 
 <script setup lang="ts">
+import { logger } from '@/utils/logger'
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useToast } from '../composables/useToast'
@@ -104,6 +105,30 @@ import { userApi } from '../api/user'
 import { useUserStore } from '../stores/userStore'
 import config from '../utils/config'
 import { formatAvatar } from '../utils/image'
+import type { PrivateMessage } from '../types/chat'
+import type { User } from '../types/user'
+
+// 本地扩展：包含前端临时状态的消息项
+type ChatMessageItem = Omit<PrivateMessage, 'id'> & {
+  id: number | string
+  isTemp?: boolean
+  sendFailed?: boolean
+}
+
+// WebSocket 私聊消息载荷
+type WebSocketPrivateMessage = {
+  id?: number
+  type: 'private_message'
+  sender_id: number
+  receiver_id: number
+  sender_username: string
+  receiver_username?: string
+  sender_avatar?: string | null
+  receiver_avatar?: string | null
+  content: string
+  is_read?: boolean
+  created_at?: string
+}
 
 
 const router = useRouter()
@@ -113,8 +138,8 @@ const userStore = useUserStore()
 
 // 状态数据
 const loading = ref(false)
-const messages = ref<any[]>([])
-const user = ref<any>(null)
+const messages = ref<ChatMessageItem[]>([])
+const user = ref<User | null>(null)
 const messageInput = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
 
@@ -165,7 +190,7 @@ const connectionStatusText = computed(() => {
   }
 })
 
-const isMine = (msg: any) => {
+const isMine = (msg: ChatMessageItem) => {
   return msg.sender?.id === currentUserId.value
 }
 
@@ -191,7 +216,7 @@ const formatDate = (dateString: string) => {
 }
 
 const groupedMessages = computed(() => {
-  const groups: { date: string; messages: any[] }[] = []
+  const groups: { date: string; messages: ChatMessageItem[] }[] = []
   let currentDate = ''
 
   messages.value.forEach(msg => {
@@ -250,7 +275,7 @@ const loadConversation = async (page = 1, isLoadMore = false) => {
     if (isLoadMore) {
       // 记录加载前的滚动高度，便于加载后保持滚动位置
       const oldScrollHeight = messagesContainer.value?.scrollHeight || 0
-      messages.value = [...loadedMessages, ...messages.value]
+      messages.value = [...loadedMessages, ...messages.value] as ChatMessageItem[]
       hasMoreMessages.value = !!response.next
 
       await nextTick()
@@ -259,7 +284,7 @@ const loadConversation = async (page = 1, isLoadMore = false) => {
         messagesContainer.value.scrollTop = newScrollHeight - oldScrollHeight
       }
     } else {
-      messages.value = loadedMessages
+      messages.value = loadedMessages as ChatMessageItem[]
       hasMoreMessages.value = !!response.next
 
       // 滚动到底部
@@ -306,13 +331,14 @@ const sendMessage = async () => {
 
   try {
     // 先添加到消息列表（乐观更新）
-    const tempMessage = {
+    const tempMessage: ChatMessageItem = {
       id: tempId,
-      sender: userStore.user,
-      receiver: user.value,
+      sender: userStore.user as User,
+      receiver: user.value as User,
       content,
       is_read: false,
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
       isTemp: true,
       sendFailed: false
     }
@@ -330,11 +356,11 @@ const sendMessage = async () => {
     if (index !== -1 && response) {
       messages.value[index] = {
         ...response,
-        sender: response.sender || userStore.user,
-        receiver: response.receiver || user.value,
+        sender: response.sender || (userStore.user as User),
+        receiver: response.receiver || (user.value as User),
         isTemp: false,
         sendFailed: false
-      }
+      } as ChatMessageItem
     }
   } catch (error) {
     console.error('[ChatDetail] 发送消息失败:', error)
@@ -350,7 +376,7 @@ const sendMessage = async () => {
 }
 
 // 重发消息
-const resendMessage = async (message: any) => {
+const resendMessage = async (message: ChatMessageItem) => {
   if (!message.content || !userId.value) return
   message.sendFailed = false
   message.isTemp = true
@@ -362,11 +388,11 @@ const resendMessage = async (message: any) => {
     if (index !== -1 && response) {
       messages.value[index] = {
         ...response,
-        sender: response.sender || userStore.user,
-        receiver: response.receiver || user.value,
+        sender: response.sender || (userStore.user as User),
+        receiver: response.receiver || (user.value as User),
         isTemp: false,
         sendFailed: false
-      }
+      } as ChatMessageItem
     }
   } catch (error) {
     console.error('[ChatDetail] 重发消息失败:', error)
@@ -397,14 +423,14 @@ const scrollToBottom = () => {
 // WebSocket连接逻辑
 const connectWebSocket = async () => {
   if (!userId.value || !userStore.isLoggedIn) {
-    console.log('[ChatDetail] 无法建立WebSocket连接：用户未登录或缺少必要参数')
+    logger.log('[ChatDetail] 无法建立WebSocket连接：用户未登录或缺少必要参数')
     return
   }
 
   // 在连接前确保 token 有效
   const validToken = await userStore.ensureValidToken()
   if (!validToken) {
-    console.log('[ChatDetail] 无法获取有效 token，跳过 WebSocket 连接')
+    logger.log('[ChatDetail] 无法获取有效 token，跳过 WebSocket 连接')
     connectionStatus.value = 'disconnected'
     isConnected.value = false
     lastError.value = '登录会话已过期，请重新登录'
@@ -412,18 +438,18 @@ const connectWebSocket = async () => {
   }
 
   connectionStatus.value = 'connecting'
-  console.log(`[ChatDetail] 开始连接私聊WebSocket，对方用户ID: ${userId.value}`)
+  logger.log(`[ChatDetail] 开始连接私聊WebSocket，对方用户ID: ${userId.value}`)
 
   try {
     // 关闭现有连接
     if (ws.value && ws.value.readyState < 2) {
-      console.log('[ChatDetail] 关闭现有WebSocket连接')
+      logger.log('[ChatDetail] 关闭现有WebSocket连接')
       ws.value.close()
     }
 
     // 构建WebSocket URL
     const wsUrl = `${WS_BASE_URL}/ws/chat/private/${userId.value}/`
-    console.log('[ChatDetail] WebSocket连接URL:', wsUrl)
+    logger.log('[ChatDetail] WebSocket连接URL:', wsUrl)
 
     // 通过 Sec-WebSocket-Protocol 子协议传递 token，避免 token 暴露在 URL 中
     const protocols = ['jwt', validToken]
@@ -432,7 +458,7 @@ const connectWebSocket = async () => {
     ws.value = new WebSocket(wsUrl, protocols)
 
     ws.value.onopen = () => {
-      console.log('[ChatDetail] 私聊WebSocket连接已成功打开')
+      logger.log('[ChatDetail] 私聊WebSocket连接已成功打开')
       connectionStatus.value = 'connected'
       isConnected.value = true
       reconnectAttempts.value = 0
@@ -457,23 +483,23 @@ const connectWebSocket = async () => {
     }
 
     ws.value.onmessage = (event) => {
-      console.log('[ChatDetail] 收到私聊WebSocket消息:', event.data)
+      logger.log('[ChatDetail] 收到私聊WebSocket消息:', event.data)
       try {
         const data = JSON.parse(event.data)
 
         if (data.type === 'private_message') {
           handlePrivateMessage(data)
         } else if (data.type === 'private_chat_ready') {
-          console.log('[ChatDetail] 私聊频道就绪:', data.message)
+          logger.log('[ChatDetail] 私聊频道就绪:', data.message)
         } else if (data.type === 'heartbeat_response') {
-          console.log('[ChatDetail] 私聊心跳响应:', data.timestamp)
+          logger.log('[ChatDetail] 私聊心跳响应:', data.timestamp)
         } else if (data.type === 'message_received') {
-          console.log('[ChatDetail] 消息发送确认:', data.message)
+          logger.log('[ChatDetail] 消息发送确认:', data.message)
         } else if (data.type === 'error') {
           console.error('[ChatDetail] 私聊WebSocket错误:', data)
           lastError.value = data.message || '服务器发生错误'
         } else {
-          console.log('[ChatDetail] 未知私聊消息类型:', data.type, data)
+          logger.log('[ChatDetail] 未知私聊消息类型:', data.type, data)
         }
       } catch (e) {
         console.error('[ChatDetail] 解析私聊WebSocket消息出错:', e)
@@ -482,7 +508,7 @@ const connectWebSocket = async () => {
     }
 
     ws.value.onclose = (event) => {
-      console.log(`[ChatDetail] 私聊WebSocket连接已关闭，代码: ${event.code}, 原因: ${event.reason}`)
+      logger.log(`[ChatDetail] 私聊WebSocket连接已关闭，代码: ${event.code}, 原因: ${event.reason}`)
       connectionStatus.value = 'disconnected'
       isConnected.value = false
 
@@ -515,16 +541,16 @@ const connectWebSocket = async () => {
       if (reconnectAttempts.value < maxReconnectAttempts && userStore.isLoggedIn) {
         reconnectAttempts.value++
         const delay = reconnectDelay * Math.pow(1.5, reconnectAttempts.value - 1)
-        console.log(`[ChatDetail] 将在 ${delay}ms 后尝试重新连接，第 ${reconnectAttempts.value} 次`)
+        logger.log(`[ChatDetail] 将在 ${delay}ms 后尝试重新连接，第 ${reconnectAttempts.value} 次`)
 
         reconnectTimeout.value = window.setTimeout(() => {
           if (userStore.isLoggedIn && userId.value) {
-            console.log('[ChatDetail] 执行重连...')
+            logger.log('[ChatDetail] 执行重连...')
             connectWebSocket()
           }
         }, delay)
       } else {
-        console.log('[ChatDetail] 达到最大重连次数或用户已登出，停止重连')
+        logger.log('[ChatDetail] 达到最大重连次数或用户已登出，停止重连')
       }
     }
 
@@ -543,8 +569,8 @@ const connectWebSocket = async () => {
 }
 
 // 处理私聊消息
-const handlePrivateMessage = (data: any) => {
-  console.log('[ChatDetail] 处理私聊消息:', data)
+const handlePrivateMessage = (data: WebSocketPrivateMessage) => {
+  logger.log('[ChatDetail] 处理私聊消息:', data)
 
   const senderId = Number(data.sender_id)
   const receiverId = Number(data.receiver_id)
@@ -553,24 +579,25 @@ const handlePrivateMessage = (data: any) => {
   // 只处理属于当前对话的消息（参与方必须包含当前用户和目标用户）
   const participants = [senderId, receiverId]
   if (!participants.includes(currentUserId.value) || !participants.includes(currentId)) {
-    console.log('[ChatDetail] 消息不属于当前对话，忽略')
+    logger.log('[ChatDetail] 消息不属于当前对话，忽略')
     return
   }
 
-  const newMessage = {
+  const newMessage: ChatMessageItem = {
     id: data.id || Date.now(),
     sender: {
       id: senderId,
       username: data.sender_username,
-      avatar: data.sender_avatar
-    },
+      avatar: data.sender_avatar ?? null
+    } as User,
     receiver: {
       id: receiverId,
-      username: data.receiver_username
-    },
+      username: data.receiver_username ?? ''
+    } as User,
     content: data.content,
     is_read: data.is_read || false,
-    created_at: data.created_at || new Date().toISOString()
+    created_at: data.created_at || new Date().toISOString(),
+    updated_at: data.created_at || new Date().toISOString()
   }
 
   // 检查消息是否已存在（按ID）或是自己的临时消息
@@ -583,13 +610,13 @@ const handlePrivateMessage = (data: any) => {
     const existing = messages.value[existingIndex]
     // 如果是临时消息，用真实消息替换
     if (existing.isTemp) {
-      console.log('[ChatDetail] 用真实消息替换临时消息:', newMessage)
+      logger.log('[ChatDetail] 用真实消息替换临时消息:', newMessage)
       messages.value[existingIndex] = newMessage
     } else {
-      console.log('[ChatDetail] 消息已存在，跳过重复添加:', data)
+      logger.log('[ChatDetail] 消息已存在，跳过重复添加:', data)
     }
   } else {
-    console.log('[ChatDetail] 添加新消息:', newMessage)
+    logger.log('[ChatDetail] 添加新消息:', newMessage)
     messages.value.push(newMessage)
     scrollToBottom()
   }

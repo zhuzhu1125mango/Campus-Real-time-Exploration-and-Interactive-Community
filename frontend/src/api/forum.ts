@@ -5,7 +5,6 @@ import type {
   Category, 
   Board, 
   Topic, 
-  Notification, 
   Bookmark,
   ForumStats
 } from '@/types/forum'
@@ -75,19 +74,6 @@ export const forumApi = {
   // 搜索帖子
   searchPosts(query: string, page = 1, pageSize = 10): Promise<{ count: number; next: string | null; previous: string | null; results: Post[] }> {
     return request.get('/posts/', { params: { search: query, page, page_size: pageSize, ordering: '-created_at' } })
-  },
-
-  // 通知相关
-  getNotifications(): Promise<Notification[]> {
-    return request.get('/notifications/')
-  },
-
-  markNotificationAsRead(notificationId: number): Promise<void> {
-    return request.post(`/notifications/${notificationId}/mark_read/`)
-  },
-
-  markAllNotificationsAsRead(): Promise<void> {
-    return request.post('/notifications/mark_all_read/')
   },
 
   // 书签相关

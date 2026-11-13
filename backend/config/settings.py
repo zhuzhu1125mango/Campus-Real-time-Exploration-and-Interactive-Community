@@ -55,6 +55,11 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'forum',
     'users',
+    'activities',
+    'favorites',
+    'friendships',
+    'private_messages',
+    'notifications',
     'schools',
     'chat',
     'content',
@@ -66,7 +71,12 @@ INSTALLED_APPS = [
 # Channels配置
 ASGI_APPLICATION = 'config.asgi.application'
 
-# 根据环境使用不同的Channel Layers后端
+# Redis 连接拆分：Channel Layer 与业务缓存使用独立 Redis 实例/库，避免互相影响。
+# 未配置专用地址时，向后兼容使用 REDIS_URL。
+REDIS_WS_URL = os.environ.get('REDIS_WS_URL', os.environ.get('REDIS_URL', 'redis://localhost:6379/0'))
+REDIS_CACHE_URL = os.environ.get('REDIS_CACHE_URL', os.environ.get('REDIS_URL', 'redis://localhost:6379/1'))
+
+# 根据环境使用不同的 Channel Layers 后端
 if DEBUG:
     # 开发环境使用内存通道层
     CHANNEL_LAYERS = {
@@ -75,12 +85,12 @@ if DEBUG:
         },
     }
 else:
-    # 生产环境使用Redis通道层
+    # 生产环境使用 Redis 通道层（专用于 WebSocket）
     CHANNEL_LAYERS = {
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
-                "hosts": [os.environ.get('REDIS_URL', 'redis://localhost:6379/0')],
+                "hosts": [REDIS_WS_URL],
                 "capacity": 1500,  # 默认为100，增加容量
                 "expiry": 10,      # 消息过期时间（秒）
             },
@@ -96,14 +106,30 @@ if DEBUG:
         }
     }
 else:
-    # 生产环境使用 Redis 缓存（Django 内置 RedisCache，依赖 redis-py）
+    # 生产环境使用 Redis 缓存（专用于业务缓存/限流/会话）
     CACHES = {
         'default': {
-            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-            'LOCATION': os.environ.get('REDIS_URL', 'redis://localhost:6379/1'),
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': REDIS_CACHE_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'CONNECTION_POOL_KWARGS': {
+                    'max_connections': 100,
+                },
+            },
             'TIMEOUT': 300,  # 默认缓存 5 分钟
         }
     }
+
+# 统一缓存策略配置
+CACHE_UTILS = {
+    'CACHE_KEY_PREFIX': os.environ.get('CACHE_KEY_PREFIX', 'campus'),
+    'CACHE_TIMEOUTS': {
+        'hot': 600,     # 热点只读数据：列表、对比、统计
+        'medium': 300,  # 用户个性化推荐
+        'cold': 3600,   # 低频/重计算数据
+    },
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -199,9 +225,9 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': os.environ.get('DB_ENGINE', 'django.db.backends.mysql'),
-        'NAME': os.environ.get('DB_NAME', 'campus_community'),
+        'NAME': os.environ.get('DB_NAME', 'university_exchange'),
         'USER': os.environ.get('DB_USER', 'root'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+        'PASSWORD': os.environ.get('DB_PASSWORD', '123456'),
         'HOST': os.environ.get('DB_HOST', 'localhost'),
         'PORT': os.environ.get('DB_PORT', '3306'),
         # 连接持久化时间（秒），减少频繁创建/关闭数据库连接开销
@@ -210,13 +236,33 @@ DATABASES = {
     }
 }
 
+# 从库配置：生产环境通过 DB_REPLICA_HOST 等环境变量启用；未配置时回退到主库
+_REPLICA_HOST = os.environ.get('DB_REPLICA_HOST', '')
+if _REPLICA_HOST:
+    DATABASES['replica'] = {
+        'ENGINE': DATABASES['default']['ENGINE'],
+        'NAME': os.environ.get('DB_REPLICA_NAME', DATABASES['default']['NAME']),
+        'USER': os.environ.get('DB_REPLICA_USER', DATABASES['default']['USER']),
+        'PASSWORD': os.environ.get('DB_REPLICA_PASSWORD', DATABASES['default']['PASSWORD']),
+        'HOST': _REPLICA_HOST,
+        'PORT': os.environ.get('DB_REPLICA_PORT', DATABASES['default']['PORT']),
+        'CONN_MAX_AGE': int(os.environ.get('DB_REPLICA_CONN_MAX_AGE', '600')),
+        'CONN_HEALTH_CHECKS': True,
+    }
+
 # MySQL 专用连接选项
 if 'mysql' in DATABASES['default']['ENGINE']:
-    DATABASES['default']['OPTIONS'] = {
+    _mysql_options = {
         'charset': 'utf8mb4',
         'use_unicode': True,
         'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
     }
+    DATABASES['default']['OPTIONS'] = _mysql_options
+    if 'replica' in DATABASES:
+        DATABASES['replica']['OPTIONS'] = _mysql_options
+
+# 读写分离路由
+DATABASE_ROUTERS = ['config.db_router.PrimaryReplicaRouter']
 
 
 # Password validation
@@ -356,4 +402,44 @@ SMS_ENABLED = False  # 默认关闭短信功能，使用开发模式
 ALIYUN_ACCESS_KEY_ID = os.environ.get('ALIYUN_ACCESS_KEY_ID', '')
 ALIYUN_ACCESS_KEY_SECRET = os.environ.get('ALIYUN_ACCESS_KEY_SECRET', '')
 ALIYUN_SMS_SIGN_NAME = os.environ.get('ALIYUN_SMS_SIGN_NAME', '')
-ALIYUN_SMS_TEMPLATE_CODE = os.environ.get('ALIYUN_SMS_TEMPLATE_CODE', '') 
+ALIYUN_SMS_TEMPLATE_CODE = os.environ.get('ALIYUN_SMS_TEMPLATE_CODE', '')
+
+# Celery 配置
+# Broker 默认使用 RabbitMQ；未配置时回退到 Redis 缓存地址（开发环境可用）
+CELERY_BROKER_URL = os.environ.get(
+    'CELERY_BROKER_URL',
+    os.environ.get('RABBITMQ_URL', REDIS_CACHE_URL)
+)
+# 任务结果 backend 使用 Redis 缓存
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', REDIS_CACHE_URL)
+
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+
+# 任务执行设置
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 单个任务最大执行时间 30 分钟
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1  # 避免单个 worker 预取过多长任务
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+# 默认异步执行 Celery 任务；仅在显式设置环境变量或旧版 Redis 不可用时回退到同步模式
+# 旧版 Redis（<6.0）不支持 HELLO 命令，可设置 CELERY_TASK_ALWAYS_EAGER=True 绕过 broker
+CELERY_TASK_ALWAYS_EAGER = os.environ.get(
+    'CELERY_TASK_ALWAYS_EAGER',
+    'False'
+).lower() in ('true', '1', 'yes')
+
+# Elasticsearch 配置
+ELASTICSEARCH_HOSTS = os.environ.get(
+    'ELASTICSEARCH_HOSTS',
+    'http://localhost:9200'
+).split(',')
+ELASTICSEARCH_TIMEOUT = int(os.environ.get('ELASTICSEARCH_TIMEOUT', '10'))
+ELASTICSEARCH_RETRY_ON_TIMEOUT = True
+# ES 不可用时是否降级为 MySQL LIKE 搜索
+ELASTICSEARCH_FALLBACK_TO_DB = os.environ.get('ELASTICSEARCH_FALLBACK_TO_DB', 'True') == 'True'
+# 搜索索引名称前缀
+ELASTICSEARCH_INDEX_PREFIX = os.environ.get('ELASTICSEARCH_INDEX_PREFIX', 'campus')

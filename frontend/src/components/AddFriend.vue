@@ -71,13 +71,14 @@
 import { ref, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
 import { userApi } from '../api/user'
+import type { User, FriendRequest } from '../types/user'
 
 const { showToast } = useToast()
 
 // 状态数据
 const searchQuery = ref('')
 const loading = ref(false)
-const searchResults = ref<any[]>([])
+const searchResults = ref<User[]>([])
 const friends = ref<number[]>([])
 const sentRequests = ref<number[]>([])
 
@@ -133,11 +134,11 @@ const fetchFriendsAndRequests = async () => {
   try {
     // 获取好友列表
     const friendsResponse = await userApi.getFriends()
-    friends.value = friendsResponse.friends.map((friend: any) => friend.id)
-    
+    friends.value = friendsResponse.friends.map((friend) => friend.id)
+
     // 获取已发送的好友请求
     const sentRequestsResponse = await userApi.getSentFriendRequests()
-    sentRequests.value = sentRequestsResponse.map((request: any) => request.receiver.id)
+    sentRequests.value = sentRequestsResponse.map((request: FriendRequest) => request.receiver.id)
   } catch (error) {
     console.error('获取好友信息失败:', error)
   }

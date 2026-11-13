@@ -10,6 +10,8 @@ import { learningApi } from '@/api/learning'
 import { userApi } from '@/api/user'
 import type { FeedItem, FeedType, TrendingTopic } from '@/types/feed'
 import type { Place, Event as SchoolEvent, School } from '@/types/school'
+import type { Enrollment } from '@/types/learning'
+import type { Notification } from '@/types/user'
 import { formatDate } from '@/utils/date'
 import { stripHtml, sanitizeHtml } from '@/utils/xss'
 import GlassCard from '@/components/GlassCard.vue'
@@ -37,9 +39,9 @@ const events = ref<SchoolEvent[]>([])
 const loadingEvents = ref(false)
 const schools = ref<School[]>([])
 const loadingSchools = ref(false)
-const enrollments = ref<any[]>([])
+const enrollments = ref<Enrollment[]>([])
 const loadingEnrollments = ref(false)
-const notifications = ref<any[]>([])
+const notifications = ref<Notification[]>([])
 const loadingNotifications = ref(false)
 const searchKeyword = ref('')
 const followingMap = ref<Record<number, boolean>>({})
@@ -104,7 +106,7 @@ const fetchFeed = async (reset = false) => {
     items.value = reset ? results : [...items.value, ...results]
     hasMore.value = results.length === pageSize
     page.value++
-  } catch (error: any) {
+  } catch (error) {
     console.error('加载 Feed 失败:', error)
     ElMessage.error('加载 Feed 失败')
   } finally {
@@ -208,8 +210,8 @@ const fetchNearbyEvents = async () => {
 const fetchRecommendedSchools = async () => {
   loadingSchools.value = true
   try {
-    const response = await schoolApi.getRecommendations({ type: 'popular', limit: 5 })
-    schools.value = response.recommendations || []
+    const response = await schoolApi.getRecommendations({ type: 'schools', limit: 5 })
+    schools.value = (response.recommendations || []) as School[]
   } catch (error) {
     console.error('加载推荐院校失败:', error)
     schools.value = []
@@ -237,7 +239,7 @@ const fetchNotifications = async () => {
   loadingNotifications.value = true
   try {
     const response = await userApi.getNotifications({ unread: true, page_size: 5 })
-    notifications.value = (response.results || response || []).slice(0, 5)
+    notifications.value = (response.results || []).slice(0, 5)
   } catch (error) {
     console.error('加载通知失败:', error)
     notifications.value = []
@@ -298,8 +300,8 @@ const goToEvent = (_event: SchoolEvent) => {
   router.push('/events')
 }
 
-const goToEnrollment = (enrollment: any) => {
-  const courseId = enrollment.course?.id || enrollment.course
+const goToEnrollment = (enrollment: Enrollment) => {
+  const courseId = enrollment.course?.id
   if (courseId) {
     router.push(`/learning/course/${courseId}`)
   } else {
@@ -307,7 +309,7 @@ const goToEnrollment = (enrollment: any) => {
   }
 }
 
-const goToNotification = (_notification: any) => {
+const goToNotification = (_notification: Notification) => {
   router.push('/notifications')
 }
 
@@ -437,7 +439,7 @@ onUnmounted(() => {
                 <div class="feed-card-header">
                   <img
                     class="author-avatar"
-                    :src="item.author.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'"
+                    :src="item.author.avatar || '/trae-api/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'"
                     :alt="item.author.username"
                   />
                   <div class="author-info">
@@ -567,11 +569,11 @@ onUnmounted(() => {
           <ul v-else class="widget-list">
             <li v-for="enrollment in enrollments" :key="enrollment.id" class="widget-item" @click="goToEnrollment(enrollment)">
               <span class="widget-thumb fallback">
-                {{ (enrollment.course?.title || enrollment.course || '课').charAt(0) }}
+                {{ (enrollment.course.title || '课').charAt(0) }}
               </span>
               <div class="widget-item-main">
-                <span class="widget-item-title">{{ enrollment.course?.title || '课程' }}</span>
-                <span class="widget-item-meta">进度 {{ enrollment.progress || enrollment.progress_rate || 0 }}%</span>
+                <span class="widget-item-title">{{ enrollment.course.title || '课程' }}</span>
+                <span class="widget-item-meta">进度 {{ enrollment.progress || 0 }}%</span>
               </div>
             </li>
           </ul>

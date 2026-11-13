@@ -1,3 +1,4 @@
+import { formatAvatar as sharedFormatAvatar, formatImage as sharedFormatImage } from '@shared/utils/image.js'
 import config from './config'
 
 export const DEFAULT_AVATAR = config.media.defaultAvatar
@@ -10,9 +11,7 @@ export const BASE_URL = config.media.baseUrl
  * @returns 完整头像 URL
  */
 export function formatAvatar(avatar?: string | null): string {
-  if (!avatar) return `${BASE_URL}${DEFAULT_AVATAR}`
-  if (avatar.startsWith('http') || avatar.startsWith('data:')) return avatar
-  return `${BASE_URL}${avatar}`
+  return sharedFormatAvatar(avatar, BASE_URL, `${BASE_URL}${DEFAULT_AVATAR}`)
 }
 
 /**
@@ -21,7 +20,5 @@ export function formatAvatar(avatar?: string | null): string {
  * @returns 完整图片 URL
  */
 export function formatImage(url?: string | null): string {
-  if (!url) return ''
-  if (url.startsWith('http') || url.startsWith('data:')) return url
-  return `${BASE_URL}${url}`
+  return sharedFormatImage(url, BASE_URL)
 }

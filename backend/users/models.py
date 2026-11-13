@@ -2,6 +2,8 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
 
+from core.html_sanitizer import sanitize_html
+from .points import LEVEL_THRESHOLDS, calculate_level, get_level_name
 from .validators import validate_image_extension, validate_avatar_size, validate_banner_size
 
 class User(AbstractUser):
@@ -49,38 +51,23 @@ class User(AbstractUser):
     
     @property
     def level_name(self):
-        """根据等级返回等级名称"""
-        levels = [
-            (0, '新手'),
-            (50, '初级学员'),
-            (200, '中级学员'),
-            (500, '高级学员'),
-            (1000, '学霸'),
-            (2000, '学神'),
-            (5000, '导师'),
-            (10000, '大师')
-        ]
-        for points, name in reversed(levels):
-            if self.points >= points:
-                return name
-        return '新手'
-    
+        """根据累计积分返回等级名称"""
+        return get_level_name(calculate_level(self.points))
+
     @property
     def next_level_points(self):
         """计算升级到下一级需要的积分"""
-        level_thresholds = [0, 50, 200, 500, 1000, 2000, 5000, 10000]
-        current_threshold = level_thresholds[min(self.level - 1, len(level_thresholds) - 1)]
-        next_threshold = level_thresholds[min(self.level, len(level_thresholds) - 1)]
+        current_threshold = LEVEL_THRESHOLDS[min(self.level - 1, len(LEVEL_THRESHOLDS) - 1)]
+        next_threshold = LEVEL_THRESHOLDS[min(self.level, len(LEVEL_THRESHOLDS) - 1)]
         return next_threshold - current_threshold
-    
+
     @property
     def level_progress(self):
         """计算当前等级的进度百分比"""
-        level_thresholds = [0, 50, 200, 500, 1000, 2000, 5000, 10000]
-        if self.level >= len(level_thresholds):
+        if self.level >= len(LEVEL_THRESHOLDS):
             return 100
-        current_threshold = level_thresholds[self.level - 1]
-        next_threshold = level_thresholds[self.level]
+        current_threshold = LEVEL_THRESHOLDS[self.level - 1]
+        next_threshold = LEVEL_THRESHOLDS[self.level]
         if next_threshold == current_threshold:
             return 100
         return min(100, int((self.points - current_threshold) / (next_threshold - current_threshold) * 100))
@@ -92,6 +79,10 @@ class User(AbstractUser):
     
     def __str__(self):
         return self.username
+
+    def save(self, *args, **kwargs):
+        self.bio = sanitize_html(self.bio)
+        super().save(*args, **kwargs)
 
 class UserProfile(models.Model):
     """用户详细资料模型"""
@@ -183,12 +174,18 @@ class PointsRecord(models.Model):
         ('post', '发帖'),
         ('reply', '回复'),
         ('like', '点赞'),
+        ('liked', '被点赞'),
         ('comment', '评论'),
         ('share', '分享'),
+        ('favorite', '收藏'),
         ('invite', '邀请'),
         ('daily_checkin', '每日签到'),
+        ('consecutive_checkin_3', '连续签到3天'),
+        ('consecutive_checkin_7', '连续签到7天'),
         ('complete_profile', '完善资料'),
         ('verified', '身份认证'),
+        ('create_course', '创建课程'),
+        ('complete_course', '完成课程'),
         ('system', '系统奖励'),
         ('admin', '管理员操作')
     ]

@@ -1,393 +1,445 @@
 <template>
-  <div class="profile-container">
-    <div class="profile-header">
+  <div class="profile-page container-wide page-padding">
+    <SectionHeader
+      title="个人中心"
+      :subtitle="form.username ? `欢迎回来，${form.username}` : '管理你的个人资料与账号'"
+      icon="i-ep-user"
+    />
+
+    <GlassCard :hover="false" class="profile-header-card" padding="none">
       <div class="profile-banner" :style="bannerStyle">
         <label for="banner-upload" class="banner-change">
-          <input 
-            id="banner-upload" 
-            type="file" 
+          <input
+            id="banner-upload"
+            type="file"
             accept="image/*"
             @change="handleBannerChange"
             hidden
           />
-          <span class="upload-icon"></span>
+          <span class="i-ep-camera" />
           更换背景图
         </label>
       </div>
-      <div class="profile-avatar-wrapper">
-        <div class="profile-avatar" :style="avatarStyle">
-          <label for="avatar-upload" class="avatar-change">
-            <input 
-              id="avatar-upload" 
-              type="file" 
-              accept="image/*"
-              @change="handleAvatarChange"
-              hidden
-            />
-            <span class="upload-icon"></span>
-            更换头像
-          </label>
+      <div class="profile-header-body">
+        <div class="profile-avatar-wrapper">
+          <div class="profile-avatar" :style="avatarStyle">
+            <label for="avatar-upload" class="avatar-change">
+              <input
+                id="avatar-upload"
+                type="file"
+                accept="image/*"
+                @change="handleAvatarChange"
+                hidden
+              />
+              <span class="i-ep-camera" />
+              更换头像
+            </label>
+          </div>
         </div>
+        <h1 class="profile-name">{{ form.username }}</h1>
+        <p class="profile-bio">{{ form.bio || '这个人很懒，还没有填写个人简介' }}</p>
       </div>
-      <h1 class="profile-name">{{ form.username }}</h1>
-      <p class="profile-bio">{{ form.bio || '这个人很懒，还没有填写个人简介' }}</p>
-    </div>
-    
-    
+    </GlassCard>
 
-    <div class="profile-tabs">
-      <button 
-        class="tab-button" 
-        :class="{ active: activeTab === 'profile' }" 
+    <div class="profile-tabs-bar">
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'profile' }"
         @click="activeTab = 'profile'"
       >
+        <span class="i-ep-user" />
         个人资料
       </button>
-      <button 
-        class="tab-button" 
-        :class="{ active: activeTab === 'activity' }" 
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'activity' }"
         @click="activeTab = 'activity'"
       >
+        <span class="i-ep-view" />
         我的动态
       </button>
-      <button 
-        class="tab-button" 
-        :class="{ active: activeTab === 'friends' }" 
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'friends' }"
         @click="activeTab = 'friends'"
       >
+        <span class="i-ep-user-filled" />
         我的好友
       </button>
-      <button 
-        class="tab-button" 
-        :class="{ active: activeTab === 'favorites' }" 
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'favorites' }"
         @click="activeTab = 'favorites'"
       >
+        <span class="i-ep-star" />
         收藏学校
       </button>
-      <button 
-        class="tab-button" 
-        :class="{ active: activeTab === 'settings' }" 
+      <button
+        class="tab-btn"
+        :class="{ active: activeTab === 'settings' }"
         @click="activeTab = 'settings'"
       >
+        <span class="i-ep-setting" />
         账号设置
       </button>
     </div>
 
-    <div class="profile-content">
-      <div v-if="activeTab === 'profile'" class="profile-info-section">
-        <div class="profile-card">
-          <h2 class="section-title">个人资料</h2>
-          <form @submit.prevent="handleUpdate" class="profile-form">
-            <div class="form-group">
-              <label for="username">用户名</label>
-              <div class="input-wrapper">
-                <span class="input-icon user-icon"></span>
-                <input
-                  type="text"
-                  id="username"
-                  v-model="form.username"
-                  required
-                  placeholder="请输入用户名"
-                />
-              </div>
+    <div class="profile-panels">
+      <GlassCard v-if="activeTab === 'profile'" :hover="false" title="个人资料">
+        <form @submit.prevent="handleUpdate" class="profile-form">
+          <div class="form-group">
+            <label for="username">用户名</label>
+            <div class="input-wrapper">
+              <span class="input-icon i-ep-user" />
+              <input
+                type="text"
+                id="username"
+                v-model="form.username"
+                required
+                placeholder="请输入用户名"
+              />
             </div>
-            
-            <div class="form-group">
-              <label for="email">邮箱</label>
-              <div class="input-wrapper">
-                <span class="input-icon email-icon"></span>
-                <input
-                  type="email"
-                  id="email"
-                  v-model="form.email"
-                  required
-                  placeholder="请输入邮箱"
-                />
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label for="phone">手机号</label>
-              <div class="input-wrapper">
-                <span class="input-icon phone-icon"></span>
-                <input
-                  type="tel"
-                  id="phone"
-                  v-model="form.phone"
-                  placeholder="请输入手机号"
-                  pattern="^1[3-9]\d{9}$"
-                />
-              </div>
-            </div>
-            
-            <div class="form-group">
-              <label for="bio">个人简介</label>
-              <textarea
-                id="bio"
-                v-model="form.bio"
-                rows="4"
-                placeholder="请输入个人简介"
-                class="bio-textarea"
-              ></textarea>
-            </div>
-            
-            <div class="form-actions">
-              <button type="submit" class="btn-save" :disabled="loading">
-                <span v-if="loading" class="loading-spinner"></span>
-                <span>{{ loading ? '保存中...' : '保存修改' }}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+          </div>
 
-      <div v-if="activeTab === 'activity'" class="activity-section">
-        <div class="profile-card">
-          <div class="section-header">
-            <h2 class="section-title">我的动态</h2>
-            <div class="section-actions">
-              <button class="btn-primary publish-activity-btn" @click="navigateToPublishActivity">发布动态</button>
-              <button v-if="activities.length > 0" @click="clearAllActivities" class="btn-danger clear-activities-btn">
+          <div class="form-group">
+            <label for="email">邮箱</label>
+            <div class="input-wrapper">
+              <span class="input-icon i-ep-message" />
+              <input
+                type="email"
+                id="email"
+                v-model="form.email"
+                required
+                placeholder="请输入邮箱"
+              />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="phone">手机号</label>
+            <div class="input-wrapper">
+              <span class="input-icon i-ep-phone" />
+              <input
+                type="tel"
+                id="phone"
+                v-model="form.phone"
+                placeholder="请输入手机号"
+                pattern="^1[3-9]\d{9}$"
+              />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="bio">个人简介</label>
+            <textarea
+              id="bio"
+              v-model="form.bio"
+              rows="4"
+              placeholder="请输入个人简介"
+              class="bio-textarea"
+            ></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" :disabled="loading">
+              <span v-if="loading" class="loading-spinner" />
+              <span>{{ loading ? '保存中...' : '保存修改' }}</span>
+            </button>
+          </div>
+        </form>
+      </GlassCard>
+
+      <GlassCard v-if="activeTab === 'activity'" :hover="false">
+        <template #header>
+          <div class="panel-header">
+            <h2 class="panel-title">我的动态</h2>
+            <div class="panel-actions">
+              <button class="btn btn-primary" @click="navigateToPublishActivity">
+                <span class="i-ep-plus" />
+                发布动态
+              </button>
+              <button
+                v-if="activities.length > 0"
+                @click="clearAllActivities"
+                class="btn btn-danger"
+              >
+                <span class="i-ep-delete" />
                 清除所有动态
               </button>
             </div>
           </div>
-          
-          <div class="activity-list">
-            <!-- 加载状态 -->
-            <div v-if="activitiesLoading" class="loading-container">
-              <div class="loading-spinner"></div>
-              <p>加载中...</p>
+        </template>
+
+        <div class="activity-list">
+          <div v-if="activitiesLoading" class="loading-container">
+            <div class="loading-spinner" />
+            <p>加载中...</p>
+          </div>
+
+          <div class="empty-state" v-else-if="activities.length === 0">
+            <div class="empty-icon">
+              <span class="i-ep-view" />
             </div>
-            
-            <div class="empty-activity" v-else-if="activities.length === 0">
-              <div class="empty-icon"></div>
-              <p class="empty-text">未发表任何动态</p>
-            </div>
-            
-            <div v-else class="activity-items">
-              <div class="activity-item" v-for="activity in activities" :key="activity.id">
-                <div class="activity-time">{{ formatTime(activity.time) }}</div>
-                <div class="activity-content">
-                  <div class="activity-type">{{ activity.type === 'post' ? '发布帖子' : activity.type === 'comment' ? '发表评论' : activity.type === 'like' ? '点赞' : activity.type === 'follow' ? '关注用户' : activity.type === 'enroll' ? '报名课程' : activity.type === 'share' ? '分享内容' : '自定义动态' }}</div>
-                  <p class="activity-text">{{ activity.content }}</p>
-                  <div class="activity-footer">
-                    <span class="activity-likes">{{ activity.likes }} 人点赞</span>
-                    <span class="activity-comments">{{ activity.comments }} 条评论</span>
-                  </div>
+            <p class="empty-text">未发表任何动态</p>
+          </div>
+
+          <div v-else class="activity-items">
+            <div class="activity-item" v-for="activity in activities" :key="activity.id">
+              <div class="activity-time">{{ formatTime(activity.time) }}</div>
+              <div class="activity-content">
+                <div class="activity-type">
+                  <span :class="{
+                    'i-ep-document': activity.type === 'post',
+                    'i-ep-chat-dot-round': activity.type === 'comment',
+                    'i-ep-thumb': activity.type === 'like',
+                    'i-ep-user': activity.type === 'follow',
+                    'i-ep-medal': activity.type === 'enroll',
+                    'i-ep-share': activity.type === 'share',
+                    'i-ep-more': !['post', 'comment', 'like', 'follow', 'enroll', 'share'].includes(activity.type)
+                  }" />
+                  {{ activity.type === 'post' ? '发布帖子' : activity.type === 'comment' ? '发表评论' : activity.type === 'like' ? '点赞' : activity.type === 'follow' ? '关注用户' : activity.type === 'enroll' ? '报名课程' : activity.type === 'share' ? '分享内容' : '自定义动态' }}
+                </div>
+                <p class="activity-text">{{ activity.content }}</p>
+                <div class="activity-footer">
+                  <span class="activity-stat">
+                    <span class="i-ep-thumb" />
+                    {{ activity.likes }} 人点赞
+                  </span>
+                  <span class="activity-stat">
+                    <span class="i-ep-chat-dot-round" />
+                    {{ activity.comments }} 条评论
+                  </span>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </GlassCard>
 
-      <!-- 新增收藏学校标签页 -->
-      <div v-if="activeTab === 'favorites'" class="favorites-section">
-        <div class="profile-card">
-          <h2 class="section-title">收藏学校</h2>
-          
-          <div class="favorites-list">
-            <div class="empty-favorites" v-if="favoriteSchools.length === 0">
-              <div class="empty-icon school-icon"></div>
-              <p class="empty-text">您还没有收藏任何学校</p>
-              <div class="mt-4">
-                <router-link to="/schools" class="btn-primary">前往浏览学校</router-link>
-              </div>
+      <GlassCard v-if="activeTab === 'favorites'" :hover="false" title="收藏学校">
+        <div class="favorites-list">
+          <div class="empty-state" v-if="favoriteSchools.length === 0">
+            <div class="empty-icon">
+              <span class="i-ep-star" />
             </div>
-            
-            <div v-else class="school-grid">
-              <div class="school-card" v-for="school in favoriteSchools" :key="school.id">
-                <div class="school-image" :style="{ backgroundImage: `url(${school.image || defaultSchoolImage})` }"></div>
-                <div class="school-info">
-                  <h3 class="school-name">{{ school.name }}</h3>
-                  <p class="school-location">{{ school.location }}</p>
-                </div>
-                <div class="school-actions">
-                  <router-link :to="`/schools/${school.id}`" class="btn-view">查看详情</router-link>
-                  <button @click="removeFavorite(school.id)" class="btn-unfavorite">
-                    <span class="unfavorite-icon"></span>
-                  </button>
-                </div>
+            <p class="empty-text">您还没有收藏任何学校</p>
+            <div class="mt-4">
+              <router-link to="/schools" class="btn btn-primary">前往浏览学校</router-link>
+            </div>
+          </div>
+
+          <div v-else class="school-grid">
+            <div class="school-card" v-for="school in favoriteSchools" :key="school.id">
+              <div class="school-image" :style="{ backgroundImage: `url(${school.image || defaultSchoolImage})` }"></div>
+              <div class="school-info">
+                <h3 class="school-name">{{ school.name }}</h3>
+                <p class="school-location">
+                  <span class="i-ep-location" />
+                  {{ school.location }}
+                </p>
+              </div>
+              <div class="school-actions">
+                <router-link :to="`/schools/${school.id}`" class="btn btn-primary">查看详情</router-link>
+                <button @click="removeFavorite(school.id)" class="btn btn-icon btn-danger" title="移除收藏">
+                  <span class="i-ep-delete" />
+                </button>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </GlassCard>
 
-      <div v-if="activeTab === 'friends'" class="friends-section">
-        <div class="profile-card">
-          <h2 class="section-title">我的好友</h2>
-          
-          <!-- 好友搜索 -->
-          <div class="friend-search">
-            <div class="input-wrapper">
-              <input
-                type="text"
-                v-model="searchQuery"
-                placeholder="搜索好友..."
-                class="search-input"
-              />
-              <button @click="searchUsers" class="btn-search">搜索</button>
-            </div>
-          </div>
-          
-          <!-- 搜索结果 -->
-          <div v-if="searchResults.length > 0" class="search-results">
-            <h3>搜索结果</h3>
-            <div class="user-list">
-              <div v-for="user in searchResults" :key="user.id" class="user-item">
-                <div class="user-avatar">
-                  <img :src="user.avatar || `${config.media.baseUrl}${config.media.defaultAvatar}`" :alt="user.username">
-                </div>
-                <div class="user-info">
-                  <div class="user-name">{{ user.username }}</div>
-                  <div class="user-email">{{ user.email }}</div>
-                </div>
-                <button @click="sendFriendRequest(user.id, user.username)" class="btn-add-friend">
-                  添加好友
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          <!-- 好友请求 -->
-          <div v-if="friendRequests.length > 0" class="friend-requests">
-            <h3>好友请求</h3>
-            <div class="request-list">
-              <div v-for="request in friendRequests" :key="request.id" class="request-item">
-                <div class="user-avatar">
-                  <img :src="request.sender.avatar || `${config.media.baseUrl}${config.media.defaultAvatar}`" :alt="request.sender.username">
-                </div>
-                <div class="user-info">
-                  <div class="user-name">{{ request.sender.username }}</div>
-                  <div class="request-time">{{ formatTime(request.created_at) }}</div>
-                </div>
-                <div class="request-actions">
-                  <button @click="acceptFriendRequest(request.id)" class="btn-accept">接受</button>
-                  <button @click="rejectFriendRequest(request.id)" class="btn-reject">拒绝</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- 好友列表 -->
-          <div class="friends-list">
-            <h3>好友列表</h3>
-            <div v-if="friends.length === 0" class="empty-friends">
-              <div class="empty-icon friend-icon"></div>
-              <p class="empty-text">您还没有好友，开始添加好友吧！</p>
-            </div>
-            <div v-else class="friend-grid">
-              <div v-for="friend in friends" :key="friend.id" class="friend-card">
-                <div class="friend-avatar">
-                  <img :src="friend.avatar || `${config.media.baseUrl}${config.media.defaultAvatar}`" :alt="friend.username">
-                </div>
-                <div class="friend-info">
-                  <h4 class="friend-name">{{ friend.username }}</h4>
-                  <p class="friend-email">{{ friend.email }}</p>
-                </div>
-                <div class="friend-actions">
-                  <button @click="startChat(friend)" class="btn-chat">聊天</button>
-                  <button @click="removeFriend(friend.id)" class="btn-remove">删除好友</button>
-                </div>
-              </div>
-            </div>
+      <GlassCard v-if="activeTab === 'friends'" :hover="false" title="我的好友">
+        <div class="friend-search">
+          <div class="input-wrapper search-wrapper">
+            <span class="input-icon i-ep-search" />
+            <input
+              type="text"
+              v-model="searchQuery"
+              placeholder="搜索好友..."
+              class="search-input"
+            />
+            <button @click="searchUsers" class="btn btn-primary search-btn">搜索</button>
           </div>
         </div>
-      </div>
 
-      <div v-if="activeTab === 'settings'" class="settings-section">
-        <div class="profile-card">
-          <h2 class="section-title">账号设置</h2>
-          
-          <div class="settings-group">
-            <h3>密码修改</h3>
-            <div class="form-group">
-              <label for="old-password">当前密码</label>
-              <div class="input-wrapper">
-                <span class="input-icon password-icon"></span>
-                <input
-                  :type="showOldPassword ? 'text' : 'password'"
-                  id="old-password"
-                  v-model="passwordForm.oldPassword"
-                  placeholder="请输入当前密码"
-                />
-                <button 
-                  type="button" 
-                  class="btn-toggle-password" 
-                  @click="showOldPassword = !showOldPassword"
-                >
-                  <span :class="['toggle-password-icon', showOldPassword ? 'show' : 'hide']"></span>
-                </button>
+        <div v-if="searchResults.length > 0" class="search-results">
+          <h3>搜索结果</h3>
+          <div class="user-list">
+            <div v-for="user in searchResults" :key="user.id" class="user-item">
+              <div class="user-avatar">
+                <img :src="user.avatar || `${config.media.baseUrl}${config.media.defaultAvatar}`" :alt="user.username">
               </div>
-            </div>
-            
-            <div class="form-group">
-              <label for="new-password">新密码</label>
-              <div class="input-wrapper">
-                <span class="input-icon password-icon"></span>
-                <input
-                  :type="showNewPassword ? 'text' : 'password'"
-                  id="new-password"
-                  v-model="passwordForm.newPassword"
-                  placeholder="请输入新密码"
-                  minlength="8"
-                />
-                <button 
-                  type="button" 
-                  class="btn-toggle-password" 
-                  @click="showNewPassword = !showNewPassword"
-                >
-                  <span :class="['toggle-password-icon', showNewPassword ? 'show' : 'hide']"></span>
-                </button>
+              <div class="user-info">
+                <div class="user-name">{{ user.username }}</div>
+                <div class="user-email">{{ user.email }}</div>
               </div>
-            </div>
-            
-            <div class="form-group">
-              <label for="confirm-password">确认新密码</label>
-              <div class="input-wrapper">
-                <span class="input-icon password-icon"></span>
-                <input
-                  :type="showConfirmPassword ? 'text' : 'password'"
-                  id="confirm-password"
-                  v-model="passwordForm.confirmPassword"
-                  placeholder="请再次输入新密码"
-                  minlength="8"
-                />
-                <button 
-                  type="button" 
-                  class="btn-toggle-password" 
-                  @click="showConfirmPassword = !showConfirmPassword"
-                >
-                  <span :class="['toggle-password-icon', showConfirmPassword ? 'show' : 'hide']"></span>
-                </button>
-              </div>
-            </div>
-            
-            <div class="form-actions">
-              <button @click="changePassword" class="btn-save" :disabled="pwdLoading">
-                <span v-if="pwdLoading" class="loading-spinner"></span>
-                <span>{{ pwdLoading ? '修改中...' : '修改密码' }}</span>
+              <button @click="sendFriendRequest(user.id, user.username)" class="btn btn-primary">
+                <span class="i-ep-plus" />
+                添加好友
               </button>
             </div>
           </div>
-          
-          <div class="settings-group danger-zone">
-            <h3>危险操作</h3>
-            <button @click="logoutAllDevices" class="btn-warning">退出所有设备</button>
-            <button @click="deactivateAccount" class="btn-danger">注销账号</button>
+        </div>
+
+        <div v-if="friendRequests.length > 0" class="friend-requests">
+          <h3>好友请求</h3>
+          <div class="request-list">
+            <div v-for="request in friendRequests" :key="request.id" class="request-item">
+              <div class="user-avatar">
+                <img :src="request.sender.avatar || `${config.media.baseUrl}${config.media.defaultAvatar}`" :alt="request.sender.username">
+              </div>
+              <div class="user-info">
+                <div class="user-name">{{ request.sender.username }}</div>
+                <div class="request-time">{{ formatTime(request.created_at) }}</div>
+              </div>
+              <div class="request-actions">
+                <button @click="acceptFriendRequest(request.id)" class="btn btn-primary">
+                  <span class="i-ep-check" />
+                  接受
+                </button>
+                <button @click="rejectFriendRequest(request.id)" class="btn btn-secondary">
+                  <span class="i-ep-close" />
+                  拒绝
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+
+        <div class="friends-list">
+          <h3>好友列表</h3>
+          <div v-if="friends.length === 0" class="empty-state compact">
+            <div class="empty-icon">
+              <span class="i-ep-user" />
+            </div>
+            <p class="empty-text">您还没有好友，开始添加好友吧！</p>
+          </div>
+          <div v-else class="friend-grid">
+            <div v-for="friend in friends" :key="friend.id" class="friend-card">
+              <div class="friend-avatar">
+                <img :src="friend.avatar || `${config.media.baseUrl}${config.media.defaultAvatar}`" :alt="friend.username">
+              </div>
+              <div class="friend-info">
+                <h4 class="friend-name">{{ friend.username }}</h4>
+                <p class="friend-email">{{ friend.email }}</p>
+              </div>
+              <div class="friend-actions">
+                <button @click="startChat(friend)" class="btn btn-primary">
+                  <span class="i-ep-chat-dot-round" />
+                  聊天
+                </button>
+                <button @click="removeFriend(friend.id)" class="btn btn-danger">
+                  <span class="i-ep-delete" />
+                  删除好友
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </GlassCard>
+
+      <GlassCard v-if="activeTab === 'settings'" :hover="false" title="账号设置">
+        <div class="settings-group">
+          <h3>
+            <span class="i-ep-lock" />
+            密码修改
+          </h3>
+          <div class="form-group">
+            <label for="old-password">当前密码</label>
+            <div class="input-wrapper">
+              <span class="input-icon i-ep-lock" />
+              <input
+                :type="showOldPassword ? 'text' : 'password'"
+                id="old-password"
+                v-model="passwordForm.oldPassword"
+                placeholder="请输入当前密码"
+              />
+              <button
+                type="button"
+                class="btn-toggle-password"
+                @click="showOldPassword = !showOldPassword"
+              >
+                <span :class="showOldPassword ? 'i-ep-view' : 'i-ep-hide'" />
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="new-password">新密码</label>
+            <div class="input-wrapper">
+              <span class="input-icon i-ep-lock" />
+              <input
+                :type="showNewPassword ? 'text' : 'password'"
+                id="new-password"
+                v-model="passwordForm.newPassword"
+                placeholder="请输入新密码"
+                minlength="8"
+              />
+              <button
+                type="button"
+                class="btn-toggle-password"
+                @click="showNewPassword = !showNewPassword"
+              >
+                <span :class="showNewPassword ? 'i-ep-view' : 'i-ep-hide'" />
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="confirm-password">确认新密码</label>
+            <div class="input-wrapper">
+              <span class="input-icon i-ep-lock" />
+              <input
+                :type="showConfirmPassword ? 'text' : 'password'"
+                id="confirm-password"
+                v-model="passwordForm.confirmPassword"
+                placeholder="请再次输入新密码"
+                minlength="8"
+              />
+              <button
+                type="button"
+                class="btn-toggle-password"
+                @click="showConfirmPassword = !showConfirmPassword"
+              >
+                <span :class="showConfirmPassword ? 'i-ep-view' : 'i-ep-hide'" />
+              </button>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button @click="changePassword" class="btn btn-primary" :disabled="pwdLoading">
+              <span v-if="pwdLoading" class="loading-spinner" />
+              <span>{{ pwdLoading ? '修改中...' : '修改密码' }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-group danger-zone">
+          <h3>
+            <span class="i-ep-warning" />
+            危险操作
+          </h3>
+          <button @click="logoutAllDevices" class="btn btn-secondary">
+            <span class="i-ep-switch-button" />
+            退出所有设备
+          </button>
+          <button @click="deactivateAccount" class="btn btn-danger">
+            <span class="i-ep-delete" />
+            注销账号
+          </button>
+        </div>
+      </GlassCard>
     </div>
 
     <!-- 图片裁剪弹窗 -->
     <div class="cropper-modal" v-if="showCropper">
-      <div class="cropper-container">
+      <GlassCard :hover="false" class="cropper-container" padding="none">
         <div class="cropper-header">
           <h3>{{ cropperType === 'avatar' ? '裁剪头像 - 自由框选截取区域' : '裁剪背景图 - 自由框选截取区域' }}</h3>
-          <button class="btn-close" @click="cancelCrop">×</button>
+          <button class="btn-close" @click="cancelCrop">
+            <span class="i-ep-close" />
+          </button>
         </div>
         <div class="cropper-body">
           <vue-cropper
@@ -415,11 +467,21 @@
             @ready="onCropperCreated"
           />
           <div class="cropper-controls">
-            <button class="control-btn" @click="zoomIn"><span class="zoom-in-icon"></span></button>
-            <button class="control-btn" @click="zoomOut"><span class="zoom-out-icon"></span></button>
-            <button class="control-btn" @click="rotateLeft"><span class="rotate-left-icon"></span></button>
-            <button class="control-btn" @click="rotateRight"><span class="rotate-right-icon"></span></button>
-            <button class="control-btn" @click="resetCropper"><span class="reset-icon"></span></button>
+            <button class="control-btn" @click="zoomIn" title="放大">
+              <span class="i-ep-zoom-in" />
+            </button>
+            <button class="control-btn" @click="zoomOut" title="缩小">
+              <span class="i-ep-zoom-out" />
+            </button>
+            <button class="control-btn" @click="rotateLeft" title="向左旋转">
+              <span class="i-ep-refresh-left" />
+            </button>
+            <button class="control-btn" @click="rotateRight" title="向右旋转">
+              <span class="i-ep-refresh-right" />
+            </button>
+            <button class="control-btn" @click="resetCropper" title="重置">
+              <span class="i-ep-refresh" />
+            </button>
           </div>
           <div class="cropper-instructions">
             <p>您可以通过拖拽裁剪框四角或边缘调整大小，拖拽裁剪框内部移动位置</p>
@@ -427,15 +489,16 @@
           </div>
         </div>
         <div class="cropper-footer">
-          <button class="btn-secondary" @click="cancelCrop">取消</button>
-          <button class="btn-primary" @click="confirmCrop">确认</button>
+          <button class="btn btn-secondary" @click="cancelCrop">取消</button>
+          <button class="btn btn-primary" @click="confirmCrop">确认</button>
         </div>
-      </div>
+      </GlassCard>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { logger } from '@/utils/logger'
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { userApi } from '../api/user'
@@ -447,6 +510,10 @@ import VueCropper from 'vue-cropperjs'
 import '../assets/cropper.css'
 import { useUserStore } from '../stores/userStore'
 import { ElMessage } from 'element-plus'
+import { getApiErrorMessage } from '../utils/error'
+import SectionHeader from '@/components/SectionHeader.vue'
+import GlassCard from '@/components/GlassCard.vue'
+import type { User, FriendRequest } from '../types/user'
 
 
 // 获取用户Store
@@ -539,6 +606,15 @@ interface School {
   image?: string
 }
 
+interface FavoriteSchoolContent {
+  id?: number
+  name?: string
+  province?: string
+  city?: string
+  image?: string
+  logo?: string
+}
+
 const favoriteSchools = ref<School[]>([])
 const defaultSchoolImage = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/></svg>'
 
@@ -561,8 +637,8 @@ const fetchMyActivities = async () => {
   activitiesLoading.value = true
   try {
     const response = await userApi.getMyActivities()
-    console.log('获取我的动态:', response)
-    
+    logger.log('获取我的动态:', response)
+
     // 转换后端数据格式到前端格式
     activities.value = response.results.map((item: any) => ({
       type: item.activity_type || item.type || 'custom',
@@ -595,19 +671,6 @@ const navigateToPublishActivity = () => {
 }
 
 // 好友相关数据
-interface User {
-  id: number
-  username: string
-  email: string
-  avatar?: string
-}
-
-interface FriendRequest {
-  id: number
-  sender: User
-  created_at: string
-}
-
 const searchQuery = ref('')
 const searchResults = ref<User[]>([])
 const friends = ref<User[]>([])
@@ -619,33 +682,33 @@ const friendsLoading = ref(false)
 // 计算属性：头像样式
 const avatarStyle = computed(() => {
   // 调试信息
-  console.log('头像渲染：', {
+  logger.log('头像渲染：', {
     preview: avatarPreview.value,
     avatar: form.value.avatar,
     userStoreAvatar: userStore.user?.avatar
   })
-  
+
   // 优先使用本地预览（刚上传的图片）
   if (avatarPreview.value) {
     // 如果是dataURL（base64），直接使用
     if (avatarPreview.value.startsWith('data:')) {
       return { backgroundImage: `url(${avatarPreview.value})` }
     }
-    
+
     // 确保是绝对路径
     let url = avatarPreview.value
     if (!url.startsWith('http') && !url.startsWith('data:')) {
       url = `${apiBaseUrl.value}${url.startsWith('/') ? '' : '/'}${url}`
     }
-    
+
     // 添加时间戳防止缓存
     const timestamp = new Date().getTime()
     url = url.includes('?') ? `${url.split('?')[0]}?_=${timestamp}` : `${url}?_=${timestamp}`
-    
-    console.log('渲染头像绝对URL:', url)
+
+    logger.log('渲染头像绝对URL:', url)
     return { backgroundImage: `url(${url})` }
   }
-  
+
   // 其次使用用户存储中的头像
   if (userStore.user?.avatar) {
     // 确保是绝对路径
@@ -653,15 +716,15 @@ const avatarStyle = computed(() => {
     if (!url.startsWith('http') && !url.startsWith('data:')) {
       url = `${apiBaseUrl.value}${url.startsWith('/') ? '' : '/'}${url}`
     }
-    
+
     // 添加时间戳防止缓存
     const timestamp = new Date().getTime()
     url = url.includes('?') ? `${url.split('?')[0]}?_=${timestamp}` : `${url}?_=${timestamp}`
-    
-    console.log('渲染用户存储头像绝对URL:', url)
+
+    logger.log('渲染用户存储头像绝对URL:', url)
     return { backgroundImage: `url(${url})` }
   }
-  
+
   // 最后使用表单中的头像
   if (form.value.avatar && typeof form.value.avatar === 'string') {
     // 确保是绝对路径
@@ -669,50 +732,50 @@ const avatarStyle = computed(() => {
     if (!url.startsWith('http') && !url.startsWith('data:')) {
       url = `${apiBaseUrl.value}${url.startsWith('/') ? '' : '/'}${url}`
     }
-    
+
     // 添加时间戳防止缓存
     const timestamp = new Date().getTime()
     url = url.includes('?') ? `${url.split('?')[0]}?_=${timestamp}` : `${url}?_=${timestamp}`
-    
-    console.log('渲染表单头像绝对URL:', url)
+
+    logger.log('渲染表单头像绝对URL:', url)
     return { backgroundImage: `url(${url})` }
   }
-  
+
   // 无头像时使用默认头像
-  console.log('无头像，使用默认头像')
+  logger.log('无头像，使用默认头像')
   return { backgroundImage: `url(${config.media.baseUrl}${config.media.defaultAvatar})` }
 })
 
 // 计算属性：背景图样式
 const bannerStyle = computed(() => {
   // 调试信息
-  console.log('背景图渲染：', {
+  logger.log('背景图渲染：', {
     preview: bannerPreview.value,
     banner: form.value.banner,
     userStoreBanner: userStore.user?.banner
   })
-  
+
   // 优先使用本地预览（刚上传的图片）
   if (bannerPreview.value) {
     // 如果是dataURL（base64），直接使用
     if (bannerPreview.value.startsWith('data:')) {
       return { backgroundImage: `url(${bannerPreview.value})` }
     }
-    
+
     // 确保是绝对路径
     let url = bannerPreview.value
     if (!url.startsWith('http') && !url.startsWith('data:')) {
       url = `${import.meta.env.VITE_API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
     }
-    
+
     // 添加时间戳防止缓存
     const timestamp = new Date().getTime()
     url = url.includes('?') ? `${url.split('?')[0]}?_=${timestamp}` : `${url}?_=${timestamp}`
-    
-    console.log('渲染背景图绝对URL:', url)
+
+    logger.log('渲染背景图绝对URL:', url)
     return { backgroundImage: `url(${url})` }
   }
-  
+
   // 其次使用用户存储中的背景图
   if (userStore.user?.banner) {
     // 确保是绝对路径
@@ -720,15 +783,15 @@ const bannerStyle = computed(() => {
     if (!url.startsWith('http') && !url.startsWith('data:')) {
       url = `${import.meta.env.VITE_API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
     }
-    
+
     // 添加时间戳防止缓存
     const timestamp = new Date().getTime()
     url = url.includes('?') ? `${url.split('?')[0]}?_=${timestamp}` : `${url}?_=${timestamp}`
-    
-    console.log('渲染用户存储背景图绝对URL:', url)
+
+    logger.log('渲染用户存储背景图绝对URL:', url)
     return { backgroundImage: `url(${url})` }
   }
-  
+
   // 最后使用表单中的背景图
   if (form.value.banner && typeof form.value.banner === 'string') {
     // 确保是绝对路径
@@ -736,17 +799,17 @@ const bannerStyle = computed(() => {
     if (!url.startsWith('http') && !url.startsWith('data:')) {
       url = `${import.meta.env.VITE_API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
     }
-    
+
     // 添加时间戳防止缓存
     const timestamp = new Date().getTime()
     url = url.includes('?') ? `${url.split('?')[0]}?_=${timestamp}` : `${url}?_=${timestamp}`
-    
-    console.log('渲染表单背景图绝对URL:', url)
+
+    logger.log('渲染表单背景图绝对URL:', url)
     return { backgroundImage: `url(${url})` }
   }
-  
+
   // 无背景图时使用默认背景图
-  console.log('无背景图，使用默认背景图')
+  logger.log('无背景图，使用默认背景图')
   return { backgroundImage: `url(${config.media.baseUrl}${config.media.defaultBanner})` }
 })
 
@@ -755,17 +818,17 @@ const fetchProfile = async () => {
   try {
     // 首先从userStore获取用户信息
     await userStore.fetchUserInfo()
-    
+
     // 从userStore获取最新的用户数据
     const userData = userStore.user
-    console.log('从userStore获取的用户资料:', userData)
-    
+    logger.log('从userStore获取的用户资料:', userData)
+
     if (!userData) {
       // 如果userStore中没有数据，直接从API获取
       const response = await userApi.getProfile()
       const apiUserData = response
-      console.log('从API获取的用户资料:', apiUserData)
-      
+      logger.log('从API获取的用户资料:', apiUserData)
+
       // 复制所有需要的字段
       form.value = {
         username: apiUserData.username || '',
@@ -775,38 +838,38 @@ const fetchProfile = async () => {
         avatar: null, // 不直接使用URL
         banner: null  // 不直接使用URL
       }
-      
+
       // 设置用户头像预览 - 直接使用完整URL
       if (apiUserData.avatar && typeof apiUserData.avatar === 'string') {
         // 记录原始数据
-        console.log('原始头像URL:', apiUserData.avatar)
-        
+        logger.log('原始头像URL:', apiUserData.avatar)
+
         // 确保URL是完整的
         let avatarUrl = apiUserData.avatar
         if (!avatarUrl.startsWith('http') && !avatarUrl.startsWith('/')) {
           // 如果是相对路径，添加API基础URL
           const baseMediaUrl = import.meta.env.VITE_UPLOAD_URL || 'http://localhost:8000/media'
           avatarUrl = `${baseMediaUrl}/${avatarUrl}`
-          console.log('添加基础URL后:', avatarUrl)
+          logger.log('添加基础URL后:', avatarUrl)
         }
-        
+
         // 添加时间戳参数防止缓存
         const timestamp = new Date().getTime()
-        const newAvatarUrl = avatarUrl.includes('?') 
-          ? `${avatarUrl}&_=${timestamp}` 
+        const newAvatarUrl = avatarUrl.includes('?')
+          ? `${avatarUrl}&_=${timestamp}`
           : `${avatarUrl}?_=${timestamp}`
-        
-        console.log('最终头像URL:', newAvatarUrl)
+
+        logger.log('最终头像URL:', newAvatarUrl)
         avatarPreview.value = newAvatarUrl
       }
-      
+
       // 设置用户背景图预览 - 直接使用完整URL
       if (apiUserData.banner && typeof apiUserData.banner === 'string') {
-        console.log('服务器返回的背景图URL:', apiUserData.banner)
-        
+        logger.log('服务器返回的背景图URL:', apiUserData.banner)
+
         // 处理Banner URL
         let bannerUrl = apiUserData.banner
-        
+
         // 确保是完整的URL
         if (typeof bannerUrl === 'string' && !bannerUrl.startsWith('http') && !bannerUrl.startsWith('/')) {
           // 相对路径，添加媒体URL前缀
@@ -816,28 +879,28 @@ const fetchProfile = async () => {
 
         // 添加时间戳参数防止缓存
         const timestamp = new Date().getTime()
-        const finalBannerUrl = bannerUrl.includes('?') 
-          ? `${bannerUrl.split('?')[0]}?_=${timestamp}` 
+        const finalBannerUrl = bannerUrl.includes('?')
+          ? `${bannerUrl.split('?')[0]}?_=${timestamp}`
           : `${bannerUrl}?_=${timestamp}`
-        
-        console.log('处理后的背景图URL:', finalBannerUrl)
-      
+
+        logger.log('处理后的背景图URL:', finalBannerUrl)
+
         // 清除旧的Blob URL
         if (bannerPreview.value && bannerPreview.value.startsWith('blob:')) {
           URL.revokeObjectURL(bannerPreview.value)
         }
-        
+
         // 立即更新背景图预览
         bannerPreview.value = finalBannerUrl
-        console.log('更新背景图预览为最新URL:', bannerPreview.value)
-      
+        logger.log('更新背景图预览为最新URL:', bannerPreview.value)
+
         // 强制触发渲染
         setTimeout(() => {
           const tempUrl = bannerPreview.value
           bannerPreview.value = ''
           setTimeout(() => {
             bannerPreview.value = tempUrl
-            console.log('刷新背景图预览完成')
+            logger.log('刷新背景图预览完成')
           }, 50)
         }, 0)
       }
@@ -851,56 +914,56 @@ const fetchProfile = async () => {
         avatar: null, // 不直接使用URL
         banner: null  // 不直接使用URL
       }
-      
+
       // 设置用户头像预览 - 直接使用完整URL
       if (userData.avatar && typeof userData.avatar === 'string') {
         // 记录原始数据
-        console.log('userStore中的头像URL:', userData.avatar)
-        
+        logger.log('userStore中的头像URL:', userData.avatar)
+
         // 添加时间戳参数防止缓存
         const timestamp = new Date().getTime()
-        const newAvatarUrl = userData.avatar.includes('?') 
-          ? `${userData.avatar.split('?')[0]}?_=${timestamp}` 
+        const newAvatarUrl = userData.avatar.includes('?')
+          ? `${userData.avatar.split('?')[0]}?_=${timestamp}`
           : `${userData.avatar}?_=${timestamp}`
-        
-        console.log('最终头像URL:', newAvatarUrl)
+
+        logger.log('最终头像URL:', newAvatarUrl)
         avatarPreview.value = newAvatarUrl
       }
-      
+
       // 设置用户背景图预览 - 直接使用完整URL
       if (userData.banner && typeof userData.banner === 'string') {
-        console.log('userStore中的背景图URL:', userData.banner)
-        
+        logger.log('userStore中的背景图URL:', userData.banner)
+
         // 添加时间戳参数防止缓存
         const timestamp = new Date().getTime()
-        const finalBannerUrl = userData.banner.includes('?') 
-          ? `${userData.banner.split('?')[0]}?_=${timestamp}` 
+        const finalBannerUrl = userData.banner.includes('?')
+          ? `${userData.banner.split('?')[0]}?_=${timestamp}`
           : `${userData.banner}?_=${timestamp}`
-        
-        console.log('处理后的背景图URL:', finalBannerUrl)
-      
+
+        logger.log('处理后的背景图URL:', finalBannerUrl)
+
         // 清除旧的Blob URL
         if (bannerPreview.value && bannerPreview.value.startsWith('blob:')) {
           URL.revokeObjectURL(bannerPreview.value)
         }
-        
+
         // 立即更新背景图预览
         bannerPreview.value = finalBannerUrl
-        console.log('更新背景图预览为最新URL:', bannerPreview.value)
-      
+        logger.log('更新背景图预览为最新URL:', bannerPreview.value)
+
         // 强制触发渲染
         setTimeout(() => {
           const tempUrl = bannerPreview.value
           bannerPreview.value = ''
           setTimeout(() => {
             bannerPreview.value = tempUrl
-            console.log('刷新背景图预览完成')
+            logger.log('刷新背景图预览完成')
           }, 50)
         }, 0)
       }
     }
-    
-    console.log('从profile更新userStore数据')
+
+    logger.log('从profile更新userStore数据')
     await userStore.fetchUserInfo()
   } catch (error) {
     console.error('获取个人资料失败:', error)
@@ -911,18 +974,18 @@ const fetchProfile = async () => {
 // 读取文件并显示裁剪界面
 const readAndShowCropper = (file: File) => {
   const reader = new FileReader()
-  
+
   reader.onload = (e) => {
     if (e.target && e.target.result) {
       cropperImg.value = e.target.result as string
       showCropper.value = true
     }
   }
-  
+
   reader.onerror = () => {
     showToast('文件读取失败，请重试', 'error')
   }
-  
+
   reader.readAsDataURL(file)
 }
 
@@ -930,9 +993,9 @@ const readAndShowCropper = (file: File) => {
 const handleAvatarChange = (event: Event) => {
   const input = event.target as HTMLInputElement
   if (!input.files || !input.files[0]) return
-  
+
   const file = input.files[0]
-  
+
   // 验证文件类型
   if (!config.upload.allowedTypes.includes(file.type)) {
     showToast('请选择 JPG、PNG、GIF 或 WebP 格式的图片', 'error')
@@ -953,7 +1016,7 @@ const handleAvatarChange = (event: Event) => {
   // 读取文件显示裁剪界面
   cropperType.value = 'avatar'
   readAndShowCropper(file)
-  
+
   // 重置input值，确保可以选择相同文件
   input.value = ''
 }
@@ -962,9 +1025,9 @@ const handleAvatarChange = (event: Event) => {
 const handleBannerChange = (event: Event) => {
   const input = event.target as HTMLInputElement
   if (!input.files || !input.files[0]) return
-  
+
   const file = input.files[0]
-  
+
   // 验证文件类型
   if (!config.upload.allowedTypes.includes(file.type)) {
     showToast('请选择 JPG、PNG、GIF 或 WebP 格式的图片', 'error')
@@ -985,7 +1048,7 @@ const handleBannerChange = (event: Event) => {
   // 读取文件显示裁剪界面
   cropperType.value = 'banner'
   readAndShowCropper(file)
-  
+
   // 重置input值，确保可以选择相同文件
   input.value = ''
 }
@@ -1003,17 +1066,17 @@ const confirmCrop = async () => {
       maxHeight: 1000,
       fillColor: '#fff'
     })
-    
+
     if (!canvas) {
       console.error('裁剪失败，无法获取裁剪后的canvas')
       showToast('裁剪失败，请重试', 'error')
       return
     }
-    
+
     // 转换为data URL而不是Blob URL
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
-    console.log('生成的DataURL开头部分:', dataUrl.substring(0, 50) + '...')
-    
+    logger.log('生成的DataURL开头部分:', dataUrl.substring(0, 50) + '...')
+
     // 转换为文件对象
     const blobBin = atob(dataUrl.split(',')[1])
     const array = []
@@ -1021,8 +1084,8 @@ const confirmCrop = async () => {
       array.push(blobBin.charCodeAt(i))
     }
     const blob = new Blob([new Uint8Array(array)], { type: 'image/jpeg' })
-    console.log('生成的Blob对象:', blob.type, blob.size, '字节')
-    
+    logger.log('生成的Blob对象:', blob.type, blob.size, '字节')
+
     // 使用用户ID作为文件名的一部分，确保唯一性
     const userId = userStore.user?.id || Math.floor(Math.random() * 10000)
     let fileName = ''
@@ -1031,16 +1094,16 @@ const confirmCrop = async () => {
     } else {
       fileName = `banner_${userId}_${Date.now()}.jpg`
     }
-    
+
     // 创建File对象
     const newFile = new File([blob], fileName, { type: 'image/jpeg', lastModified: Date.now() })
-    console.log('创建文件成功:', fileName, newFile.size, '字节')
-    
+    logger.log('创建文件成功:', fileName, newFile.size, '字节')
+
     // 将文件对象保存到表单
     if (cropperType.value === 'avatar') {
       form.value.avatar = newFile
       avatarPreview.value = dataUrl
-      console.log('设置头像预览:', {
+      logger.log('设置头像预览:', {
         预览URL类型: typeof avatarPreview.value,
         开头: avatarPreview.value.substring(0, 30) + '...',
         form中的文件: form.value.avatar ? `是(${form.value.avatar.name})` : '否'
@@ -1048,16 +1111,16 @@ const confirmCrop = async () => {
     } else {
       form.value.banner = newFile
       bannerPreview.value = dataUrl
-      console.log('设置背景图预览:', {
+      logger.log('设置背景图预览:', {
         预览URL类型: typeof bannerPreview.value,
         开头: bannerPreview.value.substring(0, 30) + '...',
         form中的文件: form.value.banner ? `是(${form.value.banner.name})` : '否'
       })
     }
-    
+
     // 关闭裁剪界面
     showCropper.value = false
-    
+
     // 不自动保存，让用户手动点击保存按钮
     showToast('图片裁剪成功，请点击保存按钮保存更改', 'success')
   } catch (error) {
@@ -1074,35 +1137,35 @@ const cancelCrop = () => {
 // 更新个人资料
 const handleUpdate = async () => {
   loading.value = true;
-  
+
   try {
-    console.log('开始更新用户资料...', form.value);
-    
+    logger.log('开始更新用户资料...', form.value);
+
     // 创建FormData对象用于上传文件
     const formData = new FormData();
-    
+
     // 添加非文件字段
     for (const [key, value] of Object.entries(form.value)) {
       // 跳过文件字段，这些会单独处理
       if (key === 'avatar' || key === 'banner') continue;
-      
+
       // 添加其他字段
       if (value !== null && value !== undefined) {
         formData.append(key, String(value));
       }
     }
-    
+
     // 单独处理头像文件
     if (form.value.avatar) {
-      console.log('处理头像...');
+      logger.log('处理头像...');
       // 如果是文件对象，直接添加
       if (form.value.avatar instanceof File) {
-        console.log('头像是File对象');
+        logger.log('头像是File对象');
         formData.append('avatar', form.value.avatar);
       }
       // 如果是Data URL，转换为文件
       else if (typeof form.value.avatar === 'string' && form.value.avatar.startsWith('data:')) {
-        console.log('头像是Data URL');
+        logger.log('头像是Data URL');
         // 使用用户ID作为文件名的一部分，确保唯一性
         const userId = userStore.user?.id || Math.floor(Math.random() * 10000);
         const avatarFile = dataURLtoFile(form.value.avatar, `avatar_${userId}_${Date.now()}.jpg`);
@@ -1112,25 +1175,25 @@ const handleUpdate = async () => {
       else if (typeof form.value.avatar === 'string' && !form.value.avatar.startsWith('blob:')) {
         // 如果URL没有改变，不需要重新上传
         if (form.value.avatar === userStore.user?.avatar) {
-          console.log('头像URL未变更，不需要重新上传');
+          logger.log('头像URL未变更，不需要重新上传');
         } else {
-          console.log('头像是URL，需要重新上传');
+          logger.log('头像是URL，需要重新上传');
           formData.append('avatar', form.value.avatar);
         }
       }
     }
-    
+
     // 单独处理背景图片文件
     if (form.value.banner) {
-      console.log('处理背景图...');
+      logger.log('处理背景图...');
       // 如果是文件对象，直接添加
       if (form.value.banner instanceof File) {
-        console.log('背景图是File对象');
+        logger.log('背景图是File对象');
         formData.append('banner', form.value.banner);
       }
       // 如果是Data URL，转换为文件
       else if (typeof form.value.banner === 'string' && form.value.banner.startsWith('data:')) {
-        console.log('背景图是Data URL');
+        logger.log('背景图是Data URL');
         // 使用用户ID作为文件名的一部分，确保唯一性
         const userId = userStore.user?.id || Math.floor(Math.random() * 10000);
         const bannerFile = dataURLtoFile(form.value.banner, `banner_${userId}_${Date.now()}.jpg`);
@@ -1140,35 +1203,37 @@ const handleUpdate = async () => {
       else if (typeof form.value.banner === 'string' && !form.value.banner.startsWith('blob:')) {
         // 如果URL没有改变，不需要重新上传
         if (form.value.banner === userStore.user?.banner) {
-          console.log('背景图URL未变更，不需要重新上传');
+          logger.log('背景图URL未变更，不需要重新上传');
         } else {
-          console.log('背景图是URL，需要重新上传');
+          logger.log('背景图是URL，需要重新上传');
           formData.append('banner', form.value.banner);
         }
       }
     }
-    
+
     // 打印FormData内容供调试
     for (const pair of formData.entries()) {
-      console.log(`FormData: ${pair[0]}: ${pair[1]}`);
+      logger.log(`FormData: ${pair[0]}: ${pair[1]}`);
     }
-    
+
     // 发送更新请求
     await userApi.updateProfile(formData);
-    
+
     // 重新获取最新的用户数据
     await userStore.fetchUserProfile();
-    
+
     // 重新加载个人资料，确保所有数据都已更新
     await fetchProfile();
-    
-    // 清除本地预览数据
+
+    // 清除本地预览数据与 localStorage 临时缓存
     avatarPreview.value = '';
     bannerPreview.value = '';
-    
+    localStorage.removeItem('tempAvatarPreview');
+    localStorage.removeItem('tempBannerPreview');
+
     // 显示成功消息
     ElMessage.success('个人资料更新成功');
-    
+
     // 加载完成
     loading.value = false;
   } catch (error) {
@@ -1185,11 +1250,11 @@ const dataURLtoFile = (dataURL: string, filename: string): File => {
   const bstr = atob(arr[1]);
   let n = bstr.length;
   const u8arr = new Uint8Array(n);
-  
+
   while (n--) {
     u8arr[n] = bstr.charCodeAt(n);
   }
-  
+
   return new File([u8arr], filename, { type: mime });
 };
 
@@ -1200,22 +1265,22 @@ const changePassword = async () => {
     showToast('请输入当前密码', 'error')
     return
   }
-  
+
   if (!passwordForm.value.newPassword) {
     showToast('请输入新密码', 'error')
     return
   }
-  
+
   if (passwordForm.value.newPassword.length < 8) {
     showToast('新密码长度不能少于8位', 'error')
     return
   }
-  
+
   if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
     showToast('两次输入的密码不一致', 'error')
     return
   }
-  
+
   try {
     pwdLoading.value = true
     await userApi.changePassword({
@@ -1228,13 +1293,9 @@ const changePassword = async () => {
       newPassword: '',
       confirmPassword: ''
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('密码修改失败:', error)
-    let errorMsg = '密码修改失败，请检查当前密码是否正确'
-    if (error.response?.data?.detail) {
-      errorMsg = error.response.data.detail
-    }
-    showToast(errorMsg, 'error')
+    showToast(getApiErrorMessage(error, '密码修改失败，请检查当前密码是否正确'), 'error')
   } finally {
     pwdLoading.value = false
   }
@@ -1244,19 +1305,19 @@ const changePassword = async () => {
 const fetchFavoriteSchools = async () => {
   try {
     const favoritesResponse = await userApi.getFavoriteSchools();
-    
+
     if (!favoritesResponse || !Array.isArray(favoritesResponse)) {
       console.error('获取收藏学校失败: 格式错误', favoritesResponse);
       favoriteSchools.value = [];
       return;
     }
-    
+
     // 提取学校信息
     favoriteSchools.value = [];
     for (const favorite of favoritesResponse) {
       // 检查是否为学校类型的收藏
       if (favorite.content_type === 'schools.school' && favorite.content_object) {
-        const school = favorite.content_object;
+        const school = favorite.content_object as FavoriteSchoolContent;
         favoriteSchools.value.push({
           id: school.id || favorite.object_id,
           name: school.name || favorite.content_object_name || `学校 ${favorite.object_id}`,
@@ -1317,7 +1378,7 @@ const searchUsers = async () => {
     showToast('请输入搜索关键词', 'error')
     return
   }
-  
+
   try {
     const response = await userApi.searchUsers(searchQuery.value)
     searchResults.value = response
@@ -1418,16 +1479,16 @@ const formatTime = (timeString: string) => {
   const date = new Date(timeString)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
-  
+
   const minutes = Math.floor(diff / 60000)
   const hours = Math.floor(diff / 3600000)
   const days = Math.floor(diff / 86400000)
-  
+
   if (minutes < 1) return '刚刚'
   if (minutes < 60) return `${minutes}分钟前`
   if (hours < 24) return `${hours}小时前`
   if (days < 7) return `${days}天前`
-  
+
   return date.toLocaleDateString('zh-CN')
 }
 
@@ -1470,51 +1531,51 @@ const resetCropper = () => {
 // 调整onCropperCreated函数，显示完整原图并允许用户自由截取
 const onCropperCreated = () => {
   if (!cropper.value) return
-  
+
   // 重置裁剪器以便准确获取数据
   cropper.value.reset()
-  
+
   // 使用setTimeout确保DOM已更新，数据准确
   setTimeout(() => {
     if (!cropper.value) return
-    
+
     try {
       // 清除之前的缩放和位置
       cropper.value.clear()
-      
+
       // 获取容器和图片数据
       const containerData = cropper.value.getContainerData()
       const canvasData = cropper.value.getCanvasData()
-      
+
       // 计算缩放比例，使图片完全可见并居中显示
       const scale = Math.min(
         (containerData.width * 0.9) / canvasData.naturalWidth,
         (containerData.height * 0.9) / canvasData.naturalHeight
       )
-      
+
       // 应用缩放
       cropper.value.zoomTo(scale)
-      
+
       // 重新获取调整后的画布数据
       const newCanvasData = cropper.value.getCanvasData()
-      
+
       // 计算居中位置
       const offsetX = (containerData.width - newCanvasData.width) / 2
       const offsetY = (containerData.height - newCanvasData.height) / 2
-      
+
       // 移动到居中位置
       cropper.value.moveTo(offsetX, offsetY)
-      
+
       // 设置初始裁剪框
       const cropBoxData = {
         left: containerData.width / 2 - (containerData.width * 0.4),
         top: containerData.height / 2 - (containerData.height * 0.4),
         width: containerData.width * 0.8,
-        height: cropperType.value === 'avatar' 
-          ? containerData.width * 0.8 
+        height: cropperType.value === 'avatar'
+          ? containerData.width * 0.8
           : (containerData.width * 0.8) / (16/9)
       }
-      
+
       cropper.value.setCropBoxData(cropBoxData)
     } catch (err) {
       console.error('裁剪器初始化错误:', err)
@@ -1533,7 +1594,7 @@ onMounted(() => {
   fetchFavoriteSchools()
   fetchFriends()
   fetchFriendRequests()
-  
+
   // 页面加载时恢复之前的预览
   if (localStorage.getItem('tempAvatarPreview')) {
     avatarPreview.value = localStorage.getItem('tempAvatarPreview') || ''
@@ -1541,7 +1602,7 @@ onMounted(() => {
   if (localStorage.getItem('tempBannerPreview')) {
     bannerPreview.value = localStorage.getItem('tempBannerPreview') || ''
   }
-  
+
   // 添加调试状态
 })
 
@@ -1578,71 +1639,91 @@ if (localStorage.getItem('tempBannerPreview')) {
 </script>
 
 <style scoped>
-.profile-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
+.profile-page {
+  min-height: calc(100vh - 200px);
 }
 
-.section-header {
+.panel-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
-.section-actions {
+.panel-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.panel-actions {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
-.publish-activity-btn {
-  padding: 8px 16px;
-  font-size: 14px;
-  border: none;
-  border-radius: 4px;
-  background-color: #4361ee;
-  color: white;
+/* 按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.publish-activity-btn:hover {
-  background-color: #3a56d4;
-}
-
-.clear-activities-btn {
-  padding: 8px 16px;
-  font-size: 14px;
   border: none;
-  border-radius: 4px;
-  background-color: #dc3545;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background-color: var(--primary-600);
   color: white;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
 }
 
-.clear-activities-btn:hover {
-  background-color: #c82333;
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-700);
 }
 
-.mt-4 {
-  margin-top: 1.5rem;
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
-.profile-header {
-  position: relative;
-  border-radius: 16px;
-  background-color: white;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-  text-align: center;
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--border-color);
+}
+
+.btn-danger {
+  background-color: var(--error-color);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #dc2626;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-icon {
+  padding: 0.5rem;
+  border-radius: var(--radius-md);
+}
+
+/* 个人资料头部 */
+.profile-header-card {
   overflow: hidden;
-  margin-bottom: 2rem;
+  margin-bottom: var(--space-6);
 }
 
 .profile-banner {
   height: 260px;
-  background: linear-gradient(135deg, #4361ee, #3a56d4);
+  background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
   background-size: cover;
   background-position: center;
   position: relative;
@@ -1651,55 +1732,42 @@ if (localStorage.getItem('tempBannerPreview')) {
 
 .banner-change {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
-  background-color: rgba(0, 0, 0, 0.6);
+  bottom: 12px;
+  right: 12px;
+  background-color: rgba(0, 0, 0, 0.5);
   color: white;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   text-align: center;
-  padding: 6px 12px;
-  font-size: 12px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
   cursor: pointer;
   opacity: 0.9;
   transition: opacity 0.3s;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   z-index: 10;
+  backdrop-filter: blur(4px);
 }
 
 .profile-banner:hover .banner-change {
   opacity: 1;
 }
 
-.banner-change:hover, .banner-change:focus {
+.banner-change:hover,
+.banner-change:focus {
   opacity: 1 !important;
 }
 
-/* 在小屏幕上保持背景更换按钮可见 */
-@media (max-width: 480px) {
-  .profile-banner {
-    height: 200px;
-  }
-  
-  .profile-avatar-wrapper {
-    top: 150px;
-  }
-  
-  .profile-name {
-    margin-top: 40px;
-  }
-
-  .banner-change {
-    opacity: 0.8;
-  }
+.profile-header-body {
+  position: relative;
+  text-align: center;
+  padding: 0 var(--space-6) var(--space-6);
 }
 
 .profile-avatar-wrapper {
-  position: absolute;
-  top: 180px;
-  left: 0;
-  right: 0;
+  position: relative;
+  margin-top: -60px;
   display: flex;
   justify-content: center;
   z-index: 5;
@@ -1709,12 +1777,13 @@ if (localStorage.getItem('tempBannerPreview')) {
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background-color: #4361ee;
-  border: 4px solid white;
+  background-color: var(--primary-500);
+  border: 4px solid var(--bg-primary);
   position: relative;
   background-size: cover;
   background-position: center;
   overflow: hidden;
+  box-shadow: var(--shadow-md);
 }
 
 .avatar-change {
@@ -1722,110 +1791,104 @@ if (localStorage.getItem('tempBannerPreview')) {
   bottom: 0;
   left: 0;
   right: 0;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: rgba(0, 0, 0, 0.45);
   color: white;
   text-align: center;
-  padding: 4px 0;
-  font-size: 12px;
+  padding: 6px 0;
+  font-size: 0.75rem;
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.3s;
   z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
 }
 
 .profile-avatar:hover .avatar-change {
   opacity: 1;
 }
 
-.avatar-change:hover, .avatar-change:focus {
+.avatar-change:hover,
+.avatar-change:focus {
   opacity: 1 !important;
 }
 
-.upload-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M5 10h4v6h6v-6h4l-7-7-7 7zm0 8v2h14v-2H5z"/></svg>');
-  width: 16px;
-  height: 16px;
-  display: inline-block;
-  vertical-align: middle;
-}
-
 .profile-name {
-  font-size: 1.8rem;
+  font-size: 1.75rem;
   font-weight: 700;
-  margin: 70px 0 0.5rem;
-  color: #333;
+  margin: 1rem 0 0.5rem;
+  color: var(--text-primary);
 }
 
 .profile-bio {
-  color: #666;
+  color: var(--text-secondary);
   max-width: 600px;
-  margin: 0 auto 2rem;
-  padding: 0 1rem;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
 }
 
-.profile-tabs {
+/* 标签页 */
+.profile-tabs-bar {
   display: flex;
-  background-color: white;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-  margin-bottom: 2rem;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+  padding: var(--space-1);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  width: fit-content;
 }
 
-.tab-button {
-  flex: 1;
-  padding: 1.2rem 1rem;
-  background: none;
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
   border: none;
-  font-size: 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
   font-weight: 500;
-  color: #666;
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s ease;
 }
 
-.tab-button:hover {
-  background-color: #f9fafc;
+.tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-primary);
 }
 
-.tab-button.active {
-  color: #4361ee;
-  font-weight: 600;
-  box-shadow: inset 0 -2px 0 #4361ee;
+.tab-btn.active {
+  background: var(--bg-primary);
+  color: var(--primary-600);
+  box-shadow: var(--shadow-sm);
 }
 
-.profile-content {
-  margin-bottom: 2rem;
+.dark .tab-btn.active {
+  background: var(--bg-primary);
+  color: var(--primary-400);
 }
 
-.profile-card {
-  background-color: white;
-  border-radius: 16px;
-  padding: 2rem;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+/* 面板 */
+.profile-panels {
+  margin-bottom: var(--space-6);
 }
 
-.section-title {
-  font-size: 1.5rem;
-  color: #333;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-/* 表单样式 */
+/* 表单 */
 .profile-form {
   max-width: 600px;
 }
 
 .form-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--space-5);
 }
 
-label {
+.form-group label {
   display: block;
-  margin-bottom: 0.5rem;
-  color: #555;
+  margin-bottom: var(--space-2);
+  color: var(--text-secondary);
   font-weight: 500;
   font-size: 0.9rem;
 }
@@ -1841,35 +1904,20 @@ label {
   left: 12px;
   width: 20px;
   height: 20px;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
-  opacity: 0.5;
+  color: var(--text-tertiary);
+  z-index: 1;
 }
 
-.user-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>');
-}
-
-.email-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>');
-}
-
-.phone-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>');
-}
-
-.password-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>');
-}
-
-input, textarea {
+input,
+textarea {
   width: 100%;
   padding: 0.8rem 0.8rem 0.8rem 2.5rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   font-size: 1rem;
-  transition: all 0.3s;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  transition: all 0.2s;
 }
 
 .bio-textarea {
@@ -1877,216 +1925,194 @@ input, textarea {
   resize: vertical;
 }
 
-input:focus, textarea:focus {
+input:focus,
+textarea:focus {
   outline: none;
-  border-color: #4361ee;
-  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .form-actions {
-  margin-top: 2rem;
-}
-
-.btn-save {
-  padding: 0.9rem 2rem;
-  background-color: #4361ee;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.btn-save:hover {
-  background-color: #3a56d4;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(67, 97, 238, 0.2);
-}
-
-.btn-save:disabled {
-  background-color: #b0b0b0;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+  margin-top: var(--space-6);
 }
 
 .loading-spinner {
   display: inline-block;
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255,255,255,0.3);
+  border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   border-top-color: #fff;
   animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* 活动记录样式 */
-.activity-list {
-  min-height: 300px;
-}
-
-.empty-activity {
+/* 空状态 */
+.empty-state {
   text-align: center;
-  padding: 4rem 0;
+  padding: var(--space-10) var(--space-4);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
-  min-height: 350px;
-  background-color: #f9fafb;
-  border-radius: 8px;
-  margin: 20px 0;
+  gap: var(--space-4);
+}
+
+.empty-state.compact {
+  padding: var(--space-8) var(--space-4);
 }
 
 .empty-icon {
-  width: 120px;
-  height: 120px;
-  margin: 0 auto 1.5rem;
-  opacity: 0.3;
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>');
-  background-repeat: no-repeat;
-  background-position: center;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  font-size: 2rem;
 }
 
 .empty-text {
   margin: 0;
   max-width: 80%;
   text-align: center;
-  color: #666;
-  font-size: 1.2rem;
+  color: var(--text-secondary);
+  font-size: 1rem;
   font-weight: 500;
 }
 
-.publish-first-activity {
-  padding: 12px 24px;
-  font-size: 16px;
-  font-weight: 600;
-  background-color: #3b82f6;
-  color: white;
+.mt-4 {
+  margin-top: var(--space-4);
+}
+
+/* 动态 */
+.activity-list {
+  min-height: 300px;
+}
+
+.activity-item {
+  display: flex;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border-color-light);
+}
+
+.activity-item:last-child {
   border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
-.publish-first-activity:hover {
-  background-color: #2563eb;
-  transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+.activity-time {
+  min-width: 90px;
+  color: var(--text-tertiary);
+  padding-top: 0.2rem;
+  font-size: 0.875rem;
 }
 
-.publish-first-activity:active {
-  transform: translateY(0);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+.activity-content {
+  flex: 1;
 }
 
-.btn-primary {
-  padding: 0.8rem 1.5rem;
-  background-color: #4361ee;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
+.activity-type {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
-  display: inline-block;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
+  color: var(--primary-600);
+  margin-bottom: var(--space-2);
 }
 
-.btn-primary:hover {
-  background-color: #3a56d4;
+.activity-text {
+  margin-bottom: var(--space-3);
+  color: var(--text-primary);
 }
 
-.btn-primary:active {
-  transform: scale(0.98);
-  background-color: #3550c8;
+.activity-footer {
+  display: flex;
+  gap: var(--space-4);
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
 }
 
-/* 好友相关样式 */
+.activity-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* 好友 */
 .friend-search {
-  margin-bottom: 2rem;
+  margin-bottom: var(--space-6);
+}
+
+.search-wrapper {
+  display: flex;
 }
 
 .search-input {
   flex: 1;
   padding: 0.8rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px 0 0 8px;
-  font-size: 1rem;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  border-right: none;
 }
 
-.btn-search {
-  padding: 0.8rem 1.5rem;
-  background-color: #4361ee;
-  color: white;
-  border: none;
-  border-radius: 0 8px 8px 0;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.btn-search:hover {
-  background-color: #3a56d4;
+.search-btn {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
 .search-results,
 .friend-requests {
-  margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border-color-light);
 }
 
 .search-results h3,
 .friend-requests h3,
 .friends-list h3 {
-  margin-bottom: 1rem;
-  color: #333;
-  font-size: 1.1rem;
+  margin-bottom: var(--space-4);
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .user-list,
 .request-list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-3);
 }
 
 .user-item,
 .request-item {
   display: flex;
   align-items: center;
-  padding: 1rem;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  transition: all 0.3s;
+  padding: var(--space-3);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  transition: all 0.2s;
 }
 
 .user-item:hover,
 .request-item:hover {
-  background-color: #f0f4ff;
+  background: var(--border-color-light);
 }
 
 .user-avatar {
-  width: 50px;
-  height: 50px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   overflow: hidden;
-  margin-right: 1rem;
+  margin-right: var(--space-3);
   flex-shrink: 0;
+  background: var(--bg-secondary);
 }
 
 .user-avatar img {
@@ -2097,111 +2123,42 @@ input:focus, textarea:focus {
 
 .user-info {
   flex: 1;
+  min-width: 0;
 }
 
 .user-name {
   font-weight: 600;
-  color: #333;
-  margin-bottom: 0.2rem;
+  color: var(--text-primary);
+  margin-bottom: 0.15rem;
 }
 
 .user-email {
-  font-size: 0.9rem;
-  color: #666;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  word-break: break-all;
 }
 
 .request-time {
   font-size: 0.8rem;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .request-actions {
   display: flex;
-  gap: 0.5rem;
-}
-
-.btn-add-friend,
-.btn-accept,
-.btn-reject,
-.btn-remove {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.3s;
-}
-
-.btn-add-friend {
-  background-color: #4361ee;
-  color: white;
-}
-
-.btn-add-friend:hover {
-  background-color: #3a56d4;
-}
-
-.btn-accept {
-  background-color: #4caf50;
-  color: white;
-}
-
-.btn-accept:hover {
-  background-color: #45a049;
-}
-
-.btn-reject {
-  background-color: #f44336;
-  color: white;
-}
-
-.btn-reject:hover {
-  background-color: #d32f2f;
-}
-
-.btn-chat {
-  background-color: #4361ee;
-  color: white;
-  margin-right: 0.5rem;
-}
-
-.btn-chat:hover {
-  background-color: #3a56d4;
-}
-
-.btn-remove {
-  background-color: #f44336;
-  color: white;
-}
-
-.btn-remove:hover {
-  background-color: #d32f2f;
-}
-
-.empty-friends {
-  text-align: center;
-  padding: 3rem 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.friend-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>');
+  gap: var(--space-2);
 }
 
 .friend-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
 }
 
 .friend-card {
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  padding: 1.5rem;
-  transition: all 0.3s;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  transition: all 0.2s;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2209,17 +2166,18 @@ input:focus, textarea:focus {
 }
 
 .friend-card:hover {
-  background-color: #f0f4ff;
+  background: var(--border-color-light);
   transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
 }
 
 .friend-avatar {
-  width: 80px;
-  height: 80px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   overflow: hidden;
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-3);
+  background: var(--bg-secondary);
 }
 
 .friend-avatar img {
@@ -2230,512 +2188,47 @@ input:focus, textarea:focus {
 
 .friend-name {
   font-weight: 600;
-  color: #333;
-  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+  margin-bottom: var(--space-1);
 }
 
 .friend-email {
-  font-size: 0.9rem;
-  color: #666;
-  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-4);
+  word-break: break-all;
 }
 
 .friend-actions {
   width: 100%;
-}
-
-.activity-item {
   display: flex;
-  padding: 1.2rem 0;
-  border-bottom: 1px solid #f0f0f0;
+  gap: var(--space-2);
+  justify-content: center;
 }
 
-.activity-item:last-child {
-  border: none;
-}
-
-.activity-time {
-  min-width: 100px;
-  color: #888;
-  padding-top: 0.2rem;
-}
-
-.activity-content {
-  flex: 1;
-}
-
-.activity-type {
-  font-weight: 600;
-  color: #4361ee;
-  margin-bottom: 0.5rem;
-}
-
-.activity-text {
-  margin-bottom: 0.8rem;
-  color: #444;
-}
-
-.activity-footer {
-  display: flex;
-  gap: 1rem;
-  color: #888;
-  font-size: 0.9rem;
-}
-
-/* 账号设置样式 */
+/* 账号设置 */
 .settings-group {
-  margin-bottom: 2.5rem;
+  margin-bottom: var(--space-8);
 }
 
 .settings-group h3 {
-  font-size: 1.2rem;
-  color: #444;
-  margin-bottom: 1.5rem;
+  font-size: 1rem;
+  color: var(--text-primary);
+  margin-bottom: var(--space-5);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .danger-zone {
-  border-top: 1px solid #f0f0f0;
-  padding-top: 2rem;
+  border-top: 1px solid var(--border-color-light);
+  padding-top: var(--space-6);
 }
 
-.btn-warning {
-  padding: 0.8rem 1.5rem;
-  background-color: #ff9800;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  margin-right: 1rem;
-  transition: all 0.3s;
-}
-
-.btn-warning:hover {
-  background-color: #f57c00;
-}
-
-.btn-danger {
-  padding: 0.8rem 1.5rem;
-  background-color: #f44336;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.btn-danger:hover {
-  background-color: #d32f2f;
-}
-
-/* 收藏学校样式 */
-.school-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
-  margin-top: 1rem;
-}
-
-.school-card {
-  background-color: white;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s;
-  border: 1px solid #f0f0f0;
-}
-
-.school-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-}
-
-.school-image {
-  height: 140px;
-  background-color: #f5f6fa;
-  background-size: cover;
-  background-position: center;
-}
-
-.school-info {
-  padding: 15px;
-}
-
-.school-name {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin-bottom: 5px;
-  color: #333;
-}
-
-.school-location {
-  font-size: 0.9rem;
-  color: #666;
-}
-
-.school-actions {
-  display: flex;
-  padding: 10px 15px 15px;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.btn-view {
-  padding: 8px 15px;
-  background-color: #4361ee;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  text-decoration: none;
-  transition: all 0.3s;
-}
-
-.btn-view:hover {
-  background-color: #3a56d4;
-}
-
-.btn-unfavorite {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: none;
-  background-color: #f0f0f0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s;
-}
-
-.btn-unfavorite:hover {
-  background-color: #ff4d4f;
-}
-
-.unfavorite-icon {
-  width: 20px;
-  height: 20px;
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>');
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-.btn-unfavorite:hover .unfavorite-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>');
-}
-
-.empty-favorites {
-  text-align: center;
-  padding: 3rem 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.school-icon {
-  width: 100px;
-  height: 100px;
-  margin: 0 auto;
-  opacity: 0.3;
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/></svg>');
-  background-repeat: no-repeat;
-  background-position: center;
-}
-
-/* 响应式样式 */
-@media (max-width: 768px) {
-  .profile-tabs {
-    flex-direction: column;
-  }
-  
-  .tab-button {
-    padding: 1rem 0.5rem;
-    font-size: 0.9rem;
-  }
-  
-  .activity-item {
-    flex-direction: column;
-  }
-  
-  .activity-time {
-    margin-bottom: 0.5rem;
-  }
-  
-  .school-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .profile-card {
-    padding: 1.5rem 1rem;
-  }
-  
-  .section-title {
-    font-size: 1.3rem;
-  }
-  
-  .btn-save, .btn-primary, .btn-warning, .btn-danger {
-    width: 100%;
-    margin-bottom: 0.5rem;
-  }
-  
-  .settings-group {
-    margin-bottom: 2rem;
-  }
-  
-  .profile-avatar {
-    width: 100px;
-    height: 100px;
-  }
-  
-  .profile-name {
-    font-size: 1.5rem;
-  }
-  
-  .profile-bio {
-    font-size: 0.9rem;
-  }
-  
-  .empty-favorites p, .empty-activity p {
-    padding: 0 1rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .profile-banner {
-    height: 150px;
-  }
-  
-  .banner-change {
-    opacity: 0.8;
-    bottom: 5px;
-    right: 5px;
-    font-size: 10px;
-    padding: 4px 8px;
-  }
-  
-  .profile-avatar-wrapper {
-    margin-top: -50px;
-  }
-  
-  .profile-avatar {
-    width: 80px;
-    height: 80px;
-  }
-  
-  .avatar-change {
-    opacity: 0.8;
-    font-size: 10px;
-  }
-  
-  .profile-name {
-    font-size: 1.3rem;
-    margin-top: 0.7rem;
-  }
-  
-  .profile-bio {
-    font-size: 0.8rem;
-  }
-  
-  .form-group {
-    margin-bottom: 1rem;
-  }
-  
-  input, textarea {
-    font-size: 0.9rem;
-    padding: 0.7rem 0.7rem 0.7rem 2.3rem;
-  }
-  
-  .school-image {
-    height: 120px;
-  }
-  
-  .school-actions {
-    flex-direction: column;
-    gap: 10px;
-  }
-  
-  .btn-view {
-    width: 100%;
-    text-align: center;
-  }
-  
-  .btn-unfavorite {
-    align-self: flex-end;
-  }
-  
-  .empty-icon, .school-icon {
-    width: 80px;
-    height: 80px;
-  }
-}
-
-/* 裁剪器样式 */
-.cropper-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
-  z-index: 9999;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-}
-
-.cropper-container {
-  background-color: white;
-  border-radius: 12px;
-  overflow: hidden;
-  width: 90%;
-  max-width: 800px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.cropper-header {
-  padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.cropper-header h3 {
-  margin: 0;
-  font-size: 1.2rem;
-  color: #333;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-}
-
-.btn-close:hover {
-  background-color: #f5f5f5;
-  color: #333;
-}
-
-.cropper-body {
-  height: 400px;
-  overflow: hidden;
-  background-color: #f5f5f5;
-  position: relative;
-}
-
-.cropper-controls {
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 10px;
-  background-color: rgba(255, 255, 255, 0.8);
-  padding: 5px 10px;
-  border-radius: 20px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-}
-
-.control-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: none;
-  background-color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s;
-}
-
-.control-btn:hover {
-  background-color: #f0f0f0;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.zoom-in-icon, .zoom-out-icon, .rotate-left-icon, .rotate-right-icon, .reset-icon {
-  width: 18px;
-  height: 18px;
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-.zoom-in-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>');
-}
-
-.zoom-out-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M19 13H5v-2h14v2z"/></svg>');
-}
-
-.rotate-left-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M7.11 8.53L5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z"/></svg>');
-}
-
-.rotate-right-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M15.55 5.55L11 1v3.07C7.06 4.56 4 7.92 4 12s3.05 7.44 7 7.93v-2.02c-2.84-.48-5-2.94-5-5.91s2.16-5.43 5-5.91V10l4.55-4.45zM19.93 11c-.17-1.39-.72-2.73-1.62-3.89l-1.42 1.42c.54.75.88 1.6 1.02 2.47h2.02zM13 17.9v2.02c1.39-.17 2.74-.71 3.9-1.61l-1.44-1.44c-.75.54-1.59.89-2.46 1.03zm3.89-2.42l1.42 1.41c.9-1.16 1.45-2.5 1.62-3.89h-2.02c-.14.87-.48 1.72-1.02 2.48z"/></svg>');
-}
-
-.reset-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234361ee"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>');
-}
-
-.cropper-footer {
-  padding: 16px;
-  border-top: 1px solid #f0f0f0;
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.btn-secondary {
-  padding: 8px 16px;
-  background-color: #f5f5f5;
-  color: #333;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.btn-secondary:hover {
-  background-color: #e9e9e9;
-}
-
-.cropper-instructions {
-  padding: 10px;
-  background-color: rgba(255, 255, 255, 0.8);
-  border-radius: 8px;
-  margin: 10px auto;
-  max-width: 90%;
-  text-align: center;
-}
-
-.cropper-instructions p {
-  margin: 5px 0;
-  font-size: 0.9rem;
-  color: #333;
+.danger-zone .btn {
+  margin-right: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
 /* 密码显示/隐藏按钮样式 */
@@ -2751,74 +2244,395 @@ input:focus, textarea:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: var(--text-tertiary);
   outline: none;
 }
 
-.toggle-password-icon {
-  width: 20px;
-  height: 20px;
-  display: inline-block;
-  background-size: contain;
-  background-repeat: no-repeat;
+.btn-toggle-password:hover {
+  color: var(--text-secondary);
+}
+
+/* 收藏学校 */
+.favorites-list {
+  min-height: 200px;
+}
+
+.school-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-5);
+  margin-top: var(--space-2);
+}
+
+.school-card {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: all 0.2s;
+  border: 1px solid var(--border-color-light);
+}
+
+.school-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+.school-image {
+  height: 140px;
+  background-color: var(--bg-secondary);
+  background-size: cover;
   background-position: center;
 }
 
-.toggle-password-icon.show {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>');
+.school-info {
+  padding: var(--space-4);
 }
 
-.toggle-password-icon.hide {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>');
+.school-name {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+  color: var(--text-primary);
+}
+
+.school-location {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.school-actions {
+  display: flex;
+  padding: 0 var(--space-4) var(--space-4);
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* 裁剪器弹窗 */
+.cropper-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.cropper-container {
+  width: 90%;
+  max-width: 800px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cropper-header {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-color-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cropper-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.btn-close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.cropper-body {
+  height: 400px;
+  overflow: hidden;
+  background-color: var(--bg-tertiary);
+  position: relative;
+}
+
+.cropper-controls {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: var(--space-2);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(8px);
+}
+
+.control-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s;
+}
+
+.control-btn:hover {
+  background: var(--bg-tertiary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.cropper-instructions {
+  position: absolute;
+  bottom: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--space-2) var(--space-4);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  max-width: 90%;
+  text-align: center;
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-sm);
+}
+
+.cropper-instructions p {
+  margin: var(--space-1) 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.cropper-footer {
+  padding: var(--space-4);
+  border-top: 1px solid var(--border-color-light);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+/* 加载状态 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 300px;
+  color: var(--text-secondary);
+}
+
+.loading-container .loading-spinner {
+  border-color: rgba(0, 0, 0, 0.1);
+  border-top-color: var(--primary-600);
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .profile-tabs-bar {
+    width: 100%;
+  }
+
+  .tab-btn {
+    flex: 1;
+    justify-content: center;
+    padding: var(--space-2) var(--space-2);
+    font-size: 0.875rem;
+  }
+
+  .panel-header {
+    width: 100%;
+  }
+
+  .panel-actions {
+    width: 100%;
+  }
+
+  .panel-actions .btn {
+    flex: 1;
+  }
+
+  .activity-item {
+    flex-direction: column;
+  }
+
+  .activity-time {
+    margin-bottom: var(--space-2);
+  }
+
+  .school-grid,
+  .friend-grid {
+    grid-template-columns: 1fr;
+  }
+
+  input,
+  textarea {
+    font-size: 0.95rem;
+  }
+
+  .btn {
+    padding: 0.625rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .danger-zone .btn {
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .profile-avatar {
+    width: 100px;
+    height: 100px;
+  }
+
+  .profile-name {
+    font-size: 1.5rem;
+  }
+
+  .profile-bio {
+    font-size: 0.9rem;
+  }
 }
 
 @media (max-width: 480px) {
+  .profile-banner {
+    height: 180px;
+  }
+
+  .banner-change {
+    opacity: 0.85;
+    bottom: 8px;
+    right: 8px;
+    font-size: 0.75rem;
+    padding: 6px 10px;
+  }
+
+  .profile-header-body {
+    padding: 0 var(--space-4) var(--space-5);
+  }
+
+  .profile-avatar-wrapper {
+    margin-top: -50px;
+  }
+
+  .profile-avatar {
+    width: 90px;
+    height: 90px;
+  }
+
+  .avatar-change {
+    opacity: 0.85;
+    font-size: 0.7rem;
+  }
+
+  .profile-name {
+    font-size: 1.3rem;
+    margin-top: 0.75rem;
+  }
+
+  .profile-bio {
+    font-size: 0.85rem;
+  }
+
+  .form-group {
+    margin-bottom: var(--space-4);
+  }
+
+  .search-wrapper {
+    flex-direction: column;
+  }
+
+  .search-input {
+    border-radius: var(--radius-md);
+    border-right: 1px solid var(--border-color);
+    margin-bottom: var(--space-2);
+  }
+
+  .search-btn {
+    border-radius: var(--radius-md);
+    width: 100%;
+  }
+
+  .user-item,
+  .request-item {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .request-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .friend-actions {
+    flex-direction: column;
+  }
+
+  .school-actions {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .school-actions .btn {
+    width: 100%;
+  }
+
+  .btn-icon {
+    align-self: flex-end;
+  }
+
   .cropper-body {
     height: 300px;
   }
-  
+
   .cropper-instructions p {
     font-size: 0.75rem;
   }
-  
+
   .cropper-footer button {
     padding: 8px 12px;
     font-size: 0.8rem;
   }
-  
+
   .control-btn {
     width: 32px;
     height: 32px;
   }
-  
-  .zoom-in-icon, .zoom-out-icon, .rotate-left-icon, .rotate-right-icon, .reset-icon {
-    width: 16px;
-    height: 16px;
-  }
-  
+
   .cropper-controls {
-    gap: 5px;
-    padding: 4px 8px;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
   }
 }
-
-.debug-panel {
-  margin-top: 30px;
-  padding: 15px;
-  border: 1px dashed #ccc;
-  border-radius: 8px;
-  background-color: #f9f9f9;
-}
-
-.debug-info {
-  margin-top: 15px;
-  padding: 10px;
-  background-color: #eee;
-  border-radius: 4px;
-  font-family: monospace;
-  white-space: pre-wrap;
-  overflow-x: auto;
-  max-height: 400px;
-  overflow-y: auto;
-}
-</style> 
+</style>

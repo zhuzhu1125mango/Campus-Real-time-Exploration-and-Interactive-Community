@@ -2,15 +2,15 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from .views import (
-    UserViewSet, UserProfileViewSet, debug_avatar, 
+    UserViewSet, UserProfileViewSet, debug_avatar,
     test_static_file, list_avatar_files, test_html_media,
     points_leaderboard
 )
-from .favorites_views import FavoriteViewSet
-from .notifications_views import NotificationViewSet
-from .friendship_views import FriendRequestViewSet, FriendViewSet
-from .messages_views import MessageViewSet
-from .activities_views import ActivityViewSet, ActivityLikeViewSet, ActivityCommentViewSet
+from activities.views import ActivityViewSet, ActivityLikeViewSet, ActivityCommentViewSet
+from favorites.views import FavoriteViewSet
+from friendships.views import FriendRequestViewSet, FriendViewSet
+from private_messages.views import MessageViewSet
+from notifications.views import NotificationViewSet
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')

@@ -15,45 +15,67 @@ from .serializers import (
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from users.permissions import IsOwnerOrAdmin, IsInstructorOrAdmin, IsCourseInstructorOrAdmin
 from users.throttles import SearchThrottle, WriteThrottle
+from users.tasks import queue_update_user_points
+from search.services import SearchService
 from rest_framework.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.utils import IntegrityError
-from django.db.models import F, Avg
+from django.db.models import Q, F, Avg
+from core.base_viewsets import (
+    BaseModelViewSet,
+    PublicReadOnlyModelViewSet,
+    AuthenticatedModelViewSet,
+)
 
 
-class CategoryViewSet(viewsets.ModelViewSet):
+class CategoryViewSet(PublicReadOnlyModelViewSet):
+    """课程分类视图集"""
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+    permission_config = {
+        'list': [AllowAny],
+        'retrieve': [AllowAny],
+        'create': [IsAdminUser],
+        'update': [IsAdminUser],
+        'partial_update': [IsAdminUser],
+        'destroy': [IsAdminUser],
+    }
 
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        return [IsAdminUser()]
 
-
-class CourseViewSet(viewsets.ModelViewSet):
+class CourseViewSet(BaseModelViewSet):
+    """课程视图集"""
     queryset = Course.objects.filter(is_published=True)
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['title', 'description', 'instructor__username']
+    filter_backends = [filters.OrderingFilter]
     ordering_fields = ['created_at', 'enroll_count', 'average_rating', 'price', 'view_count']
     ordering = ['-created_at']
-
-    def get_permissions(self):
-        # 课程列表/详情对游客开放；创建需登录；编辑/删除/发布仅讲师或管理员
-        if self.action in ['list', 'retrieve', 'chapters', 'lessons', 'resources', 'reviews']:
-            return [AllowAny()]
-        if self.action in ['create']:
-            return [IsAuthenticated()]
-        if self.action in ['update', 'partial_update', 'destroy', 'publish', 'unpublish']:
-            return [IsAuthenticated(), IsInstructorOrAdmin()]
-        return [IsAuthenticated()]
-
-    def get_throttles(self):
-        if self.action in ['list', 'retrieve', 'chapters', 'lessons', 'resources', 'reviews']:
-            return [SearchThrottle()]
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'publish', 'unpublish']:
-            return [WriteThrottle()]
-        return super().get_throttles()
+    permission_config = {
+        'list': [AllowAny],
+        'retrieve': [AllowAny],
+        'chapters': [AllowAny],
+        'lessons': [AllowAny],
+        'resources': [AllowAny],
+        'reviews': [AllowAny],
+        'create': [IsAuthenticated],
+        'update': [IsAuthenticated, IsInstructorOrAdmin],
+        'partial_update': [IsAuthenticated, IsInstructorOrAdmin],
+        'destroy': [IsAuthenticated, IsInstructorOrAdmin],
+        'publish': [IsAuthenticated, IsInstructorOrAdmin],
+        'unpublish': [IsAuthenticated, IsInstructorOrAdmin],
+    }
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'chapters': [SearchThrottle],
+        'lessons': [SearchThrottle],
+        'resources': [SearchThrottle],
+        'reviews': [SearchThrottle],
+        'create': [WriteThrottle],
+        'update': [WriteThrottle],
+        'partial_update': [WriteThrottle],
+        'destroy': [WriteThrottle],
+        'publish': [WriteThrottle],
+        'unpublish': [WriteThrottle],
+    }
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -66,9 +88,22 @@ class CourseViewSet(viewsets.ModelViewSet):
         is_free = self.request.query_params.get('is_free')
         if is_free is not None:
             queryset = queryset.filter(is_free=(is_free.lower() == 'true'))
-        
+
+        search = self.request.query_params.get('search')
+        if search:
+            service = SearchService()
+            es_ids = list(service.search_courses(search, limit=200).values_list('pk', flat=True))
+            if es_ids:
+                queryset = queryset.filter(pk__in=es_ids)
+            else:
+                queryset = queryset.filter(
+                    Q(title__icontains=search) |
+                    Q(description__icontains=search) |
+                    Q(instructor__username__icontains=search)
+                )
+
         return queryset
-    
+
     def get_serializer_class(self):
         if self.action == 'create':
             return CourseCreateSerializer
@@ -78,8 +113,15 @@ class CourseViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         # 保存课程并设置讲师为当前用户
-        serializer.save(instructor=self.request.user)
-    
+        course = serializer.save(instructor=self.request.user)
+
+        # 异步发放创建课程积分
+        queue_update_user_points(
+            self.request.user.id,
+            'create_course',
+            description=f'创建课程 {course.title}'
+        )
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsInstructorOrAdmin])
     def publish(self, request, pk=None):
         """讲师或管理员发布课程"""
@@ -125,17 +167,22 @@ class CourseViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class ChapterViewSet(viewsets.ModelViewSet):
+class ChapterViewSet(BaseModelViewSet):
+    """课程章节视图集"""
     queryset = Chapter.objects.all()
-
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'lessons']:
-            return [AllowAny()]
-        return [IsAuthenticated(), IsCourseInstructorOrAdmin()]
+    permission_config = {
+        'list': [AllowAny],
+        'retrieve': [AllowAny],
+        'lessons': [AllowAny],
+        'create': [IsAuthenticated, IsCourseInstructorOrAdmin],
+        'update': [IsAuthenticated, IsCourseInstructorOrAdmin],
+        'partial_update': [IsAuthenticated, IsCourseInstructorOrAdmin],
+        'destroy': [IsAuthenticated, IsCourseInstructorOrAdmin],
+    }
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Chapter.objects.all()
+        queryset = super().get_queryset()
         if user.is_authenticated and (user.is_staff or Course.objects.filter(instructor=user).exists()):
             return queryset
         return queryset.filter(course__is_published=True)
@@ -161,17 +208,22 @@ class ChapterViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
-class LessonViewSet(viewsets.ModelViewSet):
+class LessonViewSet(BaseModelViewSet):
+    """课程课时视图集"""
     queryset = Lesson.objects.all()
-
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'increment_view']:
-            return [AllowAny()]
-        return [IsAuthenticated(), IsCourseInstructorOrAdmin()]
+    permission_config = {
+        'list': [AllowAny],
+        'retrieve': [AllowAny],
+        'increment_view': [AllowAny],
+        'create': [IsAuthenticated, IsCourseInstructorOrAdmin],
+        'update': [IsAuthenticated, IsCourseInstructorOrAdmin],
+        'partial_update': [IsAuthenticated, IsCourseInstructorOrAdmin],
+        'destroy': [IsAuthenticated, IsCourseInstructorOrAdmin],
+    }
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Lesson.objects.all()
+        queryset = super().get_queryset()
         if user.is_authenticated and (user.is_staff or Course.objects.filter(instructor=user).exists()):
             return queryset
         return queryset.filter(chapter__course__is_published=True)
@@ -198,14 +250,15 @@ class LessonViewSet(viewsets.ModelViewSet):
         return Response({'status': 'view_count_incremented'})
 
 
-class EnrollmentViewSet(viewsets.ModelViewSet):
+class EnrollmentViewSet(AuthenticatedModelViewSet):
+    """课程报名视图集"""
     queryset = Enrollment.objects.all()
-    permission_classes = [IsAuthenticated]
-
-    def get_throttles(self):
-        if self.action in ['create', 'complete']:
-            return [WriteThrottle()]
-        return super().get_throttles()
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'create': [WriteThrottle],
+        'complete': [WriteThrottle],
+    }
 
     def get_queryset(self):
         return Enrollment.objects.filter(user=self.request.user)
@@ -256,7 +309,14 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
                 lesson=lesson,
                 defaults={'is_completed': False}
             )
-    
+
+        # 异步发放报名课程积分
+        queue_update_user_points(
+            self.request.user.id,
+            'favorite',
+            description=f'报名课程 {course.title}'
+        )
+
     @action(detail=True, methods=['get'])
     def progress(self, request, pk=None):
         enrollment = self.get_object()
@@ -267,27 +327,40 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
         enrollment = self.get_object()
+        was_completed = enrollment.is_completed
         enrollment.is_completed = True
         enrollment.progress = 100.0
         enrollment.completed_at = timezone.now()
         enrollment.save()
+
+        # 仅在首次完成时发放完成课程积分
+        if not was_completed:
+            queue_update_user_points(
+                request.user.id,
+                'complete_course',
+                description=f'完成课程 {enrollment.course.title}'
+            )
+
         return Response({'status': 'course_completed'})
 
 
-class ProgressViewSet(viewsets.ModelViewSet):
+class ProgressViewSet(AuthenticatedModelViewSet):
+    """学习进度视图集"""
     queryset = Progress.objects.all()
-    permission_classes = [IsAuthenticated]
-
-    def get_throttles(self):
-        if self.action in ['create', 'update', 'partial_update', 'record']:
-            return [WriteThrottle()]
-        return super().get_throttles()
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'create': [WriteThrottle],
+        'update': [WriteThrottle],
+        'partial_update': [WriteThrottle],
+        'record': [WriteThrottle],
+    }
 
     def get_queryset(self):
         return Progress.objects.filter(enrollment__user=self.request.user)
 
     def get_serializer_class(self):
-        if self.action == 'update' or self.action == 'partial_update' or self.action == 'record':
+        if self.action in ['update', 'partial_update', 'record']:
             return ProgressUpdateSerializer
         return ProgressSerializer
 
@@ -331,24 +404,27 @@ class ProgressViewSet(viewsets.ModelViewSet):
         return Response(ProgressSerializer(progress).data)
 
 
-class ReviewViewSet(viewsets.ModelViewSet):
+class ReviewViewSet(BaseModelViewSet):
+    """课程评价视图集"""
     queryset = Review.objects.all()
-
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        if self.action in ['create']:
-            return [IsAuthenticated()]
-        if self.action in ['update', 'partial_update', 'destroy']:
-            return [IsAuthenticated(), IsOwnerOrAdmin()]
-        if self.action in ['approve', 'disapprove']:
-            return [IsAuthenticated(), IsAdminUser()]
-        return [IsAuthenticated()]
-
-    def get_throttles(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [WriteThrottle()]
-        return super().get_throttles()
+    permission_config = {
+        'list': [AllowAny],
+        'retrieve': [AllowAny],
+        'create': [IsAuthenticated],
+        'update': [IsAuthenticated, IsOwnerOrAdmin],
+        'partial_update': [IsAuthenticated, IsOwnerOrAdmin],
+        'destroy': [IsAuthenticated, IsOwnerOrAdmin],
+        'approve': [IsAuthenticated, IsAdminUser],
+        'disapprove': [IsAuthenticated, IsAdminUser],
+    }
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'create': [WriteThrottle],
+        'update': [WriteThrottle],
+        'partial_update': [WriteThrottle],
+        'destroy': [WriteThrottle],
+    }
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -365,6 +441,13 @@ class ReviewViewSet(viewsets.ModelViewSet):
         # 保存评价并更新课程的平均评分
         review = serializer.save(user=self.request.user)
         self._update_course_rating(review.course)
+
+        # 异步发放课程评价积分
+        queue_update_user_points(
+            self.request.user.id,
+            'comment',
+            description=f'评价课程 {review.course.title}'
+        )
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
     def approve(self, request, pk=None):
@@ -385,26 +468,33 @@ class ReviewViewSet(viewsets.ModelViewSet):
         return Response({'status': 'review_disapproved'})
 
 
-class LearningResourceViewSet(viewsets.ModelViewSet):
+class LearningResourceViewSet(BaseModelViewSet):
+    """学习资源视图集"""
     queryset = LearningResource.objects.all()
-
-    def get_permissions(self):
-        # 学习资源列表/详情对游客开放；创建/更新/删除需课程讲师或管理员
-        if self.action in ['list', 'retrieve', 'increment_download']:
-            return [AllowAny()]
-        return [IsAuthenticated(), IsCourseInstructorOrAdmin()]
+    permission_config = {
+        'list': [AllowAny],
+        'retrieve': [AllowAny],
+        'increment_download': [AllowAny],
+        'create': [IsAuthenticated, IsCourseInstructorOrAdmin],
+        'update': [IsAuthenticated, IsCourseInstructorOrAdmin],
+        'partial_update': [IsAuthenticated, IsCourseInstructorOrAdmin],
+        'destroy': [IsAuthenticated, IsCourseInstructorOrAdmin],
+    }
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'create': [WriteThrottle],
+        'update': [WriteThrottle],
+        'partial_update': [WriteThrottle],
+        'destroy': [WriteThrottle],
+    }
 
     def get_queryset(self):
         user = self.request.user
-        queryset = LearningResource.objects.all()
+        queryset = super().get_queryset()
         if user.is_authenticated and (user.is_staff or Course.objects.filter(instructor=user).exists()):
             return queryset
         return queryset.filter(course__is_published=True)
-
-    def get_throttles(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [WriteThrottle()]
-        return super().get_throttles()
 
     def get_serializer_class(self):
         if self.action == 'create':

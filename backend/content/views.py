@@ -2,7 +2,6 @@ from django.db.models import Q, F, Count, Exists, OuterRef
 from rest_framework import viewsets, permissions, status, filters
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from rest_framework.pagination import PageNumberPagination
 from .models import ContentType, Category, Tag, Content, Comment, ContentRevision
 from .serializers import (
     ContentTypeSerializer, CategorySerializer, TagSerializer,
@@ -12,73 +11,94 @@ from .serializers import (
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from users.permissions import IsOwnerOrAdmin
 from users.throttles import SearchThrottle, WriteThrottle
+from users.tasks import queue_update_user_points
+from notifications.notification_sender import notify_forum_event
+from search.services import SearchService
+from core.base_viewsets import (
+    StandardResultsSetPagination,
+    PublicReadOnlyModelViewSet,
+    BaseModelViewSet,
+)
 
 
-class StandardResultsSetPagination(PageNumberPagination):
-    """标准分页类"""
-    page_size = 10
-    page_size_query_param = 'page_size'
-    max_page_size = 100
-
-
-class ContentTypeViewSet(viewsets.ModelViewSet):
+class ContentTypeViewSet(PublicReadOnlyModelViewSet):
+    """内容类型视图集"""
     queryset = ContentType.objects.all()
     serializer_class = ContentTypeSerializer
+    permission_config = {
+        'list': [AllowAny],
+        'retrieve': [AllowAny],
+        'create': [IsAuthenticated, IsAdminUser],
+        'update': [IsAuthenticated, IsAdminUser],
+        'partial_update': [IsAuthenticated, IsAdminUser],
+        'destroy': [IsAuthenticated, IsAdminUser],
+    }
 
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        return [IsAuthenticated(), IsAdminUser()]
 
-
-class CategoryViewSet(viewsets.ModelViewSet):
+class CategoryViewSet(PublicReadOnlyModelViewSet):
+    """内容分类视图集"""
     queryset = Category.objects.filter(is_active=True)
     serializer_class = CategorySerializer
+    permission_config = {
+        'list': [AllowAny],
+        'retrieve': [AllowAny],
+        'create': [IsAuthenticated, IsAdminUser],
+        'update': [IsAuthenticated, IsAdminUser],
+        'partial_update': [IsAuthenticated, IsAdminUser],
+        'destroy': [IsAuthenticated, IsAdminUser],
+    }
 
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        return [IsAuthenticated(), IsAdminUser()]
 
-
-class TagViewSet(viewsets.ModelViewSet):
+class TagViewSet(PublicReadOnlyModelViewSet):
+    """内容标签视图集"""
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
+    permission_config = {
+        'list': [AllowAny],
+        'retrieve': [AllowAny],
+        'create': [IsAuthenticated, IsAdminUser],
+        'update': [IsAuthenticated, IsAdminUser],
+        'partial_update': [IsAuthenticated, IsAdminUser],
+        'destroy': [IsAuthenticated, IsAdminUser],
+    }
 
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        return [IsAuthenticated(), IsAdminUser()]
 
-
-class ContentViewSet(viewsets.ModelViewSet):
+class ContentViewSet(BaseModelViewSet):
+    """内容视图集"""
     queryset = Content.objects.filter(status='published')
-    pagination_class = StandardResultsSetPagination
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['title', 'summary', 'content', 'author__username']
+    filter_backends = [filters.OrderingFilter]
     ordering_fields = ['created_at', 'updated_at', 'view_count', 'like_count', 'comment_count', 'publish_date']
     ordering = ['-created_at']
-
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        if self.action in ['submit', 'create', 'update', 'partial_update', 'destroy', 'my_contents']:
-            return [IsAuthenticated(), IsOwnerOrAdmin()]
-        return [IsAuthenticated(), IsAdminUser()]
-
-    def get_throttles(self):
-        if self.action in ['list', 'retrieve']:
-            return [SearchThrottle()]
-        if self.action in ['create', 'update', 'partial_update', 'destroy', 'submit']:
-            return [WriteThrottle()]
-        return super().get_throttles()
+    select_related_fields = ['content_type', 'category', 'author']
+    prefetch_related_fields = ['tags']
+    permission_config = {
+        'list': [AllowAny],
+        'retrieve': [AllowAny],
+        'submit': [IsAuthenticated, IsOwnerOrAdmin],
+        'create': [IsAuthenticated, IsOwnerOrAdmin],
+        'update': [IsAuthenticated, IsOwnerOrAdmin],
+        'partial_update': [IsAuthenticated, IsOwnerOrAdmin],
+        'destroy': [IsAuthenticated, IsOwnerOrAdmin],
+        'my_contents': [IsAuthenticated, IsOwnerOrAdmin],
+        'approve': [IsAuthenticated, IsAdminUser],
+        'reject': [IsAuthenticated, IsAdminUser],
+        'publish': [IsAuthenticated, IsAdminUser],
+        'unpublish': [IsAuthenticated, IsAdminUser],
+    }
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'create': [WriteThrottle],
+        'update': [WriteThrottle],
+        'partial_update': [WriteThrottle],
+        'destroy': [WriteThrottle],
+        'submit': [WriteThrottle],
+    }
 
     def get_queryset(self):
         user = self.request.user
-        # 预取内容类型、分类、作者、标签，减少 N+1 查询
-        queryset = Content.objects.select_related(
-            'content_type', 'category', 'author'
-        ).prefetch_related('tags')
+        # 预取与 select_related 由基类统一处理；子类追加业务过滤
+        queryset = super().get_queryset()
 
         if not user or not user.is_authenticated:
             # 游客：仅可见已发布内容
@@ -95,6 +115,20 @@ class ContentViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(
                 Q(author=user, status=status_param) | Q(status='published')
             ).distinct()
+
+        search = self.request.query_params.get('search')
+        if search:
+            service = SearchService()
+            es_ids = list(service.search_contents(search, limit=200).values_list('pk', flat=True))
+            if es_ids:
+                queryset = queryset.filter(pk__in=es_ids)
+            else:
+                queryset = queryset.filter(
+                    Q(title__icontains=search) |
+                    Q(summary__icontains=search) |
+                    Q(content__icontains=search) |
+                    Q(author__username__icontains=search)
+                )
 
         return queryset
 
@@ -114,6 +148,13 @@ class ContentViewSet(viewsets.ModelViewSet):
             title=content.title,
             content_text=content.content,
             summary=content.summary
+        )
+
+        # 异步发放内容发布积分
+        queue_update_user_points(
+            self.request.user.id,
+            'post',
+            description='发布内容'
         )
 
     def perform_update(self, serializer):
@@ -189,23 +230,42 @@ class ContentViewSet(viewsets.ModelViewSet):
         return self.get_paginated_response(serializer.data)
 
 
-class CommentViewSet(viewsets.ModelViewSet):
+def _notify_content_comment(comment):
+    """内容被评论时通知内容作者。"""
+    content_author = comment.content.author
+    if content_author and content_author != comment.user:
+        notify_forum_event(
+            recipient=content_author,
+            sender=comment.user,
+            forum_type='content_comment',
+            message=f"{comment.user.username} 评论了你的内容 '{comment.content.title}'",
+            topic=None,
+            post=None,
+        )
+
+
+class CommentViewSet(BaseModelViewSet):
+    """内容评论视图集"""
     queryset = Comment.objects.filter(is_approved=True)
-    pagination_class = StandardResultsSetPagination
-
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        if self.action in ['update', 'partial_update', 'destroy']:
-            return [IsAuthenticated(), IsOwnerOrAdmin()]
-        if self.action in ['approve', 'disapprove']:
-            return [IsAuthenticated(), IsAdminUser()]
-        return [IsAuthenticated()]
-
-    def get_throttles(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [WriteThrottle()]
-        return super().get_throttles()
+    select_related_fields = ['content', 'user', 'parent']
+    permission_config = {
+        'list': [AllowAny],
+        'retrieve': [AllowAny],
+        'create': [IsAuthenticated],
+        'update': [IsAuthenticated, IsOwnerOrAdmin],
+        'partial_update': [IsAuthenticated, IsOwnerOrAdmin],
+        'destroy': [IsAuthenticated, IsOwnerOrAdmin],
+        'approve': [IsAuthenticated, IsAdminUser],
+        'disapprove': [IsAuthenticated, IsAdminUser],
+    }
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'create': [WriteThrottle],
+        'update': [WriteThrottle],
+        'partial_update': [WriteThrottle],
+        'destroy': [WriteThrottle],
+    }
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -213,10 +273,8 @@ class CommentViewSet(viewsets.ModelViewSet):
         return CommentSerializer
 
     def get_queryset(self):
-        # 预取内容、用户、父评论，减少 N+1 查询
-        queryset = Comment.objects.filter(is_approved=True).select_related(
-            'content', 'user', 'parent'
-        )
+        # 预取由基类统一处理；子类追加业务过滤
+        queryset = super().get_queryset()
         content_id = self.request.query_params.get('content')
         if content_id:
             queryset = queryset.filter(content_id=content_id)
@@ -226,7 +284,12 @@ class CommentViewSet(viewsets.ModelViewSet):
         # 保存评论并使用 F() 表达式原子更新内容的评论计数
         comment = serializer.save(user=self.request.user)
         Content.objects.filter(pk=comment.content_id).update(comment_count=F('comment_count') + 1)
-    
+
+        # 默认已通过审核，直接发放积分并通知
+        if comment.is_approved:
+            queue_update_user_points(comment.user.id, 'comment', description='评论内容')
+            _notify_content_comment(comment)
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
     def approve(self, request, pk=None):
         """管理员审核通过评论"""
@@ -235,6 +298,10 @@ class CommentViewSet(viewsets.ModelViewSet):
             comment.is_approved = True
             comment.save()
             Content.objects.filter(pk=comment.content_id).update(comment_count=F('comment_count') + 1)
+
+            # 异步发放评论积分并通知作者
+            queue_update_user_points(comment.user.id, 'comment', description='评论内容')
+            _notify_content_comment(comment)
         return Response({'status': 'approved'})
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])

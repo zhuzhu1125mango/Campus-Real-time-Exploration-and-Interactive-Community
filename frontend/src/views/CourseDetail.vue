@@ -1,74 +1,79 @@
 <template>
-  <div class="course-detail-page">
+  <div class="course-detail-page container-wide page-padding">
     <div v-if="loading" class="loading-state">
       <div class="loading-spinner"></div>
       <p>加载课程中...</p>
     </div>
 
     <template v-else-if="course">
-      <!-- 课程头部 -->
-      <div class="course-hero">
-        <div class="course-hero-inner">
-          <img
-            :src="course.cover_image || defaultCover"
-            :alt="course.title"
-            class="course-cover"
-          />
-          <div class="course-info">
-            <div class="course-badges">
-              <span v-for="cat in course.categories" :key="cat.id" class="badge">{{ cat.name }}</span>
-              <span v-if="course.is_free" class="badge badge-free">免费</span>
-              <span v-else class="badge badge-paid">付费</span>
-            </div>
-            <h1 class="course-title">{{ course.title }}</h1>
-            <p class="course-description">{{ course.description }}</p>
-            <div class="course-meta">
-              <span class="meta-item">
-                <span class="meta-label">讲师</span>
-                <span class="meta-value">{{ course.instructor.username }}</span>
-              </span>
-              <span class="meta-item">
-                <span class="meta-label">评分</span>
-                <span class="meta-value">
-                  <span class="stars">
-                    <span v-for="i in 5" :key="i" class="star" :class="{ filled: i <= Math.round(course.average_rating) }">★</span>
-                  </span>
-                  {{ course.average_rating.toFixed(1) }}
-                </span>
-              </span>
-              <span class="meta-item">
-                <span class="meta-label">报名</span>
-                <span class="meta-value">{{ course.enroll_count }} 人</span>
-              </span>
-              <span class="meta-item">
-                <span class="meta-label">课时</span>
-                <span class="meta-value">{{ course.lesson_count }} 节</span>
-              </span>
-            </div>
-            <div class="course-actions">
-              <template v-if="!userStore.isLoggedIn">
-                <button class="btn btn-primary" @click="goLogin">登录后报名</button>
-              </template>
-              <template v-else-if="course.is_enrolled">
-                <button class="btn btn-primary" @click="startLearning">继续学习</button>
-              </template>
-              <template v-else>
-                <button class="btn btn-primary" :disabled="enrolling" @click="enroll">
-                  {{ enrolling ? '报名中...' : '立即报名' }}
-                </button>
-              </template>
-              <span v-if="!course.is_free" class="course-price">¥{{ course.price }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <SectionHeader
+        :title="course.title"
+        :subtitle="(course.categories.map(c => c.name).join(' / ') || '课程') + ' · 讲师 ' + course.instructor.username"
+        icon="i-ep-reading"
+      />
 
-      <!-- 内容区 -->
-      <div class="course-body">
-        <div class="course-main">
-          <!-- 章节 -->
-          <section class="section chapters-section">
-            <h2 class="section-title">课程章节</h2>
+      <div class="course-layout">
+        <aside class="course-sidebar">
+          <GlassCard :hover="false" padding="none" class="course-info-card">
+            <img
+              :src="course.cover_image || defaultCover"
+              :alt="course.title"
+              class="course-cover"
+            />
+            <div class="course-info-body">
+              <div class="course-badges">
+                <span v-for="cat in course.categories" :key="cat.id" class="badge badge-category">{{ cat.name }}</span>
+                <span v-if="course.is_free" class="badge badge-free">免费</span>
+                <span v-else class="badge badge-paid">付费</span>
+              </div>
+              <p class="course-description">{{ course.description }}</p>
+              <div class="course-meta">
+                <div class="meta-item">
+                  <span class="i-ep-user meta-icon" />
+                  <span class="meta-label">讲师</span>
+                  <span class="meta-value">{{ course.instructor.username }}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="i-ep-star meta-icon" />
+                  <span class="meta-label">评分</span>
+                  <span class="meta-value">
+                    <span class="stars">
+                      <span v-for="i in 5" :key="i" class="i-ep-star star" :class="{ filled: i <= Math.round(course.average_rating) }" />
+                    </span>
+                    {{ course.average_rating.toFixed(1) }}
+                  </span>
+                </div>
+                <div class="meta-item">
+                  <span class="i-ep-check meta-icon" />
+                  <span class="meta-label">报名</span>
+                  <span class="meta-value">{{ course.enroll_count }} 人</span>
+                </div>
+                <div class="meta-item">
+                  <span class="i-ep-video-play meta-icon" />
+                  <span class="meta-label">课时</span>
+                  <span class="meta-value">{{ course.lesson_count }} 节</span>
+                </div>
+              </div>
+              <div class="course-actions">
+                <template v-if="!userStore.isLoggedIn">
+                  <button class="btn btn-primary" @click="goLogin">登录后报名</button>
+                </template>
+                <template v-else-if="course.is_enrolled">
+                  <button class="btn btn-primary" @click="startLearning">继续学习</button>
+                </template>
+                <template v-else>
+                  <button class="btn btn-primary" :disabled="enrolling" @click="enroll">
+                    {{ enrolling ? '报名中...' : '立即报名' }}
+                  </button>
+                </template>
+                <span v-if="!course.is_free" class="course-price">¥{{ course.price }}</span>
+              </div>
+            </div>
+          </GlassCard>
+        </aside>
+
+        <main class="course-main">
+          <GlassCard :hover="false" title="课程章节" class="chapters-card">
             <div v-if="chapters.length === 0" class="empty-state">暂无章节</div>
             <div v-else class="chapter-list">
               <div
@@ -78,7 +83,7 @@
               >
                 <div class="chapter-header" @click="toggleChapter(chapter.id)">
                   <div class="chapter-title-wrap">
-                    <span class="chapter-toggle">{{ isExpanded(chapter.id) ? '▼' : '▶' }}</span>
+                    <span class="chapter-toggle" :class="isExpanded(chapter.id) ? 'i-ep-arrow-down' : 'i-ep-arrow-right'" />
                     <h3 class="chapter-title">{{ chapter.title }}</h3>
                   </div>
                   <span class="chapter-count">{{ chapter.lesson_count }} 课时</span>
@@ -91,7 +96,7 @@
                     :class="{ locked: !canWatchLesson(lesson) }"
                     @click="openLesson(lesson)"
                   >
-                    <span class="lesson-icon">▶</span>
+                    <span class="lesson-icon" :class="canWatchLesson(lesson) ? 'i-ep-video-play' : 'i-ep-lock'" />
                     <span class="lesson-title">{{ lesson.title }}</span>
                     <span v-if="lesson.is_free" class="tag tag-free">免费</span>
                     <span v-else-if="!course.is_enrolled" class="tag tag-lock">锁定</span>
@@ -100,49 +105,50 @@
                 </div>
               </div>
             </div>
-          </section>
+          </GlassCard>
 
-          <!-- 资源 -->
-          <section class="section resources-section">
-            <h2 class="section-title">课程资源</h2>
+          <GlassCard :hover="false" title="课程资源" class="resources-card">
             <div v-if="resources.length === 0" class="empty-state">暂无资源</div>
             <div v-else class="resource-list">
               <div v-for="resource in resources" :key="resource.id" class="resource-item">
                 <div class="resource-info">
-                  <span class="resource-icon">{{ getResourceIcon(resource.file_type) }}</span>
+                  <span class="resource-icon i-ep-document" />
                   <div class="resource-text">
                     <h4>{{ resource.title }}</h4>
                     <p>{{ resource.description || '无描述' }}</p>
                     <span class="resource-meta">{{ resource.file_type.toUpperCase() }} · {{ formatFileSize(resource.file_size) }} · {{ resource.download_count }} 次下载</span>
                   </div>
                 </div>
-                <button class="btn btn-secondary" @click="downloadResource(resource)">下载</button>
+                <button class="btn btn-secondary" @click="downloadResource(resource)">
+                  <span class="i-ep-download" />
+                  下载
+                </button>
               </div>
             </div>
-          </section>
+          </GlassCard>
 
-          <!-- 评价 -->
-          <section class="section reviews-section">
-            <h2 class="section-title">学员评价</h2>
+          <GlassCard :hover="false" title="学员评价" class="reviews-card">
             <div v-if="reviews.length === 0" class="empty-state">暂无评价</div>
             <div v-else class="review-list">
               <div v-for="review in reviews" :key="review.id" class="review-item">
                 <div class="review-header">
+                  <span class="i-ep-user review-user-icon" />
                   <span class="review-user">{{ review.user.username }}</span>
                   <span class="review-rating">
-                    <span v-for="i in 5" :key="i" class="star" :class="{ filled: i <= review.rating }">★</span>
+                    <span v-for="i in 5" :key="i" class="i-ep-star star" :class="{ filled: i <= review.rating }" />
                   </span>
                   <span class="review-time">{{ formatDate(review.created_at) }}</span>
                 </div>
                 <p class="review-comment">{{ review.comment }}</p>
               </div>
             </div>
-          </section>
-        </div>
+          </GlassCard>
+        </main>
       </div>
     </template>
 
     <div v-else class="error-state">
+      <span class="i-ep-warning error-icon" />
       <p>课程加载失败，请稍后重试</p>
       <button class="btn btn-primary" @click="loadCourse">重新加载</button>
     </div>
@@ -165,14 +171,17 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores/userStore'
 import { learningApi } from '../api/learning'
 import { formatDate } from '../utils/date'
+import { getApiErrorMessage } from '../utils/error'
 import LessonPlayer from '../components/LessonPlayer.vue'
+import GlassCard from '@/components/GlassCard.vue'
+import SectionHeader from '@/components/SectionHeader.vue'
 import type { Course, Chapter, Lesson, LearningResource, Review, Enrollment } from '../types/learning'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-const defaultCover = 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=campus%20online%20course%20cover%20image&image_size=landscape_16_9'
+const defaultCover = '/trae-api/api/ide/v1/text_to_image?prompt=campus%20online%20course%20cover%20image&image_size=landscape_16_9'
 
 const course = ref<Course | null>(null)
 const chapters = ref<Chapter[]>([])
@@ -221,9 +230,8 @@ const loadCourse = async () => {
     if (chapters.value.length > 0) {
       expandedChapters.value = [chapters.value[0].id]
     }
-  } catch (error: any) {
-    const msg = error?.response?.data?.detail || '课程加载失败'
-    ElMessage.error(msg)
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '课程加载失败'))
   } finally {
     loading.value = false
   }
@@ -283,9 +291,8 @@ const enroll = async () => {
       course.value.enroll_count += 1
     }
     ElMessage.success('报名成功，开始学习吧！')
-  } catch (error: any) {
-    const msg = error?.response?.data?.detail || error?.response?.data?.non_field_errors?.[0] || '报名失败'
-    ElMessage.error(msg)
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '报名失败'))
   } finally {
     enrolling.value = false
   }
@@ -347,16 +354,6 @@ const formatFileSize = (size: number): string => {
   return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
-const getResourceIcon = (fileType: string): string => {
-  const type = fileType.toLowerCase()
-  if (type.includes('pdf')) return '📄'
-  if (type.includes('doc') || type.includes('word')) return '📝'
-  if (type.includes('video')) return '🎥'
-  if (type.includes('audio')) return '🎵'
-  if (type.includes('zip') || type.includes('rar')) return '📦'
-  return '📎'
-}
-
 onMounted(() => {
   loadCourse()
 })
@@ -364,8 +361,7 @@ onMounted(() => {
 
 <style scoped>
 .course-detail-page {
-  min-height: 100vh;
-  background: #f5f7fa;
+  min-height: calc(100vh - 200px);
 }
 
 .loading-state,
@@ -374,213 +370,213 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 60vh;
-  color: #666;
+  padding: var(--space-12) 0;
+  text-align: center;
+  color: var(--text-secondary);
+  gap: var(--space-3);
 }
 
 .loading-spinner {
   width: 48px;
   height: 48px;
-  border: 4px solid rgba(67, 97, 238, 0.2);
-  border-top-color: #4361ee;
+  border: 4px solid var(--primary-200);
+  border-top-color: var(--primary-600);
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-.course-hero {
-  background: linear-gradient(135deg, #4361ee 0%, #3a56d4 100%);
-  color: #fff;
-  padding: 48px 24px;
+.error-icon {
+  font-size: 2.5rem;
+  color: var(--warning-color);
 }
 
-.course-hero-inner {
-  max-width: 1200px;
-  margin: 0 auto;
+.course-layout {
   display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 40px;
+  grid-template-columns: 340px 1fr;
+  gap: var(--space-6);
   align-items: start;
+}
+
+.course-info-card {
+  overflow: hidden;
 }
 
 .course-cover {
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-  border-radius: 12px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+  display: block;
 }
 
-.course-info {
+.course-info-body {
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .course-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .badge {
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-  background: rgba(255, 255, 255, 0.2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-category {
+  background-color: var(--primary-100);
+  color: var(--primary-700);
 }
 
 .badge-free {
-  background: #27ae60;
+  background-color: var(--success-bg);
+  color: var(--success-color);
 }
 
 .badge-paid {
-  background: #e74c3c;
-}
-
-.course-title {
-  font-size: 32px;
-  font-weight: 700;
-  line-height: 1.2;
-  margin: 0;
+  background-color: var(--error-bg);
+  color: var(--error-color);
 }
 
 .course-description {
-  font-size: 16px;
-  line-height: 1.6;
-  opacity: 0.9;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
   margin: 0;
 }
 
 .course-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
 }
 
 .meta-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
+}
+
+.meta-icon {
+  font-size: 1.1rem;
+  color: var(--primary-500);
 }
 
 .meta-label {
-  font-size: 12px;
-  opacity: 0.7;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
 }
 
 .meta-value {
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .stars {
   display: inline-flex;
   gap: 2px;
+  margin-right: var(--space-1);
 }
 
 .star {
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 14px;
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
 }
 
 .star.filled {
-  color: #ffc107;
+  color: var(--warning-color);
 }
 
 .course-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-top: 8px;
-}
-
-.btn {
-  padding: 12px 28px;
-  border-radius: 8px;
-  border: none;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: #fff;
-  color: #4361ee;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #f0f3ff;
-  transform: translateY(-1px);
-}
-
-.btn-secondary {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.25);
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .course-price {
-  font-size: 24px;
+  font-size: 1.5rem;
   font-weight: 700;
-}
-
-.course-body {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 32px 24px 60px;
+  color: var(--primary-600);
 }
 
 .course-main {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--space-6);
 }
 
-.section {
-  background: #fff;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
 }
 
-.section-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #333;
-  margin: 0 0 20px;
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: var(--primary-600);
+  color: var(--text-inverse);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-700);
+}
+
+.btn-secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--border-color);
+}
+
+.btn-danger {
+  background-color: var(--error-color);
+  color: var(--text-inverse);
+}
+
+.btn-danger:hover:not(:disabled) {
+  filter: brightness(0.92);
 }
 
 .empty-state {
   text-align: center;
-  padding: 40px;
-  color: #999;
+  padding: var(--space-8) 0;
+  color: var(--text-tertiary);
 }
 
 .chapter-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .chapter-card {
-  border: 1px solid #e8e8e8;
-  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
@@ -588,49 +584,49 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  background: #f9fafc;
+  padding: var(--space-4) var(--space-5);
+  background-color: var(--bg-tertiary);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background-color 0.2s;
 }
 
 .chapter-header:hover {
-  background: #f0f3ff;
+  background-color: var(--border-color-light);
 }
 
 .chapter-title-wrap {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
 }
 
 .chapter-toggle {
-  font-size: 12px;
-  color: #666;
+  font-size: 0.85rem;
+  color: var(--text-tertiary);
 }
 
 .chapter-title {
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .chapter-count {
-  font-size: 13px;
-  color: #888;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
 }
 
 .lesson-list {
-  padding: 8px 20px;
+  padding: var(--space-2) var(--space-5);
 }
 
 .lesson-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid #f0f0f0;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-color-light);
   cursor: pointer;
   transition: color 0.2s;
 }
@@ -640,154 +636,170 @@ onMounted(() => {
 }
 
 .lesson-item:hover:not(.locked) {
-  color: #4361ee;
+  color: var(--primary-600);
 }
 
 .lesson-item.locked {
-  color: #999;
+  color: var(--text-tertiary);
   cursor: not-allowed;
 }
 
 .lesson-icon {
-  font-size: 12px;
-  color: #4361ee;
+  font-size: 0.85rem;
+  color: var(--primary-600);
 }
 
 .lesson-item.locked .lesson-icon {
-  color: #bbb;
+  color: var(--text-tertiary);
 }
 
 .lesson-title {
   flex: 1;
-  font-size: 14px;
+  font-size: 0.9rem;
 }
 
 .tag {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 12px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  font-weight: 600;
 }
 
 .tag-free {
-  background: #e8f8ef;
-  color: #27ae60;
+  background-color: var(--success-bg);
+  color: var(--success-color);
 }
 
 .tag-lock {
-  background: #f2f2f2;
-  color: #888;
+  background-color: var(--bg-tertiary);
+  color: var(--text-tertiary);
 }
 
 .lesson-duration {
-  font-size: 12px;
-  color: #888;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
 }
 
 .resource-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .resource-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  border: 1px solid #f0f0f0;
-  border-radius: 8px;
+  padding: var(--space-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
 }
 
 .resource-info {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .resource-icon {
-  font-size: 24px;
+  font-size: 1.5rem;
+  color: var(--text-tertiary);
 }
 
 .resource-text h4 {
-  font-size: 15px;
+  font-size: 0.95rem;
   font-weight: 600;
-  color: #333;
-  margin: 0 0 4px;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-1) 0;
 }
 
 .resource-text p {
-  font-size: 13px;
-  color: #666;
-  margin: 0 0 6px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-1) 0;
 }
 
 .resource-meta {
-  font-size: 12px;
-  color: #999;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
 }
 
 .review-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .review-item {
-  padding: 16px;
-  background: #f9fafc;
-  border-radius: 8px;
+  padding: var(--space-4);
+  background-color: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
 }
 
 .review-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.review-user-icon {
+  font-size: 0.9rem;
+  color: var(--text-tertiary);
 }
 
 .review-user {
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
+}
+
+.review-rating {
+  display: inline-flex;
+  gap: 2px;
 }
 
 .review-rating .star {
-  color: #ddd;
-}
-
-.review-rating .star.filled {
-  color: #ffc107;
+  font-size: 0.8rem;
 }
 
 .review-time {
-  font-size: 12px;
-  color: #999;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
   margin-left: auto;
 }
 
 .review-comment {
-  font-size: 14px;
-  color: #555;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 @media (max-width: 768px) {
-  .course-hero-inner {
+  .course-layout {
     grid-template-columns: 1fr;
   }
 
-  .course-title {
-    font-size: 24px;
+  .course-info-body {
+    padding: var(--space-4);
   }
 
   .course-meta {
-    gap: 16px;
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .resource-item {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: var(--space-3);
+  }
+
+  .chapter-header {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .lesson-list {
+    padding: var(--space-2) var(--space-4);
   }
 }
 </style>

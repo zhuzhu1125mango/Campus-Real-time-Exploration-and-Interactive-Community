@@ -21,7 +21,7 @@
         <div class="rank-badge">{{ index + 1 }}</div>
         <div class="user-avatar">
           <img 
-            :src="item.avatar || 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'" 
+            :src="item.avatar || '/trae-api/api/ide/v1/text_to_image?prompt=user%20avatar%20placeholder&image_size=square'" 
             :alt="item.username"
           />
         </div>

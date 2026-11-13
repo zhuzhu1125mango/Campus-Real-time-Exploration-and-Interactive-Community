@@ -4,7 +4,10 @@ import { useRouter } from 'vue-router'
 import { contentApi } from '../api/content'
 import RichTextEditor from '../components/RichTextEditor.vue'
 import config from '../utils/config'
+import { getApiErrorMessage } from '../utils/error'
 import type { ContentType, Category, Tag } from '../types/content'
+import GlassCard from '../components/GlassCard.vue'
+import SectionHeader from '../components/SectionHeader.vue'
 
 const router = useRouter()
 
@@ -99,9 +102,9 @@ const submitContent = async () => {
 
     const response = await contentApi.createContent(formData)
     router.push(`/content/${response.id}`)
-  } catch (err: any) {
+  } catch (err) {
     console.error('发布内容失败', err)
-    error.value = err?.response?.data?.detail || '发布内容失败，请稍后重试'
+    error.value = getApiErrorMessage(err, '发布内容失败，请稍后重试')
   } finally {
     submitting.value = false
   }
@@ -117,118 +120,116 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="content-create-page">
-    <div class="create-header">
-      <div class="header-inner">
-        <button class="back-link" @click="goBack">← 返回内容中心</button>
-        <h1>发布内容</h1>
-        <p>分享你的校园故事、经验与知识</p>
+  <div class="content-create-page container-medium page-padding">
+    <SectionHeader
+      title="发布内容"
+      subtitle="分享你的校园故事、经验与知识"
+      icon="i-ep-edit-pen"
+      :action="{ label: '返回内容中心', onClick: goBack }"
+    />
+
+    <GlassCard :hover="false" class="create-form-card">
+      <div v-if="error" class="error-message">{{ error }}</div>
+
+      <div class="form-group">
+        <label for="title">标题 <span class="required">*</span></label>
+        <input
+          id="title"
+          v-model="title"
+          type="text"
+          placeholder="请输入内容标题"
+          class="form-input"
+        />
       </div>
-    </div>
 
-    <div class="create-body">
-      <div class="create-form">
-        <div v-if="error" class="error-message">{{ error }}</div>
-
+      <div class="form-row">
         <div class="form-group">
-          <label for="title">标题 <span class="required">*</span></label>
-          <input
-            id="title"
-            v-model="title"
-            type="text"
-            placeholder="请输入内容标题"
-            class="form-input"
-          />
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="contentType">内容类型 <span class="required">*</span></label>
-            <select id="contentType" v-model="contentTypeId" class="form-select">
-              <option v-for="type in contentTypes" :key="type.id" :value="String(type.id)">
-                {{ type.name }}
-              </option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label for="category">分类</label>
-            <select id="category" v-model="categoryId" class="form-select">
-              <option value="">请选择分类</option>
-              <option v-for="category in categories" :key="category.id" :value="String(category.id)">
-                {{ category.name }}
-              </option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>标签</label>
-          <div class="tags-select">
-            <label
-              v-for="tag in tags"
-              :key="tag.id"
-              class="tag-checkbox"
-              :class="{ selected: selectedTags.includes(tag.id) }"
-            >
-              <input
-                v-model="selectedTags"
-                type="checkbox"
-                :value="tag.id"
-              />
-              {{ tag.name }}
-            </label>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="summary">摘要</label>
-          <textarea
-            id="summary"
-            v-model="summary"
-            placeholder="简要描述内容要点（可选）"
-            class="form-textarea"
-            rows="3"
-          ></textarea>
-        </div>
-
-        <div class="form-group">
-          <label>内容 <span class="required">*</span></label>
-          <RichTextEditor v-model="content" placeholder="请输入内容..." />
-        </div>
-
-        <div class="form-group">
-          <label for="featuredImage">特色图片</label>
-          <input
-            id="featuredImage"
-            type="file"
-            accept="image/*"
-            class="form-file"
-            @change="handleImageChange"
-          />
-          <p class="form-tip">支持 JPG、PNG 格式图片</p>
-        </div>
-
-        <div class="form-group form-inline">
-          <label for="status">发布方式</label>
-          <select id="status" v-model="status" class="form-select">
-            <option value="draft">保存为草稿</option>
-            <option value="pending">提交审核</option>
+          <label for="contentType">内容类型 <span class="required">*</span></label>
+          <select id="contentType" v-model="contentTypeId" class="form-select">
+            <option v-for="type in contentTypes" :key="type.id" :value="String(type.id)">
+              {{ type.name }}
+            </option>
           </select>
         </div>
 
-        <div class="form-actions">
-          <button class="btn btn-secondary" @click="goBack">取消</button>
-          <button
-            class="btn btn-primary"
-            :disabled="submitting"
-            @click="submitContent"
-          >
-            {{ submitting ? '发布中...' : '发布内容' }}
-          </button>
+        <div class="form-group">
+          <label for="category">分类</label>
+          <select id="category" v-model="categoryId" class="form-select">
+            <option value="">请选择分类</option>
+            <option v-for="category in categories" :key="category.id" :value="String(category.id)">
+              {{ category.name }}
+            </option>
+          </select>
         </div>
       </div>
-    </div>
+
+      <div class="form-group">
+        <label>标签</label>
+        <div class="tags-select">
+          <label
+            v-for="tag in tags"
+            :key="tag.id"
+            class="tag-checkbox"
+            :class="{ selected: selectedTags.includes(tag.id) }"
+          >
+            <input
+              v-model="selectedTags"
+              type="checkbox"
+              :value="tag.id"
+            />
+            {{ tag.name }}
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="summary">摘要</label>
+        <textarea
+          id="summary"
+          v-model="summary"
+          placeholder="简要描述内容要点（可选）"
+          class="form-textarea"
+          rows="3"
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>内容 <span class="required">*</span></label>
+        <RichTextEditor v-model="content" placeholder="请输入内容..." />
+      </div>
+
+      <div class="form-group">
+        <label for="featuredImage">特色图片</label>
+        <input
+          id="featuredImage"
+          type="file"
+          accept="image/*"
+          class="form-file"
+          @change="handleImageChange"
+        />
+        <p class="form-tip">支持 JPG、PNG 格式图片</p>
+      </div>
+
+      <div class="form-group form-inline">
+        <label for="status">发布方式</label>
+        <select id="status" v-model="status" class="form-select">
+          <option value="draft">保存为草稿</option>
+          <option value="pending">提交审核</option>
+        </select>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-secondary" @click="goBack">取消</button>
+        <button
+          class="btn btn-primary"
+          :disabled="submitting"
+          @click="submitContent"
+        >
+          <span v-if="submitting" class="loading-spinner small"></span>
+          <span>{{ submitting ? '发布中...' : '发布内容' }}</span>
+        </button>
+      </div>
+    </GlassCard>
   </div>
 </template>
 
@@ -237,180 +238,159 @@ onMounted(() => {
   min-height: calc(100vh - 200px);
 }
 
-.create-header {
-  background: linear-gradient(135deg, #4361ee 0%, #3a0ca3 100%);
-  color: white;
-  padding: 3rem 2rem;
-}
-
-.header-inner {
+.create-form-card {
   max-width: 900px;
   margin: 0 auto;
-}
-
-.back-link {
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.85);
-  cursor: pointer;
-  font-size: 0.95rem;
-  margin-bottom: 1rem;
-  padding: 0;
-}
-
-.back-link:hover {
-  color: white;
-}
-
-.create-header h1 {
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-}
-
-.create-header p {
-  opacity: 0.9;
-}
-
-.create-body {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-.create-form {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .form-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--space-5);
 }
 
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 
 label {
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-2);
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .required {
-  color: #e74c3c;
+  color: var(--error-color);
 }
 
 .form-input,
 .form-select,
 .form-textarea {
   width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
   font-size: 1rem;
-  transition: border-color 0.3s;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .form-input:focus,
 .form-select:focus,
 .form-textarea:focus {
   outline: none;
-  border-color: #4361ee;
+  border-color: var(--primary-400);
+  box-shadow: 0 0 0 3px var(--primary-100);
+}
+
+.dark .form-input:focus,
+.dark .form-select:focus,
+.dark .form-textarea:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
 .form-file {
-  padding: 0.5rem 0;
+  padding: var(--space-2) 0;
+  color: var(--text-secondary);
 }
 
 .form-tip {
-  color: #999;
+  color: var(--text-tertiary);
   font-size: 0.85rem;
-  margin-top: 0.25rem;
+  margin-top: var(--space-1);
 }
 
 .tags-select {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .tag-checkbox {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.4rem 0.75rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 20px;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s;
   font-size: 0.9rem;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
 }
 
 .tag-checkbox input {
   display: none;
 }
 
+.tag-checkbox:hover {
+  border-color: var(--primary-300);
+  color: var(--primary-600);
+}
+
 .tag-checkbox.selected {
-  background-color: rgba(67, 97, 238, 0.1);
-  border-color: #4361ee;
-  color: #4361ee;
+  background-color: var(--primary-50);
+  border-color: var(--primary-500);
+  color: var(--primary-600);
+}
+
+.dark .tag-checkbox.selected {
+  background-color: var(--bg-tertiary);
+  border-color: var(--primary-400);
+  color: var(--primary-400);
 }
 
 .form-inline {
   display: flex;
   align-items: center;
+  gap: var(--space-4);
 }
 
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
+.form-inline label {
   margin-bottom: 0;
-}
-
-.checkbox-label input {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
+  white-space: nowrap;
 }
 
 .error-message {
-  background-color: #fdeaea;
-  color: #e74c3c;
-  padding: 1rem;
-  border-radius: 6px;
-  margin-bottom: 1.5rem;
+  background-color: var(--error-bg);
+  color: var(--error-color);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-5);
 }
 
 .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 1rem;
-  margin-top: 2rem;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border-color-light);
 }
 
 .btn {
-  padding: 0.75rem 1.5rem;
-  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-lg);
   font-weight: 500;
   cursor: pointer;
   border: none;
-  transition: all 0.3s;
+  transition: all 0.2s;
 }
 
 .btn-primary {
-  background-color: #4361ee;
+  background-color: var(--primary-600);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #3a56d4;
+  background-color: var(--primary-700);
 }
 
 .btn-primary:disabled {
@@ -419,12 +399,31 @@ label {
 }
 
 .btn-secondary {
-  background-color: #f0f0f0;
-  color: #333;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .btn-secondary:hover {
-  background-color: #e0e0e0;
+  background-color: var(--border-color-light);
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s ease-in-out infinite;
+}
+
+.loading-spinner.small {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 768px) {
@@ -432,8 +431,18 @@ label {
     grid-template-columns: 1fr;
   }
 
-  .create-form {
-    padding: 1.25rem;
+  .form-inline {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .btn {
+    width: 100%;
   }
 }
 </style>

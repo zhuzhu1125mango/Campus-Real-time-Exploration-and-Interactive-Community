@@ -3,6 +3,8 @@ from django.conf import settings
 from django.utils import timezone
 from django.urls import reverse
 
+from core.html_sanitizer import sanitize_html
+
 
 class ContentType(models.Model):
     """内容类型模型"""
@@ -110,6 +112,11 @@ class Content(models.Model):
 
         if self.is_published and not self.publish_date:
             self.publish_date = timezone.now()
+
+        # 清洗用户可输入的富文本字段
+        self.content = sanitize_html(self.content)
+        self.summary = sanitize_html(self.summary)
+
         super().save(*args, **kwargs)
 
 
@@ -131,6 +138,10 @@ class Comment(models.Model):
     def __str__(self):
         return f'评论 by {self.user.username} on {self.content.title}'
 
+    def save(self, *args, **kwargs):
+        self.content_text = sanitize_html(self.content_text)
+        super().save(*args, **kwargs)
+
 
 class ContentRevision(models.Model):
     """内容修订历史模型"""
@@ -148,3 +159,7 @@ class ContentRevision(models.Model):
 
     def __str__(self):
         return f'Revision for {self.content.title} at {self.created_at}'
+
+    def save(self, *args, **kwargs):
+        self.content_text = sanitize_html(self.content_text)
+        super().save(*args, **kwargs)

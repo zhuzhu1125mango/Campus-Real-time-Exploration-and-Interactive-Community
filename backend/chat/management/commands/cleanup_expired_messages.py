@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from datetime import timedelta
 from chat.models import ChatMessage
-from users.messages import Message
+from private_messages.models import Message
 import logging
 
 logger = logging.getLogger(__name__)

@@ -11,16 +11,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RenameIndex(
-            model_name='message',
-            new_name='users_messa_sender__f013b9_idx',
-            old_name='users_messag_sender__6c4c50_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='message',
-            new_name='users_messa_receive_a27d12_idx',
-            old_name='users_messag_receive_3e2c3e_idx',
-        ),
+        # Message 索引已迁移到 private_messages app，此处仅保留 User 字段调整。
         migrations.AlterField(
             model_name='user',
             name='avatar',

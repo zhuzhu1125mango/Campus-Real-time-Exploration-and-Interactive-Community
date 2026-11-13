@@ -6,7 +6,10 @@ import 'leaflet/dist/leaflet.css'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { schoolApi } from '@/api/school'
 import { useUserStore } from '@/stores/userStore'
+import { getApiErrorMessage } from '@/utils/error'
 import type { Place, Event as SchoolEvent, PlaceCategory } from '@/types/school'
+import GlassCard from '@/components/GlassCard.vue'
+import SectionHeader from '@/components/SectionHeader.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -243,9 +246,8 @@ const handleCheckIn = async () => {
     selectedPlace.value.checkin_count += 1
     checkInNote.value = ''
     fetchNearbyPlaces()
-  } catch (error: any) {
-    const msg = error?.response?.data?.detail || '打卡失败'
-    ElMessage.error(msg)
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '打卡失败'))
   } finally {
     checkingIn.value = false
   }
@@ -264,45 +266,50 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="explore-page">
-    <div class="explore-header">
-      <h1>校园探索</h1>
-      <p>发现附近地点、活动，打卡解锁积分</p>
-    </div>
+  <div class="explore-page container-wide page-padding">
+    <SectionHeader
+      title="校园探索"
+      subtitle="发现附近地点、活动，打卡解锁积分"
+      icon="i-mdi-map-marker-radius"
+    />
 
-    <div class="explore-toolbar">
-      <div class="toolbar-left">
-        <label>范围: {{ radius }}km</label>
-        <input
-          type="range"
-          min="1"
-          max="20"
-          v-model.number="radius"
-          @change="onRadiusChange"
-        />
+    <GlassCard class="toolbar-card" :hover="false">
+      <div class="explore-toolbar">
+        <div class="toolbar-left">
+          <label class="toolbar-label">范围: {{ radius }}km</label>
+          <input
+            type="range"
+            min="1"
+            max="20"
+            v-model.number="radius"
+            @change="onRadiusChange"
+            class="radius-slider"
+          />
+        </div>
+        <div class="toolbar-center">
+          <button
+            class="tab-btn"
+            :class="{ active: activeTab === 'places' }"
+            @click="activeTab = 'places'"
+          >
+            附近地点
+          </button>
+          <button
+            class="tab-btn"
+            :class="{ active: activeTab === 'events' }"
+            @click="activeTab = 'events'"
+          >
+            附近活动
+          </button>
+        </div>
+        <div class="toolbar-right">
+          <button class="locate-btn" @click="locateUser" :disabled="loadingLocation">
+            <span class="btn-icon i-mdi-crosshairs-gps" />
+            {{ loadingLocation ? '定位中...' : '重新定位' }}
+          </button>
+        </div>
       </div>
-      <div class="toolbar-center">
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'places' }"
-          @click="activeTab = 'places'"
-        >
-          附近地点
-        </button>
-        <button
-          class="tab-btn"
-          :class="{ active: activeTab === 'events' }"
-          @click="activeTab = 'events'"
-        >
-          附近活动
-        </button>
-      </div>
-      <div class="toolbar-right">
-        <button class="locate-btn" @click="locateUser" :disabled="loadingLocation">
-          {{ loadingLocation ? '定位中...' : '重新定位' }}
-        </button>
-      </div>
-    </div>
+    </GlassCard>
 
     <div class="explore-body">
       <div class="map-section">
@@ -314,9 +321,9 @@ onUnmounted(() => {
       </div>
 
       <aside class="sidebar">
-        <div v-if="activeTab === 'places'" class="panel">
+        <GlassCard v-if="activeTab === 'places'" class="panel-card" :hover="false">
           <div class="filter-row">
-            <select v-model="selectedCategory" @change="onCategoryChange">
+            <select v-model="selectedCategory" @change="onCategoryChange" class="category-select">
               <option v-for="opt in categoryOptions" :key="opt.value" :value="opt.value">
                 {{ opt.label }}
               </option>
@@ -327,7 +334,8 @@ onUnmounted(() => {
             <el-skeleton :rows="5" animated />
           </div>
           <div v-else-if="filteredPlaces.length === 0" class="panel-empty">
-            附近暂无地点
+            <span class="empty-icon i-mdi-map-marker-off-outline" />
+            <p>附近暂无地点</p>
           </div>
           <ul v-else class="place-list">
             <li
@@ -347,14 +355,15 @@ onUnmounted(() => {
               </div>
             </li>
           </ul>
-        </div>
+        </GlassCard>
 
-        <div v-else class="panel">
+        <GlassCard v-else class="panel-card" :hover="false">
           <div v-if="loadingEvents" class="panel-loading">
             <el-skeleton :rows="5" animated />
           </div>
           <div v-else-if="events.length === 0" class="panel-empty">
-            附近暂无活动
+            <span class="empty-icon i-mdi-calendar-blank-outline" />
+            <p>附近暂无活动</p>
           </div>
           <ul v-else class="event-list">
             <li v-for="event in events" :key="event.id" class="event-item" @click="viewEvent(event)">
@@ -363,10 +372,10 @@ onUnmounted(() => {
               <p class="event-time">{{ event.start_time }} 开始</p>
             </li>
           </ul>
-        </div>
+        </GlassCard>
 
-        <div v-if="selectedPlace && activeTab === 'places'" class="detail-card">
-          <h3>{{ selectedPlace.name }}</h3>
+        <GlassCard v-if="selectedPlace && activeTab === 'places'" class="detail-card" :hover="false">
+          <h3 class="detail-title">{{ selectedPlace.name }}</h3>
           <p class="detail-meta">{{ selectedPlace.category_display }} · {{ selectedPlace.distance !== undefined ? `${selectedPlace.distance}km` : '' }}</p>
           <p v-if="selectedPlace.description" class="detail-desc">{{ selectedPlace.description }}</p>
           <p v-if="selectedPlace.address" class="detail-address">
@@ -378,13 +387,14 @@ onUnmounted(() => {
               :disabled="selectedPlace.is_checked_in_today || checkingIn"
               @click="handleCheckIn"
             >
+              <span v-if="!selectedPlace.is_checked_in_today" class="btn-icon i-mdi-check-circle-outline" />
               {{ selectedPlace.is_checked_in_today ? '今日已打卡' : (checkingIn ? '打卡中...' : '立即打卡') }}
             </button>
           </div>
           <div v-if="!selectedPlace.is_checked_in_today" class="checkin-note">
             <input v-model="checkInNote" placeholder="写点打卡感想（可选）" maxlength="100" />
           </div>
-        </div>
+        </GlassCard>
       </aside>
     </div>
   </div>
@@ -392,24 +402,11 @@ onUnmounted(() => {
 
 <style scoped>
 .explore-page {
-  padding: var(--space-6);
   max-width: 1400px;
-  margin: 0 auto;
 }
 
-.explore-header {
+.toolbar-card {
   margin-bottom: var(--space-6);
-}
-
-.explore-header h1 {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: var(--space-2);
-}
-
-.explore-header p {
-  color: var(--text-secondary);
 }
 
 .explore-toolbar {
@@ -417,11 +414,6 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  background: var(--bg-primary);
-  padding: var(--space-4);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  margin-bottom: var(--space-6);
   flex-wrap: wrap;
 }
 
@@ -431,8 +423,16 @@ onUnmounted(() => {
   gap: var(--space-3);
 }
 
-.toolbar-left input[type="range"] {
+.toolbar-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.radius-slider {
   width: 150px;
+  accent-color: var(--primary-500);
 }
 
 .toolbar-center {
@@ -455,16 +455,25 @@ onUnmounted(() => {
 }
 
 .locate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-md);
   background: var(--primary-500);
   color: var(--text-inverse);
   font-weight: 500;
+  transition: opacity 0.2s;
 }
 
 .locate-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+.btn-icon {
+  width: 18px;
+  height: 18px;
 }
 
 .explore-body {
@@ -476,10 +485,11 @@ onUnmounted(() => {
 
 .map-section {
   position: relative;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
   background: var(--bg-primary);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-card);
 }
 
 .map-container {
@@ -495,8 +505,11 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   gap: var(--space-4);
+  color: var(--text-primary);
 }
 
 .spinner {
@@ -518,14 +531,9 @@ onUnmounted(() => {
   gap: var(--space-4);
 }
 
-.panel {
-  background: var(--bg-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  padding: var(--space-4);
+.panel-card {
   flex: 1;
   min-height: 300px;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -534,12 +542,20 @@ onUnmounted(() => {
   margin-bottom: var(--space-4);
 }
 
-.filter-row select {
+.category-select {
   width: 100%;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   font-size: 0.9rem;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.category-select:focus {
+  border-color: var(--primary-500);
 }
 
 .panel-loading {
@@ -549,9 +565,16 @@ onUnmounted(() => {
 .panel-empty {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-3);
   color: var(--text-tertiary);
+}
+
+.empty-icon {
+  width: 48px;
+  height: 48px;
 }
 
 .place-list,
@@ -575,6 +598,12 @@ onUnmounted(() => {
 .event-item:hover,
 .place-item.active {
   background: var(--primary-50);
+}
+
+.dark .place-item:hover,
+.dark .event-item:hover,
+.dark .place-item.active {
+  background: rgba(37, 99, 235, 0.12);
 }
 
 .place-info h4,
@@ -614,17 +643,20 @@ onUnmounted(() => {
   border-radius: var(--radius-full);
 }
 
+.dark .checkin-count {
+  color: var(--primary-400);
+  background: rgba(37, 99, 235, 0.12);
+}
+
 .detail-card {
-  background: var(--bg-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
   padding: var(--space-5);
 }
 
-.detail-card h3 {
+.detail-title {
   font-size: 1.2rem;
   font-weight: 700;
   margin-bottom: var(--space-2);
+  color: var(--text-primary);
 }
 
 .detail-meta {
@@ -651,6 +683,10 @@ onUnmounted(() => {
 
 .checkin-btn {
   width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   padding: var(--space-3);
   border-radius: var(--radius-md);
   background: var(--success-color);
@@ -670,6 +706,14 @@ onUnmounted(() => {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   font-size: 0.9rem;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.checkin-note input:focus {
+  border-color: var(--primary-500);
 }
 
 @media (max-width: 1024px) {
@@ -683,10 +727,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 640px) {
-  .explore-page {
-    padding: var(--space-4);
-  }
-
   .explore-toolbar {
     flex-direction: column;
     align-items: stretch;

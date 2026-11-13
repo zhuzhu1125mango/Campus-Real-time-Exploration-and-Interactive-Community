@@ -10,7 +10,6 @@ import os
 from django.http import HttpResponse
 from datetime import datetime
 from django.shortcuts import get_object_or_404
-from django.db.models import Q, F
 from django.db import transaction
 
 from .serializers import (
@@ -23,15 +22,78 @@ from forum.models import Topic, Post
 from forum.serializers import TopicListSerializer, PostSerializer
 from users.permissions import IsOwnerOrAdmin
 from users.throttles import LoginThrottle, CodeSendThrottle, SearchThrottle, WriteThrottle
+from users.tasks import queue_update_user_points
+from search.services import SearchService
+from core.base_viewsets import BaseModelViewSet
 
 User = get_user_model()
 
 
-class UserViewSet(viewsets.ModelViewSet):
+def _award_login_points_if_needed(user):
+    """每日首次登录发放积分（幂等，按自然天判断）。
+
+    积分任务通过 Celery 异步执行；若 broker（如 Redis）不可用，不应阻塞登录流程。
+    """
+    from datetime import time as dt_time, timedelta
+    from .models import PointsRecord
+
+    today = timezone.now().date()
+    today_start = timezone.make_aware(datetime.combine(today, dt_time.min))
+    today_end = timezone.make_aware(datetime.combine(today + timedelta(days=1), dt_time.min))
+
+    has_login_points = PointsRecord.objects.filter(
+        user=user,
+        action='login',
+        created_at__range=(today_start, today_end)
+    ).exists()
+
+    if not has_login_points:
+        try:
+            queue_update_user_points(user.id, 'login')
+        except Exception as exc:
+            # broker 不可用时仅记录日志，不影响登录
+            import logging
+            logging.getLogger(__name__).warning(
+                f"登录积分任务投递失败，用户仍可正常登录: user={user.id}, exc={exc}"
+            )
+
+
+class UserViewSet(BaseModelViewSet):
+    """用户视图集"""
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+
+    permission_config = {
+        'create': [permissions.AllowAny],
+        'retrieve': [permissions.AllowAny],
+        'update': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+        'partial_update': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+        'destroy': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+        'login': [permissions.AllowAny],
+        'me': [permissions.AllowAny],
+        'send_email_code': [permissions.AllowAny],
+        'send_phone_code': [permissions.AllowAny],
+        'verify_code': [permissions.AllowAny],
+        'email_code_login': [permissions.AllowAny],
+        'phone_code_login': [permissions.AllowAny],
+        'reset_password': [permissions.AllowAny],
+        'points': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+        'points_records': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+    }
+
+    throttle_config = {
+        'login': [LoginThrottle],
+        'email_code_login': [LoginThrottle],
+        'phone_code_login': [LoginThrottle],
+        'send_email_code': [CodeSendThrottle],
+        'send_phone_code': [CodeSendThrottle],
+        'search': [SearchThrottle],
+        'create': [WriteThrottle],
+        'reset_password': [WriteThrottle],
+        'daily_checkin': [WriteThrottle],
+    }
+
     def get_serializer_class(self):
         if self.action == 'create':
             return UserRegisterSerializer
@@ -41,30 +103,6 @@ class UserViewSet(viewsets.ModelViewSet):
             # retrieve 方法中根据访问者身份动态选择序列化器
             return UserPublicSerializer
         return self.serializer_class
-
-    def get_permissions(self):
-        if self.action in ['create', 'login', 'me', 'send_email_code', 'send_phone_code',
-                           'verify_code', 'email_code_login', 'phone_code_login', 'reset_password']:
-            return [permissions.AllowAny()]
-        elif self.action == 'retrieve':
-            return [permissions.AllowAny()]
-        elif self.action in ['update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
-        elif self.action in ['points', 'points_records']:
-            # 积分信息仅本人或管理员可见
-            return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
-        return super().get_permissions()
-
-    def get_throttles(self):
-        if self.action in ['login', 'email_code_login', 'phone_code_login']:
-            return [LoginThrottle()]
-        elif self.action in ['send_email_code', 'send_phone_code']:
-            return [CodeSendThrottle()]
-        elif self.action == 'search':
-            return [SearchThrottle()]
-        elif self.action in ['create', 'reset_password', 'daily_checkin']:
-            return [WriteThrottle()]
-        return super().get_throttles()
 
     def _is_self_or_admin(self, user):
         request_user = self.request.user
@@ -92,24 +130,27 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         
         user = serializer.validated_data['user']
-        
+
         # 更新最后登录时间
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
-        
+
+        # 每日首次登录积分
+        _award_login_points_if_needed(user)
+
         # 使用JWT生成令牌
         from rest_framework_simplejwt.tokens import RefreshToken
         refresh = RefreshToken.for_user(user)
-        
+
         # 获取用户数据
         user_serializer = UserSerializer(user)
-        
+
         return Response({
             'refresh': str(refresh),
             'access': str(refresh.access_token),
             'user': user_serializer.data
         })
-    
+
     @action(detail=False, methods=['post'])
     def logout(self, request):
         """用户登出，将 refresh token 加入黑名单"""
@@ -237,14 +278,14 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({'error': '搜索关键词不能为空'}, status=status.HTTP_400_BAD_REQUEST)
 
         # 普通用户只能按用户名搜索；管理员可按邮箱/手机号搜索
-        if request.user.is_authenticated and request.user.is_staff:
-            users = User.objects.filter(
-                Q(username__icontains=query) |
-                Q(email__icontains=query) |
-                Q(phone__icontains=query)
-            )
-        else:
-            users = User.objects.filter(username__icontains=query)
+        include_private = request.user.is_authenticated and request.user.is_staff
+        service = SearchService()
+        users = service.search_users(
+            query,
+            limit=100,
+            include_private=include_private,
+            current_user=request.user
+        )
 
         # 排除当前用户
         if request.user.is_authenticated:
@@ -296,38 +337,44 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = EmailCodeLoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
-        
+
         # 更新最后登录时间
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
-        
+
+        # 每日首次登录积分
+        _award_login_points_if_needed(user)
+
         # 使用JWT生成令牌
         from rest_framework_simplejwt.tokens import RefreshToken
         refresh = RefreshToken.for_user(user)
         user_serializer = UserSerializer(user)
-        
+
         return Response({
             'refresh': str(refresh),
             'access': str(refresh.access_token),
             'user': user_serializer.data
         })
-    
+
     @action(detail=False, methods=['post'])
     def phone_code_login(self, request):
         """手机验证码登录"""
         serializer = PhoneCodeLoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
-        
+
         # 更新最后登录时间
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
-        
+
+        # 每日首次登录积分
+        _award_login_points_if_needed(user)
+
         # 使用JWT生成令牌
         from rest_framework_simplejwt.tokens import RefreshToken
         refresh = RefreshToken.for_user(user)
         user_serializer = UserSerializer(user)
-        
+
         return Response({
             'refresh': str(refresh),
             'access': str(refresh.access_token),
@@ -432,14 +479,24 @@ class UserViewSet(viewsets.ModelViewSet):
                 elif consecutive_days >= 3:
                     points += 5
 
-            # 创建积分记录；post_save signal 会同步更新用户积分与等级
-            PointsRecord.objects.create(
-                user=user,
-                action='daily_checkin',
-                points=points,
-                description=f'每日签到{"(连续签到{}天)".format(consecutive_days + 1) if yesterday_checkin else ""}'
-            )
-            # 重新加载以获取 signal 更新后的积分
+            # 异步发放签到积分
+            queue_update_user_points(user.id, 'daily_checkin')
+
+            # 连续签到额外奖励（仅在首次达到里程碑当天发放一次）
+            def has_extra_reward_today(action):
+                return PointsRecord.objects.filter(
+                    user=user,
+                    action=action,
+                    created_at__gte=today_start,
+                    created_at__lt=tomorrow_start
+                ).exists()
+
+            if consecutive_days >= 7 and not has_extra_reward_today('consecutive_checkin_7'):
+                queue_update_user_points(user.id, 'consecutive_checkin_7')
+            elif consecutive_days >= 3 and not has_extra_reward_today('consecutive_checkin_3'):
+                queue_update_user_points(user.id, 'consecutive_checkin_3')
+
+            # 重新加载以获取更新后的积分（Celery 可能尚未执行，返回旧值属于可接受）
             user.refresh_from_db()
 
         return Response({
@@ -463,6 +520,37 @@ class UserViewSet(viewsets.ModelViewSet):
         target = self.get_object()
         request.user.following.remove(target)
         return Response({'status': 'unfollowed'})
+
+
+class UserProfileViewSet(BaseModelViewSet):
+    """用户资料视图集"""
+    from .models import UserProfile
+    queryset = UserProfile.objects.all()
+    serializer_class = UserProfileSerializer
+
+    permission_config = {
+        'list': [permissions.IsAuthenticated],
+        'retrieve': [permissions.AllowAny],
+        'create': [permissions.IsAuthenticated],
+        'update': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+        'partial_update': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+        'destroy': [permissions.IsAuthenticated, IsOwnerOrAdmin],
+    }
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return UserProfile.objects.all()
+        return UserProfile.objects.filter(user=user)
+
+    def get_object(self):
+        pk = self.kwargs.get('pk')
+        if pk == 'me':
+            # 获取当前用户的资料，如果不存在则创建
+            profile, created = UserProfile.objects.get_or_create(user=self.request.user)
+            return profile
+        return super().get_object()
+
 
 # 添加调试视图，检查用户头像（仅在 DEBUG 模式下可用）
 @api_view(['GET'])
@@ -661,32 +749,3 @@ def points_leaderboard(request):
         })
     
     return Response(leaderboard)
-
-
-class UserProfileViewSet(viewsets.ModelViewSet):
-    """用户资料视图集"""
-    from .models import UserProfile
-    queryset = UserProfile.objects.all()
-    serializer_class = UserProfileSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_permissions(self):
-        if self.action == 'retrieve':
-            return [permissions.AllowAny()]
-        if self.action in ['update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated(), IsOwnerOrAdmin()]
-        return super().get_permissions()
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_staff:
-            return UserProfile.objects.all()
-        return UserProfile.objects.filter(user=user)
-
-    def get_object(self):
-        pk = self.kwargs.get('pk')
-        if pk == 'me':
-            # 获取当前用户的资料，如果不存在则创建
-            profile, created = UserProfile.objects.get_or_create(user=self.request.user)
-            return profile
-        return super().get_object()

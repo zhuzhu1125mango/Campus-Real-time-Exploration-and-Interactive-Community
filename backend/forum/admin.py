@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     Category, Board, Topic, Post, Attachment,
-    Like, Tag, Report, Notification, Bookmark
+    Like, Tag, Report, Bookmark
 )
 
 
@@ -76,15 +76,6 @@ class ReportAdmin(admin.ModelAdmin):
     list_display = ('reporter', 'post', 'report_type', 'status', 'created_at')
     list_filter = ('report_type', 'status', 'created_at')
     search_fields = ('reporter__username', 'description')
-    date_hierarchy = 'created_at'
-    ordering = ('-created_at',)
-
-
-@admin.register(Notification)
-class NotificationAdmin(admin.ModelAdmin):
-    list_display = ('user', 'notification_type', 'is_read', 'created_at')
-    list_filter = ('notification_type', 'is_read', 'created_at')
-    search_fields = ('user__username', 'message')
     date_hierarchy = 'created_at'
     ordering = ('-created_at',)
 

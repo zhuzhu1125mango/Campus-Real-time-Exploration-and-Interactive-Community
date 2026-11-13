@@ -1,5 +1,5 @@
 import request from '../utils/request'
-import type { Course } from '../types/learning'
+import type { Course, Enrollment } from '../types/learning'
 
 export const learningApi = {
   // 课程相关API
@@ -111,7 +111,7 @@ export const learningApi = {
   // 报名相关API
   
   // 获取报名列表
-  getEnrollments(params?: { user?: number; course?: number; page?: number }): Promise<{ count: number; next: string | null; previous: string | null; results: any[] }> {
+  getEnrollments(params?: { user?: number; course?: number; page?: number }): Promise<{ count: number; next: string | null; previous: string | null; results: Enrollment[] }> {
     return request.get('/learning/enrollments/', { params })
   },
   

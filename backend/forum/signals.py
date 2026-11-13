@@ -5,46 +5,56 @@ from django.dispatch import receiver
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 
-from .models import Post, Topic, Notification
+from notifications.notification_sender import notify_forum_event
+from users.tasks import queue_update_user_points
+from .models import Post, Topic
 
 User = get_user_model()
 
 
 @receiver(post_save, sender=Post)
-def create_notification_for_post(sender, instance, created, **kwargs):
-    """创建帖子回复通知与@提及通知"""
-    if created and not instance.is_first_post:
-        # 获取主题作者
-        topic_author = instance.topic.author
+def handle_post_created(sender, instance, created, **kwargs):
+    """帖子创建后的通知与积分处理。"""
+    if not created:
+        return
 
-        # 避免给自己发通知
-        if topic_author != instance.author:
-            # 创建回复通知
-            Notification.objects.create(
-                user=topic_author,
+    # 异步发放积分：首贴=发帖，非首贴=回复
+    action = 'post' if instance.is_first_post else 'reply'
+    queue_update_user_points(instance.author.id, action)
+
+    # 仅非首贴需要发送回复/提及通知
+    if instance.is_first_post:
+        return
+
+    topic_author = instance.topic.author
+
+    # 回复主题通知
+    if topic_author != instance.author:
+        notify_forum_event(
+            recipient=topic_author,
+            sender=instance.author,
+            forum_type='topic_reply',
+            message=f"{instance.author.username} 回复了你的主题 '{instance.topic.title}'",
+            topic=instance.topic,
+            post=instance,
+        )
+
+    # 处理@提及的用户通知
+    mention_usernames = set(re.findall(r'@([\w.-]+)', instance.content or ''))
+    if mention_usernames:
+        mentioned_users = User.objects.filter(username__in=mention_usernames)
+        for user in mentioned_users:
+            # 不给自己发提及通知；主题作者已收到回复通知，也跳过避免重复
+            if user == instance.author or user == topic_author:
+                continue
+            notify_forum_event(
+                recipient=user,
                 sender=instance.author,
-                notification_type='topic_reply',
+                forum_type='mention',
+                message=f"{instance.author.username} 在主题 '{instance.topic.title}' 中提到了你",
                 topic=instance.topic,
                 post=instance,
-                message=f"{instance.author.username} 回复了你的主题 '{instance.topic.title}'"
             )
-
-        # 处理@提及的用户通知
-        mention_usernames = set(re.findall(r'@([\w.-]+)', instance.content or ''))
-        if mention_usernames:
-            mentioned_users = User.objects.filter(username__in=mention_usernames)
-            for user in mentioned_users:
-                # 不给自己发提及通知；主题作者已收到回复通知，也跳过避免重复
-                if user == instance.author or user == topic_author:
-                    continue
-                Notification.objects.create(
-                    user=user,
-                    sender=instance.author,
-                    notification_type='mention',
-                    topic=instance.topic,
-                    post=instance,
-                    message=f"{instance.author.username} 在主题 '{instance.topic.title}' 中提到了你"
-                )
 
 
 @receiver(post_delete, sender=Post)
@@ -57,4 +67,4 @@ def update_topic_on_post_delete(sender, instance, **kwargs):
             topic.updated_at = timezone.now()
             topic.save(update_fields=['updated_at'])
         except Topic.DoesNotExist:
-            pass 
+            pass

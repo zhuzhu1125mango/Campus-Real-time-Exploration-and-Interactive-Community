@@ -1,0 +1,99 @@
+# 变更记录
+
+本项目尚未建立正式版本号与 tag。以下记录按日期整理已提交的变更，
+以及当前工作区中尚未提交的重构内容。
+
+格式参考 Keep a Changelog，提交类型参考 Conventional Commits。
+
+## Unreleased（当前工作区，未提交）
+
+### 架构与后端
+
+- 按领域拆分 app：新增 `activities`、`favorites`、`friendships`、`private_messages`、
+  `notifications`，移除 `users` 下平铺的 friendship/messages/notifications/favorites 模块。
+- 新增 `core/`：统一 ViewSet 基类、缓存工具、HTML 清洗。
+- 新增 `search` 的 Elasticsearch 实现：文档、客户端、服务、信号、Celery 任务、
+  全量重建命令。
+- 新增统一通知模型与发送入口，移除 `forum.Notification` 并迁移历史数据。
+- 新增积分统一规则 `users/points.py` 与异步任务 `users/tasks.py`。
+- 新增数据库读写分离路由 `config/db_router.py`。
+- 新增生产部署文件：`backend/Dockerfile`、`nginx/`、`docker-compose.prod.yml`、
+  `elasticsearch/`、生产启动脚本。
+- 新增 `feed` 聚合流与热门标签。
+
+### 前端与小程序
+
+- H5 新增统一请求层、安全工具、共享工具与 ECharts 按需引入。
+- H5 完善聊天、搜索、内容、学习、院校等页面。
+- 小程序补齐消息页、搜索页、内容投稿状态、课时播放器、WebSocket 安全连接。
+- 新增 `shared/` 三端共享工具。
+
+### 文档
+
+- 重构 `docs/` 目录，按入门、指南、架构、参考、项目治理分类。
+- 旧文档移入 `docs/archive/`。
+- 新增 API 分模块文档、数据模型、WebSocket 协议、后台任务、运维与排障文档。
+
+### Fixed
+
+- 删除与新通知模型不兼容的 `forum.NotificationViewSet`，旧 `/api/notifications/` 返回 404。
+- H5 `ForumNotifications`、`Forum` 与小程序通知页改用 `/api/users/notifications/`。
+- 移除被 Router detail 路由抢占的 `notifications/mark-all-read/` 路径。
+- 为 `docker-compose.prod.yml` 的 `django-init` 补齐运行环境变量。
+
+### 已知问题
+
+- 部分 app 测试为空。
+- `VITE_API_BASE_URL` 未被前端实际读取。
+- 小程序 API 索引未导出 `searchApi`。
+- 详见 [路线图](roadmap.md)。
+
+## 2026-07-06
+
+### Added
+
+- 关注功能贯通 H5、小程序与后端。
+- 小程序配置与安全工具、页面体验完善。
+- 后端 chat、forum、users、schools 模块测试补齐。
+- 后端核心 API 限流。
+
+### Fixed
+
+- 小程序定时器与生命周期泄漏。
+- 前端健康检查改用统一请求封装。
+- 后端并发、权限、缓存问题。
+- 小程序消息页完整实现。
+
+## 2026-07-05
+
+### Added
+
+- 后端 WebSocket 安全认证与在线统计。
+- 后端统一权限控制与 DRF 默认认证策略。
+- 前端统一请求层与聊天体验优化。
+- 小程序请求层与 WebSocket 连接优化。
+- 数据库索引优化与 N+1 查询治理。
+
+### Fixed
+
+- 小程序 P0 级基础配置与 API 调用。
+- `v-html` 富文本 XSS 过滤。
+- 后端权限与敏感信息加固。
+- 并发安全与权限问题。
+
+## 更早
+
+更早的提交可通过以下命令查看：
+
+```bash
+git log --date=short --pretty=format:"%ad %h %s"
+```
+
+## 版本发布约定
+
+正式发版时建议：
+
+1. 使用语义化版本（`vMAJOR.MINOR.PATCH`）
+2. 将 `Unreleased` 内容移入对应版本
+3. 记录破坏性变更（`BREAKING CHANGE`）
+4. 关联数据库迁移与部署注意事项

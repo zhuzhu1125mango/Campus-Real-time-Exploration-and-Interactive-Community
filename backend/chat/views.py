@@ -4,20 +4,25 @@ import threading
 import time
 
 from django.shortcuts import render
-from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.throttling import UserRateThrottle
 
+from core.base_viewsets import BaseModelViewSet
 from .models import ChatMessage
 from .serializers import ChatMessageSerializer
 from users.permissions import IsOwnerOrAdmin
+from django.conf import settings
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+# 使用 settings 中配置的业务缓存 Redis，不再硬编码端口
+REDIS_URL = getattr(settings, 'REDIS_CACHE_URL', 'redis://localhost:6379/1')
 
 
 class RecentActivePresence:
@@ -101,16 +106,29 @@ def health(request):
     """健康检查API端点"""
     return Response({"status": "ok"})
 
+class RecentMessagesPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class RecentMessagesRateThrottle(UserRateThrottle):
+    rate = '60/minute'
+
+
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def recent_messages(request):
-    """获取最近的聊天消息"""
+    """获取最近的聊天消息（仅登录用户，带分页和限流）"""
     try:
-        messages = ChatMessage.objects.all().order_by('-created_at')[:50]
-        serializer = ChatMessageSerializer(messages, many=True)
-        return Response(serializer.data)
+        messages = ChatMessage.objects.all().order_by('-created_at')
+        paginator = RecentMessagesPagination()
+        paginator.throttle_classes = [RecentMessagesRateThrottle]
+        result_page = paginator.paginate_queryset(messages, request)
+        serializer = ChatMessageSerializer(result_page, many=True)
+        return paginator.get_paginated_response(serializer.data)
     except Exception as e:
-        logger.error(f"获取历史消息出错: {str(e)}")
+        logger.error("获取历史消息出错: %s", e)
         return Response({"error": "获取消息失败"}, status=500)
 
 @api_view(['GET'])
@@ -174,15 +192,18 @@ def send_message(request):
     serializer = ChatMessageSerializer(message)
     return Response(serializer.data)
 
-class ChatMessageViewSet(viewsets.ModelViewSet):
+class ChatMessageViewSet(BaseModelViewSet):
     """聊天消息API视图集"""
     queryset = ChatMessage.objects.all().order_by('-created_at')
     serializer_class = ChatMessageSerializer
-
-    def get_permissions(self):
-        if self.action in ['create']:
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsOwnerOrAdmin()]
+    permission_config = {
+        'list': [IsAuthenticated, IsOwnerOrAdmin],
+        'retrieve': [IsAuthenticated, IsOwnerOrAdmin],
+        'create': [IsAuthenticated],
+        'update': [IsAuthenticated, IsOwnerOrAdmin],
+        'partial_update': [IsAuthenticated, IsOwnerOrAdmin],
+        'destroy': [IsAuthenticated, IsOwnerOrAdmin],
+    }
 
     def perform_create(self, serializer):
         if self.request.user.is_authenticated:
