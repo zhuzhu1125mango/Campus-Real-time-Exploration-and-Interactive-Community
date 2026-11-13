@@ -20,6 +20,7 @@
 | 理解系统设计 | [架构总览](architecture/overview.md) |
 | 查接口、字段、WebSocket 协议 | [参考文档](reference/api/README.md) |
 | 提交代码、了解安全要求 | [贡献指南](project/contributing.md)、[安全说明](project/security.md) |
+| 了解本次重构的范围与影响 | [重构变更摘要](project/refactor-summary-2026-11-13.md) |
 
 ## 目录结构
 
@@ -60,6 +61,7 @@ docs/
 │   ├── contributing.md             # 贡献流程与规范
 │   ├── security.md                 # 安全基线与漏洞上报
 │   ├── changelog.md                # 变更记录
+│   ├── refactor-summary-2026-11-13.md  # 本次重构摘要
 │   └── roadmap.md                  # 已知缺口与规划
 └── archive/                        # 历史文档（已过时，仅供追溯）
 ```
