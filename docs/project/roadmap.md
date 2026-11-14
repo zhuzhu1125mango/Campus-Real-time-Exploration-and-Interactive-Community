@@ -9,11 +9,16 @@
 
 ## 1. 缺陷
 
-| 优先级 | 问题 | 位置 | 建议 |
-|---|---|---|---|
-| P2 | `VITE_API_BASE_URL` 未被读取 | `frontend/src/utils/config.ts` | 统一为环境变量或删除无效配置 |
-| P2 | 小程序 API 索引未导出 `searchApi` | `mp-weixin/api/index.js` | 补充导出 |
-| P2 | 通知消费者事件名与下发类型不一致 | `backend/chat/consumers.py` | 统一命名，补充协议测试 |
+当前无已知 P0/P1/P2 缺陷。
+
+### 已修复（2026-11-14）
+
+- `VITE_API_BASE_URL` 未被读取：`utils/config.ts` 改为读取该变量，缺省 `/api`；`Profile.vue` 媒体地址统一使用 `VITE_MEDIA_BASE_URL`。
+- 小程序 API 索引未导出 `searchApi`：`mp-weixin/api/index.js` 已补充命名导出与默认导出的 `search` 字段。
+- 通知 WebSocket 事件名不一致：组事件、消费者方法与下发类型统一为 `unread_notifications`。
+- 调试接口暴露：`debug-avatar`、`test-static`、`list-avatars`、`test-html-media` 仅在 `DEBUG=True` 时注册路由。
+- 内容模块：修复作者无法查看自己的草稿/提交审核、管理员无法审核他人草稿的问题；评论接口 `parent` 改为可选。
+- 私信模块：`perform_create` 改为 `serializer.save()`，创建响应包含完整消息数据。
 
 ### 已修复（2026-11-13）
 
@@ -26,11 +31,11 @@
 
 | 模块 | 现状 | 目标 |
 |---|---|---|
-| `private_messages` | 空测试文件 | 会话、已读、越权 |
-| `friendships` | 空测试文件 | 请求状态流转、重复请求 |
-| `favorites` | 空测试文件 | 多态收藏、重复收藏 |
-| `activities` | 空测试文件 | 可见性、点赞幂等 |
-| `content` | 空测试文件 | 状态机、审核权限 |
+| `private_messages` | 已覆盖创建、会话、已读、未读与越权 | 已完成 |
+| `friendships` | 已覆盖请求流转、重复请求、好友列表与解除 | 已完成 |
+| `favorites` | 已覆盖多态收藏、重复收藏、学校同步与取消 | 已完成 |
+| `activities` | 已覆盖可见性、点赞幂等、评论与关注流 | 已完成 |
+| `content` | 已覆盖可见性、修订、审核状态机与评论 | 已完成 |
 | 前端 | 无单元/E2E | 引入 Vitest + Playwright |
 | 小程序 | 手动 | 关键页面回归清单 |
 

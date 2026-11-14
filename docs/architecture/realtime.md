@@ -175,12 +175,11 @@ Notification.post_save
   → transaction.on_commit
   → send_notification_async.delay(id)
   → group_send('user_<id>', {'type': 'notification', ...})
-  → group_send('user_<id>', {'type': 'unread_notifications_update', ...})
-  → Consumer.notification / unread_notifications_update 转发给客户端
+  → group_send('user_<id>', {'type': 'unread_notifications', ...})
+  → Consumer.notification / unread_notifications 转发给客户端
 ```
 
-注意：消费者方法名是 `unread_notifications_update`，但下发给客户端的 `type` 是
-`unread_notifications`。
+消费者方法名与组事件类型、下发类型统一为 `unread_notifications`。
 
 ## 8. 关闭码
 

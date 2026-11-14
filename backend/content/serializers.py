@@ -99,7 +99,7 @@ class CommentSerializer(serializers.ModelSerializer):
 
 class CommentCreateSerializer(serializers.ModelSerializer):
     content = serializers.PrimaryKeyRelatedField(queryset=Content.objects.all())
-    parent = serializers.PrimaryKeyRelatedField(queryset=Comment.objects.all(), allow_null=True)
+    parent = serializers.PrimaryKeyRelatedField(queryset=Comment.objects.all(), allow_null=True, required=False)
     
     class Meta:
         model = Comment

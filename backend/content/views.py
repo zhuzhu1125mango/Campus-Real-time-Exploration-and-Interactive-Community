@@ -64,7 +64,7 @@ class TagViewSet(PublicReadOnlyModelViewSet):
 
 class ContentViewSet(BaseModelViewSet):
     """内容视图集"""
-    queryset = Content.objects.filter(status='published')
+    queryset = Content.objects.all()
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['created_at', 'updated_at', 'view_count', 'like_count', 'comment_count', 'publish_date']
     ordering = ['-created_at']
@@ -101,19 +101,22 @@ class ContentViewSet(BaseModelViewSet):
 
         if not user or not user.is_authenticated:
             # 游客：仅可见已发布内容
-            return queryset.filter(status='published')
+            queryset = queryset.filter(status='published')
+        elif not user.is_staff:
+            # 登录用户默认可见已发布内容 + 自己的全部内容
+            queryset = queryset.filter(
+                Q(status='published') | Q(author=user)
+            ).distinct()
 
-        # 登录用户默认可见已发布内容 + 自己的全部内容
-        queryset = queryset.filter(
-            Q(status='published') | Q(author=user)
-        ).distinct()
-
-        # 支持按状态筛选（仅筛选自己的内容，避免看到他人未发布内容）
+        # 支持按状态筛选：普通用户仅能筛选自己的内容，管理员可筛选全部
         status_param = self.request.query_params.get('status')
         if status_param:
-            queryset = queryset.filter(
-                Q(author=user, status=status_param) | Q(status='published')
-            ).distinct()
+            if user and user.is_authenticated and not user.is_staff:
+                queryset = queryset.filter(
+                    Q(author=user, status=status_param) | Q(status='published')
+                ).distinct()
+            else:
+                queryset = queryset.filter(status=status_param)
 
         search = self.request.query_params.get('search')
         if search:

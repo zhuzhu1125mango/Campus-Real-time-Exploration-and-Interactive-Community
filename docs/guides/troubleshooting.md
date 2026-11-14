@@ -172,9 +172,9 @@ curl http://localhost:9200/_cluster/health
 
 ### 6.4 前端请求地址不对
 
-`frontend/src/utils/config.ts` 中 `apiBaseUrl` 固定为 `/api`，
-开发依赖 Vite 代理，生产依赖 Nginx 反向代理。
-`VITE_API_BASE_URL` 当前未被该文件读取，修改它不会改变请求地址。
+`frontend/src/utils/config.ts` 中 `apiBaseUrl` 读取 `VITE_API_BASE_URL`，缺省为 `/api`。
+开发环境保持 `/api` 走 Vite 代理；生产环境可配置为完整前缀（必须包含 `/api`），
+或继续依赖 Nginx 反向代理。媒体地址由 `VITE_MEDIA_BASE_URL` 控制。
 
 ## 7. 小程序
 
@@ -219,10 +219,10 @@ POST /api/users/notifications/mark_all_read/
 Elasticsearch 与 `DJANGO_SECRET_KEY` 等环境变量，见
 [部署指南 4.3](deployment.md#43-初始化服务环境变量)。
 
-### 8.4 小程序 API 索引未导出 `searchApi`（待修复）
+### 8.4 小程序 API 索引未导出 `searchApi`（已修复）
 
-`mp-weixin/api/index.js` 未导出 `searchApi`，搜索页是直接 `import` 的。
-新增页面若从索引导入，会得到 `undefined`。
+`mp-weixin/api/index.js` 已导出 `searchApi`，并同步挂在默认导出对象的
+`search` 字段上。新页面既可从索引导入，也可继续直接 `import` `api/search.js`。
 
 ## 9. 仍然无法解决
 

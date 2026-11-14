@@ -8,6 +8,7 @@ import contentApi from './content'
 import learningApi from './learning'
 import notificationApi from './notification'
 import feedApi from './feed'
+import searchApi from './search'
 
 export {
   request,
@@ -18,7 +19,8 @@ export {
   contentApi,
   learningApi,
   notificationApi,
-  feedApi
+  feedApi,
+  searchApi
 }
 
 export default {
@@ -30,5 +32,6 @@ export default {
   content: contentApi,
   learning: learningApi,
   notification: notificationApi,
-  feed: feedApi
+  feed: feedApi,
+  search: searchApi
 }

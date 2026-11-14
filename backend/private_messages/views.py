@@ -53,17 +53,9 @@ class MessageViewSet(BaseModelViewSet):
         return self.serializer_class
 
     def perform_create(self, serializer):
-        data = serializer.validated_data
-        receiver = data.get('receiver')
-        sender = self.request.user
-        content = data.get('content', '')
-
-        # 保存消息到数据库
-        message = Message.objects.create(
-            sender=sender,
-            receiver=receiver,
-            content=content
-        )
+        message = serializer.save()
+        sender = message.sender
+        receiver = message.receiver
 
         # 发送私信通知（创建记录后由 Celery 异步推送）
         send_notification_to_user(
@@ -76,8 +68,6 @@ class MessageViewSet(BaseModelViewSet):
 
         # 通过WebSocket推送消息给接收者
         websocket_service.send_private_message(sender, receiver, message)
-
-        return message
 
     @action(detail=False, methods=['get'])
     def conversations(self, request):

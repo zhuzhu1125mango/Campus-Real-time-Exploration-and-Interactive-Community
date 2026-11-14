@@ -532,9 +532,6 @@ const avatarFile = ref<File | null>(null) // 保存上传的头像文件引用
 const bannerFile = ref<File | null>(null) // 保存上传的背景图文件引用
 const { showToast } = useToast()
 
-// 获取API基础URL
-const apiBaseUrl = ref(import.meta.env.VITE_API_BASE_URL || '')
-
 // 图片裁剪相关
 const showCropper = ref(false)
 const cropperImg = ref('')
@@ -698,7 +695,7 @@ const avatarStyle = computed(() => {
     // 确保是绝对路径
     let url = avatarPreview.value
     if (!url.startsWith('http') && !url.startsWith('data:')) {
-      url = `${apiBaseUrl.value}${url.startsWith('/') ? '' : '/'}${url}`
+      url = `${config.media.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`
     }
 
     // 添加时间戳防止缓存
@@ -714,7 +711,7 @@ const avatarStyle = computed(() => {
     // 确保是绝对路径
     let url = userStore.user.avatar
     if (!url.startsWith('http') && !url.startsWith('data:')) {
-      url = `${apiBaseUrl.value}${url.startsWith('/') ? '' : '/'}${url}`
+      url = `${config.media.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`
     }
 
     // 添加时间戳防止缓存
@@ -730,7 +727,7 @@ const avatarStyle = computed(() => {
     // 确保是绝对路径
     let url = form.value.avatar
     if (!url.startsWith('http') && !url.startsWith('data:')) {
-      url = `${apiBaseUrl.value}${url.startsWith('/') ? '' : '/'}${url}`
+      url = `${config.media.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`
     }
 
     // 添加时间戳防止缓存
@@ -765,7 +762,7 @@ const bannerStyle = computed(() => {
     // 确保是绝对路径
     let url = bannerPreview.value
     if (!url.startsWith('http') && !url.startsWith('data:')) {
-      url = `${import.meta.env.VITE_API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
+      url = `${config.media.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`
     }
 
     // 添加时间戳防止缓存
@@ -781,7 +778,7 @@ const bannerStyle = computed(() => {
     // 确保是绝对路径
     let url = userStore.user.banner
     if (!url.startsWith('http') && !url.startsWith('data:')) {
-      url = `${import.meta.env.VITE_API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
+      url = `${config.media.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`
     }
 
     // 添加时间戳防止缓存
@@ -797,7 +794,7 @@ const bannerStyle = computed(() => {
     // 确保是绝对路径
     let url = form.value.banner
     if (!url.startsWith('http') && !url.startsWith('data:')) {
-      url = `${import.meta.env.VITE_API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
+      url = `${config.media.baseUrl}${url.startsWith('/') ? '' : '/'}${url}`
     }
 
     // 添加时间戳防止缓存

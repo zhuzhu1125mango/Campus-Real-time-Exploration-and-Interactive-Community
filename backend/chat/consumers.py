@@ -384,7 +384,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except RuntimeError as e:
             logger.debug(f"无法发送通知到已关闭的连接: {e}")
 
-    async def unread_notifications_update(self, event):
+    async def unread_notifications(self, event):
         """当未读通知数量变化时，发送给WebSocket客户端"""
         try:
             await self.send(text_data=json.dumps({

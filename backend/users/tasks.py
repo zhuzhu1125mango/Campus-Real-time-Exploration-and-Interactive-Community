@@ -88,7 +88,7 @@ def send_notification_async(self, notification_id):
             channel_layer,
             user_group_name,
             {
-                'type': 'unread_notifications_update',
+                'type': 'unread_notifications',
                 'count': unread_count,
             }
         )

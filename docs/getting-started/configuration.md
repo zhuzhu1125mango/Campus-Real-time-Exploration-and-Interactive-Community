@@ -87,15 +87,16 @@ Vite 只暴露 `VITE_` 前缀变量。当前代码实际读取情况：
 
 | 变量 | 是否被读取 | 说明 |
 |---|---|---|
-| `VITE_API_BASE_URL` | 否 | `src/utils/config.ts` 中 `apiBaseUrl` 固定为 `/api`，依赖 Vite/Nginx 代理 |
+| `VITE_API_BASE_URL` | 是 | API 前缀，需包含 `/api`（如 `https://api.example.com/api`）；缺省为 `/api`，开发时走 Vite 代理 |
 | `VITE_WS_BASE_URL` | 是 | 默认 `ws://localhost:8000` |
-| `VITE_MEDIA_BASE_URL` | 是 | 默认 `http://localhost:8000` |
+| `VITE_MEDIA_BASE_URL` | 是 | 媒体文件源站，不含 `/media` 前缀，默认 `http://localhost:8000` |
 | `VITE_APP_TITLE` / `VITE_APP_DESCRIPTION` | 是 | 应用展示信息 |
 | `VITE_JWT_ACCESS_TOKEN_KEY` / `VITE_JWT_REFRESH_TOKEN_KEY` | 否 | 当前 token 存储使用账号槽位 key（`auth_tokens:<userId>`） |
 
 示例（`frontend/.env.development`）：
 
 ```env
+VITE_API_BASE_URL=/api
 VITE_WS_BASE_URL=ws://localhost:8000
 VITE_MEDIA_BASE_URL=http://localhost:8000
 ```

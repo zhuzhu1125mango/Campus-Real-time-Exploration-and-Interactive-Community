@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
@@ -32,9 +33,14 @@ urlpatterns = [
     path('email-code-login/', UserViewSet.as_view({'post': 'email_code_login'}), name='email-code-login'),
     path('phone-code-login/', UserViewSet.as_view({'post': 'phone_code_login'}), name='phone-code-login'),
     path('reset-password/', UserViewSet.as_view({'post': 'reset_password'}), name='reset-password'),
-    path('debug-avatar/', debug_avatar, name='debug-avatar'),
-    path('test-static/', test_static_file, name='test-static'),
-    path('list-avatars/', list_avatar_files, name='list-avatars'),
-    path('test-html-media/', test_html_media, name='test-html-media'),
     path('points-leaderboard/', points_leaderboard, name='points-leaderboard'),
 ]
+
+# 调试接口仅在 DEBUG 模式下注册，生产环境不暴露路由
+if settings.DEBUG:
+    urlpatterns += [
+        path('debug-avatar/', debug_avatar, name='debug-avatar'),
+        path('test-static/', test_static_file, name='test-static'),
+        path('list-avatars/', list_avatar_files, name='list-avatars'),
+        path('test-html-media/', test_html_media, name='test-html-media'),
+    ]

@@ -167,7 +167,7 @@ ECharts 使用 `utils/echarts.ts` 按需注册图表与组件。
 
 ## 10. 已知问题与技术债
 
-- `VITE_API_BASE_URL` 未被 `utils/config.ts` 读取，实际依赖 `/api` 代理。
+- `utils/config.ts` 统一读取 `VITE_API_BASE_URL`、`VITE_WS_BASE_URL` 与 `VITE_MEDIA_BASE_URL`，缺省值适配本地代理。
 - `Profile.vue` 体积较大（约 2300 行），后续可拆分为子组件。
 - 没有前端单元测试框架；当前以 `pnpm type-check` 和手工回归为主。
 - `Dashboard.vue`、`Content.vue` 等页面同时承担数据获取与展示，可逐步下沉到 composable。

@@ -48,6 +48,17 @@
 - 删除与新通知模型不兼容的 `forum.NotificationViewSet`，旧 `/api/notifications/` 返回 404。
 - H5 `ForumNotifications`、`Forum` 与小程序通知页改用 `/api/users/notifications/`。
 - 移除被 Router detail 路由抢占的 `notifications/mark-all-read/` 路径。
+- 内容模块：作者可见自己的草稿、可提交审核；管理员可审核与上下架他人内容；
+  评论创建时 `parent` 改为可选。
+- 私信模块：创建私信改用 `serializer.save()`，修复响应缺少消息数据的问题。
+- 通知 WebSocket 事件统一为 `unread_notifications`，消费者方法与下发类型保持一致。
+- 小程序 API 索引补充导出 `searchApi`。
+- H5 `VITE_API_BASE_URL` 生效（缺省 `/api`），媒体地址统一由 `VITE_MEDIA_BASE_URL` 控制。
+- 调试路由仅在 `DEBUG=True` 时注册，生产环境不再暴露。
+
+### Tests
+
+- 补齐 `private_messages`、`friendships`、`favorites`、`activities`、`content` 五个模块的接口测试。
 - 为 `docker-compose.prod.yml` 的 `django-init` 补齐运行环境变量。
 - 修复用户搜索在 ES 降级模式下对已切片 QuerySet 再次过滤导致的 500。
 - 修复签到在本地跨日时区下重复/并发校验失效的问题，签到积分改为事务内同步发放。

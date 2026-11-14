@@ -165,7 +165,7 @@ class NotificationWebSocketTests(TestCase):
         # 第二次调用：未读数更新
         group_name, payload = calls[1][0]
         self.assertEqual(group_name, f"user_{self.recipient.id}")
-        self.assertEqual(payload['type'], 'unread_notifications_update')
+        self.assertEqual(payload['type'], 'unread_notifications')
         self.assertEqual(payload['count'], 1)
 
     def test_send_notification_async_missing_notification(self):
