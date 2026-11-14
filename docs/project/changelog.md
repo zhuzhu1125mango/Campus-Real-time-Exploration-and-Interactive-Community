@@ -34,12 +34,23 @@
 - 旧文档移入 `docs/archive/`。
 - 新增 API 分模块文档、数据模型、WebSocket 协议、后台任务、运维与排障文档。
 
+### CI
+
+- 新增 `.github/workflows/ci.yml`：
+  - 后端：MySQL service、依赖安装、Ruff 检查、pip-audit、系统检查、迁移漂移检查、全量测试
+  - 前端：pnpm 冻结安装、ESLint 检查、pnpm audit、TypeScript 类型检查与生产构建
+- 后端新增 Ruff 配置与 `pip-audit` 开发依赖。
+- 前端新增 ESLint 扁平配置、`typescript-eslint` 与 `pnpm lint` 脚本。
+- 升级 `axios`、`dompurify`、`vue` 及传递依赖，修复高危/严重漏洞；pnpm audit 在 high 级别通过。
+
 ### Fixed
 
 - 删除与新通知模型不兼容的 `forum.NotificationViewSet`，旧 `/api/notifications/` 返回 404。
 - H5 `ForumNotifications`、`Forum` 与小程序通知页改用 `/api/users/notifications/`。
 - 移除被 Router detail 路由抢占的 `notifications/mark-all-read/` 路径。
 - 为 `docker-compose.prod.yml` 的 `django-init` 补齐运行环境变量。
+- 修复用户搜索在 ES 降级模式下对已切片 QuerySet 再次过滤导致的 500。
+- 修复签到在本地跨日时区下重复/并发校验失效的问题，签到积分改为事务内同步发放。
 
 ### 已知问题
 

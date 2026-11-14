@@ -35,5 +35,28 @@ prod = [
 [dependency-groups]
 dev = [
     "daphne>=4.2.2",
+    "pip-audit>=2.10.1",
+    "ruff>=0.17.5",
 ]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+exclude = [
+    "**/migrations/**",
+    "**/__pycache__/**",
+]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Django 初始化 / sys.path 注入后再导入，属于有意为之
+"config/__init__.py" = ["E402"]
+"config/asgi.py" = ["E402"]
+"config/asgi_ws.py" = ["E402"]
+"schools/views.py" = ["E402"]
+"scripts/**/*.py" = ["E402"]
+"tests/test_points_notifications.py" = ["E402"]
 

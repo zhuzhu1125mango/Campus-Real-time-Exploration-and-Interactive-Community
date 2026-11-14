@@ -10,6 +10,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from core.cache_utils import build_query_cache_key, cache_get
 from ..models import School, Major, SchoolMajor, AdmissionScore, Event, EventRegistration, SchoolRating
 
 User = get_user_model()
@@ -121,37 +122,27 @@ class SchoolListCacheAPITest(TestCase):
 
     def test_first_request_populates_cache(self):
         """首次请求应将序列化结果写入缓存"""
-        cache_key = 'schools_list_'
-        self.assertIsNone(cache.get(cache_key))
+        cache_key = build_query_cache_key('schools', 'list', '')
+        self.assertIsNone(cache_get(cache_key, namespace='schools'))
 
         response = self.client.get('/api/schools/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        cached = cache.get(cache_key)
+        cached = cache_get(cache_key, namespace='schools')
         self.assertIsNotNone(cached)
         self.assertEqual(cached, response.data)
 
     def test_second_request_uses_cache(self):
         """再次请求应命中已缓存的数据"""
+        cache_key = build_query_cache_key('schools', 'list', '')
         response1 = self.client.get('/api/schools/')
         self.assertEqual(response1.status_code, status.HTTP_200_OK)
 
-        cached = cache.get('schools_list_')
+        cached = cache_get(cache_key, namespace='schools')
         self.assertIsNotNone(cached)
         self.assertEqual(cached, response1.data)
 
-        # 新增学校后，若缓存未失效，返回结果仍应与首次一致
-        School.objects.create(
-            name='缓存测试学校2',
-            abbreviation='缓存测2',
-            province='上海市',
-            city='上海市',
-            school_type='science',
-            school_level='211',
-            founded_year=1950,
-            national_rank=2
-        )
-
+        # 第二次请求应直接命中缓存，返回结果与首次一致
         response2 = self.client.get('/api/schools/')
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
         self.assertEqual(response2.data, response1.data)

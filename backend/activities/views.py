@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -49,7 +49,7 @@ class ActivityViewSet(BaseModelViewSet):
 
     def perform_create(self, serializer):
         # 保存动态
-        activity = serializer.save(user=self.request.user)
+        serializer.save(user=self.request.user)
 
         # 异步发放发布动态积分
         queue_update_user_points(

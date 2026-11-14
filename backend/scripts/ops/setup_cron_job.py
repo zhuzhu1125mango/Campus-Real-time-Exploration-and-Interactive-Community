@@ -46,7 +46,7 @@ def setup_windows_task(command, project_root):
     try:
         subprocess.run(schtasks_command, shell=True, check=True)
         print(f"任务计划已创建：{task_name}")
-        print(f"任务将在每天凌晨1点执行")
+        print("任务将在每天凌晨1点执行")
     except subprocess.CalledProcessError as e:
         print(f"创建任务计划失败：{e}")
 
@@ -96,7 +96,7 @@ def setup_cron_job_unix(command, project_root):
         
         if process.returncode == 0:
             print("cron任务已创建")
-            print(f"任务将在每天凌晨1点执行")
+            print("任务将在每天凌晨1点执行")
         else:
             print(f"创建cron任务失败：{stderr}")
     except Exception as e:

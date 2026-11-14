@@ -1,9 +1,9 @@
-from django.shortcuts import render, get_object_or_404
-from django.db.models import Count, Q, Sum, F, OuterRef, Subquery, Exists
+from django.shortcuts import get_object_or_404
+from django.db.models import Count, Q, F, OuterRef, Subquery, Exists
 from django.db import transaction
 from django.utils import timezone
 from datetime import timedelta
-from rest_framework import viewsets, permissions, filters, status, serializers
+from rest_framework import permissions, filters, status, serializers
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
@@ -16,8 +16,7 @@ from .serializers import (
     CategorySerializer, BoardListSerializer, BoardDetailSerializer,
     BoardCreateUpdateSerializer, TopicListSerializer, TopicDetailSerializer,
     TopicCreateSerializer, PostSerializer, PostCreateSerializer,
-    PostUpdateSerializer, AttachmentSerializer, LikeSerializer,
-    TagSerializer, ReportCreateSerializer, BookmarkSerializer,
+    PostUpdateSerializer, AttachmentSerializer, TagSerializer, ReportCreateSerializer, BookmarkSerializer,
     CommentSerializer, CommentCreateSerializer
 )
 from notifications.notification_sender import notify_forum_event

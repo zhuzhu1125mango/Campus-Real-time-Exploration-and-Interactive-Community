@@ -5,6 +5,7 @@ import logging
 from asgiref.sync import async_to_sync
 from celery import shared_task
 from channels.layers import get_channel_layer
+from django.conf import settings
 from django.db import transaction
 
 from .points import get_points_for_action, get_action_description, calculate_level
@@ -27,10 +28,10 @@ def queue_update_user_points(user_id, action, description=None, extra_points=Non
         update_user_points_async.delay(user_id, action, **kwargs)
 
     connection = transaction.get_connection()
-    if connection.in_atomic_block:
-        transaction.on_commit(_dispatch)
-    else:
+    if getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', False) or not connection.in_atomic_block:
         _dispatch()
+    else:
+        transaction.on_commit(_dispatch)
 
 
 async def _group_send(channel_layer, group, message):
@@ -98,6 +99,52 @@ def send_notification_async(self, notification_id):
         raise self.retry(exc=exc)
 
 
+def apply_points(user_id, action, description=None, extra_points=None):
+    """同步发放积分并更新等级。
+
+    调用方应处于事务中（每日签到会先锁定用户行）。返回 None 表示
+    用户不存在或该行为积分为 0。
+    """
+    from django.contrib.auth import get_user_model
+    from .models import PointsRecord
+
+    User = get_user_model()
+
+    points = extra_points if extra_points is not None else get_points_for_action(action)
+    if points == 0:
+        return None
+
+    if description is None:
+        description = get_action_description(action)
+
+    with transaction.atomic():
+        try:
+            user = User.objects.select_for_update().get(pk=user_id)
+        except User.DoesNotExist:
+            return None
+
+        PointsRecord.objects.create(
+            user=user,
+            action=action,
+            points=points,
+            description=description,
+        )
+
+        new_points = user.points + points
+        new_level = calculate_level(new_points)
+        update_fields = {'points': new_points}
+        if new_level != user.level:
+            update_fields['level'] = new_level
+
+        User.objects.filter(pk=user_id).update(**update_fields)
+
+    return {
+        'points': points,
+        'total_points': new_points,
+        'level': new_level,
+    }
+
+
 @shared_task(bind=True, max_retries=3, default_retry_delay=5)
 def update_user_points_async(self, user_id, action, description=None, extra_points=None):
     """
@@ -109,51 +156,18 @@ def update_user_points_async(self, user_id, action, description=None, extra_poin
         description: 可选自定义描述，默认使用 ACTION_DESCRIPTIONS
         extra_points: 可选强制指定积分值，不传则按规则计算
     """
-    from django.contrib.auth import get_user_model
-    from .models import PointsRecord
-
-    User = get_user_model()
-
     try:
-        user = User.objects.get(id=user_id)
-    except User.DoesNotExist:
-        logger.warning(f"用户 {user_id} 不存在，跳过积分更新")
-        return
-
-    points = extra_points if extra_points is not None else get_points_for_action(action)
-    if points == 0:
-        logger.info(f"行为 {action} 积分为 0，跳过更新: user_id={user_id}")
-        return
-
-    if description is None:
-        description = get_action_description(action)
-
-    try:
-        with transaction.atomic():
-            # 锁定用户行，防止并发覆盖积分
-            user = User.objects.select_for_update().get(pk=user_id)
-
-            # 创建积分记录
-            PointsRecord.objects.create(
-                user=user,
-                action=action,
-                points=points,
-                description=description,
-            )
-
-            # 原子更新积分与等级
-            new_points = user.points + points
-            new_level = calculate_level(new_points)
-            update_fields = {'points': new_points}
-            if new_level != user.level:
-                update_fields['level'] = new_level
-
-            User.objects.filter(pk=user_id).update(**update_fields)
-
-        logger.info(
-            f"异步更新用户积分成功: user_id={user_id}, action={action}, "
-            f"points={points}, total_points={new_points}, level={new_level}"
-        )
+        result = apply_points(user_id, action, description, extra_points)
     except Exception as exc:
         logger.exception(f"异步更新用户积分失败: user_id={user_id}, action={action}")
         raise self.retry(exc=exc)
+
+    if result is None:
+        logger.info(f"积分更新跳过（用户不存在或积分为 0）: user_id={user_id}, action={action}")
+        return
+
+    logger.info(
+        f"异步更新用户积分成功: user_id={user_id}, action={action}, "
+        f"points={result['points']}, total_points={result['total_points']}, "
+        f"level={result['level']}"
+    )

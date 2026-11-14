@@ -81,6 +81,14 @@ const addTag = () => {
   tagInput.value = ''
 }
 
+// 逗号键也触发添加标签
+const handleTagComma = (event: KeyboardEvent) => {
+  if (event.key === ',') {
+    event.preventDefault()
+    addTag()
+  }
+}
+
 // 移除标签
 const removeTag = (index: number) => {
   newTopic.tags.splice(index, 1)
@@ -228,7 +236,7 @@ onMounted(async () => {
                   placeholder="输入标签后按Enter添加"
                   @keydown.enter.prevent="addTag"
                   @keydown.tab.prevent="addTag"
-                  @keydown.comma.prevent="addTag"
+                  @keydown="handleTagComma"
                 />
               </div>
               <div class="tags-helper">用标签归类你的主题，多个标签用回车分隔</div>

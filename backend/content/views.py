@@ -1,5 +1,5 @@
-from django.db.models import Q, F, Count, Exists, OuterRef
-from rest_framework import viewsets, permissions, status, filters
+from django.db.models import Q, F
+from rest_framework import status, filters
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import ContentType, Category, Tag, Content, Comment, ContentRevision
@@ -15,7 +15,6 @@ from users.tasks import queue_update_user_points
 from notifications.notification_sender import notify_forum_event
 from search.services import SearchService
 from core.base_viewsets import (
-    StandardResultsSetPagination,
     PublicReadOnlyModelViewSet,
     BaseModelViewSet,
 )

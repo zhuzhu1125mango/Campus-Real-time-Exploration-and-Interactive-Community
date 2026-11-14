@@ -183,6 +183,11 @@ class SearchService:
         if not query:
             return User.objects.none()
 
+        def _exclude_self(queryset):
+            if current_user is not None and getattr(current_user, 'is_authenticated', False):
+                return queryset.exclude(pk=current_user.pk)
+            return queryset
+
         if es_is_available():
             try:
                 fields = ['username^3', 'school', 'major', 'bio']
@@ -197,7 +202,7 @@ class SearchService:
                 queryset = User.objects.filter(pk__in=ids)
                 if not include_private:
                     queryset = queryset.filter(is_active=True)
-                return queryset
+                return _exclude_self(queryset)
             except Exception as exc:
                 logger.warning(f"ES 用户搜索失败，降级到数据库: {exc}")
 
@@ -207,7 +212,8 @@ class SearchService:
         filters = Q(username__icontains=query)
         if include_private:
             filters |= Q(email__icontains=query) | Q(phone__icontains=query)
-        return User.objects.filter(filters).distinct()[:limit]
+        queryset = _exclude_self(User.objects.filter(filters).distinct())
+        return queryset[:limit]
 
     # ----------------------------
     # 搜索建议

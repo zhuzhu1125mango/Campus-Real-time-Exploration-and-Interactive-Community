@@ -12,7 +12,6 @@ from rest_framework import viewsets, permissions
 from rest_framework.pagination import PageNumberPagination
 
 from users.permissions import IsOwnerOrAdmin
-from users.throttles import SearchThrottle, WriteThrottle
 
 
 class StandardResultsSetPagination(PageNumberPagination):

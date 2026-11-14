@@ -7,4 +7,4 @@ class SchoolsConfig(AppConfig):
     verbose_name = '院校信息'
 
     def ready(self):
-        import schools.signals
+        import schools.signals  # noqa: F401

@@ -2,15 +2,10 @@ from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
-from learning.models import Course
 from learning.serializers import CourseSerializer
-from content.models import Content
 from content.serializers import ContentSerializer
-from schools.models import School
 from schools.serializers import SchoolSerializer
-from forum.models import Topic, Post
 from forum.serializers import TopicListSerializer, PostSerializer
-from users.models import User
 from users.serializers import UserPublicSerializer
 
 from .services import SearchService

@@ -263,7 +263,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 # 确认消息已收到
                 await self.send(text_data=json.dumps({
                     'type': 'message_received',
-                    'message': f"已收到并广播消息",
+                    'message': "已收到并广播消息",
                     'time': current_time
                 }))
                 return

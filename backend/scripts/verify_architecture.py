@@ -117,7 +117,6 @@ def check_notifications_points():
     print("[Notifications/Points] 检查通知与积分异步化配置 ...")
     from users.points import POINTS_RULES, LEVEL_THRESHOLDS, calculate_level
     from users.tasks import update_user_points_async
-    from notifications.notification_sender import create_notification
 
     # 检查核心积分规则
     required_actions = [
@@ -163,7 +162,6 @@ def check_cache():
     """验证缓存配置与统一缓存工具层。"""
     print("[Cache] 检查缓存配置 ...")
     from django.conf import settings
-    from django.core.cache import cache
     from core.cache_utils import (
         build_cache_key,
         cache_get,

@@ -1,6 +1,5 @@
 from django.core.mail import send_mail
 from django.conf import settings
-from django.template.loader import render_to_string
 
 def send_verification_email(email, code):
     """

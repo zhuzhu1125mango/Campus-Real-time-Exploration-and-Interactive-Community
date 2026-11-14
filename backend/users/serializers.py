@@ -8,8 +8,6 @@ from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 
 from .models import UserProfile, VerificationCode, PointsRecord
-from .sms import send_verification_sms
-from .email import send_verification_email
 
 logger = logging.getLogger(__name__)
 User = get_user_model()

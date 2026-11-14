@@ -2,7 +2,6 @@ import os
 import django
 from django.contrib.auth import get_user_model
 from forum.models import Board, Topic, Post
-from schools.models import School
 import random
 from faker import Faker
 

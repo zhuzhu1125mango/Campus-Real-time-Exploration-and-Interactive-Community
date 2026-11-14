@@ -8,7 +8,6 @@
 from django.core.management.base import BaseCommand
 
 from search.client import es_is_available
-from search.documents import create_all_indices, delete_all_indices, DOCUMENT_REGISTRY
 from search.tasks import MODEL_TO_DOC
 
 

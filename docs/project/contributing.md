@@ -59,7 +59,7 @@ chore: 升级 uv.lock
 - 请求统一走 `utils/request.ts` 与 `api/`
 - `v-html` 必须经过 `utils/xss.ts`
 - 新增页面同步更新 `router/index.ts`
-- 提交前 `pnpm type-check`
+- 提交前 `pnpm lint` 与 `pnpm type-check`
 
 ### 3.3 小程序
 
@@ -78,15 +78,22 @@ chore: 升级 uv.lock
 ```bash
 # 后端
 cd backend
+uv run ruff check .
+uv run pip-audit --path .venv
 uv run python manage.py check
 uv run python manage.py makemigrations --check --dry-run
 uv run python manage.py test --noinput --keepdb
 
 # 前端
 cd frontend
+pnpm lint
+pnpm audit --audit-level high --prod --registry https://registry.npmjs.org
 pnpm type-check
 pnpm build
 ```
+
+> 以上检查已配置在 GitHub Actions（`.github/workflows/ci.yml`）中。
+> PR 需要两个 job 全部通过后才能合并，建议同时开启分支保护。
 
 ## 5. PR 检查清单
 

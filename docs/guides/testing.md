@@ -66,12 +66,94 @@ pnpm build
 
 预期：
 
+- Ruff / ESLint 无错误
+- 依赖审计无 high/critical 漏洞
 - Django 系统检查无问题
 - 无迁移漂移
 - 测试全部通过
 - TypeScript 无错误、构建成功
 
-## 4. 集成脚本
+## 4. CI 门禁
+
+GitHub Actions 工作流：[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)。
+
+触发条件：
+
+- push 到 `main` / `master`
+- 针对 `main` / `master` 的 pull request
+- 手动 `workflow_dispatch`
+
+### 4.1 Backend job
+
+| 步骤 | 命令 |
+|---|---|
+| 安装依赖 | `uv sync --frozen` |
+| 代码检查 | `ruff check .` |
+| 依赖审计 | `pip-audit --path .venv` |
+| 系统检查 | `manage.py check` |
+| 迁移漂移 | `makemigrations --check --dry-run` |
+| 全量测试 | `manage.py test --noinput` |
+
+> Ruff 当前启用 `E4/E7/E9/F`，优先阻断语法错误、未定义名称和未使用导入；迁移目录不参与检查。
+
+CI 使用 MySQL 8.0 service，并通过 `config/settings_ci.py` 覆盖测试配置：
+
+```env
+DJANGO_SETTINGS_MODULE=config.settings_ci
+```
+
+`settings_ci.py` 包含：
+
+- `DEBUG=True`，使用内存缓存与内存 Channel Layer
+- Celery eager 模式
+- 快速密码哈希（MD5），缩短测试时间
+- ES 指向不可用地址，验证搜索降级路径
+
+> `config/settings_ci.py` 仅用于 CI，禁止用于生产或日常开发。
+
+### 4.2 Frontend job
+
+| 步骤 | 命令 |
+|---|---|
+| 安装依赖 | `pnpm install --frozen-lockfile` |
+| 代码检查 | `pnpm lint` |
+| 依赖审计 | `pnpm audit --audit-level high --prod --registry https://registry.npmjs.org` |
+| 类型检查 + 构建 | `pnpm build` |
+
+> 默认镜像源（npmmirror）不提供 npm audit 接口，因此依赖审计显式使用官方 registry。
+> ESLint 使用 Vue essential + typescript-eslint recommended，并按项目现状放宽 `any` 等规则。
+
+环境：Node.js 22、pnpm 11、`NODE_OPTIONS=--max-old-space-size=4096`。
+
+### 4.3 本地等价命令
+
+```bash
+# 后端
+cd backend
+uv sync --frozen
+uv run ruff check .
+uv run pip-audit --path .venv
+uv run python manage.py check
+DJANGO_SETTINGS_MODULE=config.settings_ci uv run python manage.py makemigrations --check --dry-run
+DJANGO_SETTINGS_MODULE=config.settings_ci uv run python manage.py test --noinput
+
+# 前端
+cd frontend
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm audit --audit-level high --prod --registry https://registry.npmjs.org
+pnpm build
+```
+
+### 4.4 分支保护建议
+
+在 GitHub 仓库设置中开启：
+
+- 要求 PR 通过 `Backend checks & tests` 与 `Frontend type-check & build`
+- 禁止直接 push 到 `main`
+- 合并前要求分支与 `main` 同步
+
+## 5. 集成脚本
 
 `backend/tests/integration/` 下的脚本不是 Django 测试用例，而是需要真实服务的冒烟脚本：
 
@@ -92,7 +174,7 @@ SMOKE_TEST_BASE_URL=http://localhost:8000/api uv run python tests/integration/te
 
 注意：这些脚本会写入数据库（登录、签到、发帖等），不要对生产环境执行。
 
-## 5. 编写测试的建议
+## 6. 编写测试的建议
 
 1. **接口测试优先**：使用 `APIClient`，覆盖成功、未登录、无权限、参数错误四类。
 2. **异步任务显式 eager**：在测试类上使用
@@ -103,7 +185,7 @@ SMOKE_TEST_BASE_URL=http://localhost:8000/api uv run python tests/integration/te
    仅测试消费者逻辑时优先 mock channel layer。
 6. **通知**：断言 `Notification` 记录与 `group_send` 调用，不要依赖真实网络。
 
-## 6. 覆盖率缺口
+## 7. 覆盖率缺口
 
 当前优先补充：
 
@@ -113,7 +195,7 @@ SMOKE_TEST_BASE_URL=http://localhost:8000/api uv run python tests/integration/te
 - `activities`：动态可见性、点赞幂等
 - `content`：草稿/提交/审核/驳回状态机
 
-## 7. 常见测试问题
+## 8. 常见测试问题
 
 | 现象 | 原因 | 处理 |
 |---|---|---|

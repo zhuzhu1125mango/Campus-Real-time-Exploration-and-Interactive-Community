@@ -1,4 +1,3 @@
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from django.test import override_settings, TransactionTestCase
@@ -9,7 +8,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Course, Category, Chapter, Lesson, Enrollment, Progress, Review, LearningResource
+from .models import Course, Chapter, Lesson, Enrollment, Progress, Review, LearningResource
 
 User = get_user_model()
 

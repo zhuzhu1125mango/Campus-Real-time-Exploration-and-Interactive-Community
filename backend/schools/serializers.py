@@ -210,7 +210,7 @@ class PlaceSerializer(serializers.ModelSerializer):
         if not request or not request.user.is_authenticated:
             return False
         from django.utils import timezone
-        today = timezone.now().date()
+        today = timezone.localdate()
         return obj.checkins.filter(
             user=request.user,
             created_at__date=today

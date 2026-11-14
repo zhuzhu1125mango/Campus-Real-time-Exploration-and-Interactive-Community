@@ -1,5 +1,3 @@
-import threading
-import time
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -174,7 +172,7 @@ class UserLoginTests(UserBaseAPITest):
 
     def test_password_login_success(self):
         """正确的用户名密码应返回JWT令牌和用户信息。"""
-        user = self.create_user('loginuser')
+        self.create_user('loginuser')
         response = self.client.post('/api/users/users/login/', {
             'username': 'loginuser',
             'password': 'TestPass123!'
@@ -208,7 +206,7 @@ class UserLoginTests(UserBaseAPITest):
     def test_email_code_login_success(self):
         """邮箱验证码登录应成功。"""
         email = 'emaillogin@example.com'
-        user = self.create_user('emailloginuser', email=email)
+        self.create_user('emailloginuser', email=email)
         verification = self.create_email_verification(email, purpose='login')
 
         response = self.client.post('/api/users/email-code-login/', {
@@ -378,7 +376,7 @@ class UserSearchTests(UserBaseAPITest):
 
     def test_search_public_fields_only(self):
         """普通用户搜索只能看到公开字段，不能看到邮箱和手机号。"""
-        user = self.create_user('searchtarget', email='target@example.com', phone='13800138001')
+        self.create_user('searchtarget', email='target@example.com', phone='13800138001')
         searcher = self.create_user('searcher')
         self.authenticate(searcher)
 

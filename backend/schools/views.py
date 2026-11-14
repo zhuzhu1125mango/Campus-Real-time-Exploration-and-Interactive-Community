@@ -2,8 +2,7 @@ from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action, api_view, parser_classes, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.shortcuts import get_object_or_404
-from django.db.models import Q, Avg, Count, F
+from django.db.models import Q, Avg, Count
 from django.db import transaction
 from django.utils import timezone
 from django.core.cache import cache
@@ -442,7 +441,6 @@ class SchoolViewSet(PublicReadOnlyModelViewSet):
     def compare(self, request):
         """院校对比功能"""
         school_ids = request.data.get('school_ids', [])
-        comparison_fields = request.data.get('comparison_fields', [])
         
         if not school_ids or len(school_ids) < 2:
             return Response({"detail": "至少需要选择2所院校进行对比"}, status=status.HTTP_400_BAD_REQUEST)
@@ -894,7 +892,7 @@ def get_recommendations(request):
                 return Response(
                     {"detail": "无效的推荐类型"},
                     status=status.HTTP_400_BAD_REQUEST)
-    except Exception as e:
+    except Exception:
         # 如果推荐失败，返回默认推荐
         if recommendation_type == 'schools':
             default_recommendations = School.objects.filter(
@@ -1172,7 +1170,7 @@ class ExploreViewSet(viewsets.ViewSet):
             queryset = queryset.filter(category=category)
 
         # 使用近似矩形过滤减少计算量
-        from math import degrees, radians, sin, cos, asin
+        from math import degrees, radians, cos
         delta_lat = degrees(radius_km / 6371.0)
         delta_lng = degrees(radius_km / (6371.0 * cos(radians(lat))))
 
@@ -1218,7 +1216,7 @@ class ExploreViewSet(viewsets.ViewSet):
                 radius_km = 10
 
             # 先找到半径内的学校，再返回这些学校的活动
-            from math import degrees, radians, sin, cos
+            from math import degrees, radians, cos
             delta_lat = degrees(radius_km / 6371.0)
             delta_lng = degrees(radius_km / (6371.0 * cos(radians(lat))))
 
@@ -1289,7 +1287,7 @@ class ExploreViewSet(viewsets.ViewSet):
         # 同用户同地点每天只能打卡一次
         # 不使用 created_at__date，避免 MySQL 时区表未加载导致 CONVERT_TZ 返回 NULL
         from datetime import datetime, time as dt_time, timedelta
-        today = timezone.now().date()
+        today = timezone.localdate()
         start_of_day = timezone.make_aware(datetime.combine(today, dt_time.min))
         end_of_day = timezone.make_aware(datetime.combine(today + timedelta(days=1), dt_time.min))
         if CheckIn.objects.filter(

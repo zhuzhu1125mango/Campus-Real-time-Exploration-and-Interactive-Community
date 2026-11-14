@@ -52,7 +52,6 @@ class RecommendationService:
             if favorite_schools.exists():
                 fav_school_types = favorite_schools.values_list('school_type', flat=True).distinct()
                 fav_school_levels = favorite_schools.values_list('school_level', flat=True).distinct()
-                fav_provinces = favorite_schools.values_list('province', flat=True).distinct()
 
                 similar_schools = School.objects.filter(
                     school_type__in=fav_school_types,

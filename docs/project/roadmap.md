@@ -67,7 +67,7 @@
 - [ ] 接入 Flower 监控 Celery
 - [ ] 接入 ELK/Loki 日志聚合
 - [ ] 增加 ES/Redis/MySQL 指标与告警
-- [ ] CI：lint、测试、迁移检查、依赖扫描
+- [x] CI：lint、测试、迁移检查、依赖扫描（Ruff、ESLint、pip-audit、pnpm audit）
 - [ ] 增加 OpenAPI/Swagger 文档
 - [ ] 统一分页默认值（12 vs 10）
 - [ ] 清理根目录/后端临时文件（日志、`data.json`、调试脚本）
@@ -78,7 +78,7 @@
 - [ ] 生产开启短信验证码
 - [ ] 限制调试接口访问
 - [ ] 日志脱敏（token、手机号、邮箱）
-- [ ] 依赖漏洞扫描
+- [x] 依赖漏洞扫描（CI 使用 pip-audit 与 pnpm audit）
 - [ ] 上传文件病毒扫描/对象存储
 
 ## 6. 文档

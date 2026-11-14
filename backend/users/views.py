@@ -1,4 +1,4 @@
-from rest_framework import viewsets, generics, status, permissions
+from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.authtoken.models import Token
@@ -9,7 +9,6 @@ from django.http import JsonResponse
 import os
 from django.http import HttpResponse
 from datetime import datetime
-from django.shortcuts import get_object_or_404
 from django.db import transaction
 
 from .serializers import (
@@ -17,12 +16,12 @@ from .serializers import (
     PointsRecordSerializer, EmailVerificationSerializer, PhoneVerificationSerializer,
     VerifyCodeSerializer, EmailCodeLoginSerializer, PhoneCodeLoginSerializer, ResetPasswordSerializer
 )
-from schools.models import School
+from .models import UserProfile
 from forum.models import Topic, Post
 from forum.serializers import TopicListSerializer, PostSerializer
 from users.permissions import IsOwnerOrAdmin
 from users.throttles import LoginThrottle, CodeSendThrottle, SearchThrottle, WriteThrottle
-from users.tasks import queue_update_user_points
+from users.tasks import apply_points, queue_update_user_points
 from search.services import SearchService
 from core.base_viewsets import BaseModelViewSet
 
@@ -37,7 +36,7 @@ def _award_login_points_if_needed(user):
     from datetime import time as dt_time, timedelta
     from .models import PointsRecord
 
-    today = timezone.now().date()
+    today = timezone.localdate()
     today_start = timezone.make_aware(datetime.combine(today, dt_time.min))
     today_end = timezone.make_aware(datetime.combine(today + timedelta(days=1), dt_time.min))
 
@@ -287,10 +286,6 @@ class UserViewSet(BaseModelViewSet):
             current_user=request.user
         )
 
-        # 排除当前用户
-        if request.user.is_authenticated:
-            users = users.exclude(id=request.user.id)
-
         # 分页
         page = self.paginate_queryset(users)
         serializer = UserPublicSerializer(
@@ -427,7 +422,7 @@ class UserViewSet(BaseModelViewSet):
         from datetime import datetime, time, timedelta
 
         user = request.user
-        today = timezone.now().date()
+        today = timezone.localdate()
         today_start = timezone.make_aware(datetime.combine(today, time.min))
         tomorrow_start = timezone.make_aware(datetime.combine(today + timedelta(days=1), time.min))
 
@@ -479,8 +474,8 @@ class UserViewSet(BaseModelViewSet):
                 elif consecutive_days >= 3:
                     points += 5
 
-            # 异步发放签到积分
-            queue_update_user_points(user.id, 'daily_checkin')
+            # 同步发放签到积分，确保同一事务内可立即识别重复签到
+            apply_points(user.id, 'daily_checkin')
 
             # 连续签到额外奖励（仅在首次达到里程碑当天发放一次）
             def has_extra_reward_today(action):
@@ -492,11 +487,11 @@ class UserViewSet(BaseModelViewSet):
                 ).exists()
 
             if consecutive_days >= 7 and not has_extra_reward_today('consecutive_checkin_7'):
-                queue_update_user_points(user.id, 'consecutive_checkin_7')
+                apply_points(user.id, 'consecutive_checkin_7')
             elif consecutive_days >= 3 and not has_extra_reward_today('consecutive_checkin_3'):
-                queue_update_user_points(user.id, 'consecutive_checkin_3')
+                apply_points(user.id, 'consecutive_checkin_3')
 
-            # 重新加载以获取更新后的积分（Celery 可能尚未执行，返回旧值属于可接受）
+            # 重新加载以获取最新积分
             user.refresh_from_db()
 
         return Response({
@@ -524,7 +519,6 @@ class UserViewSet(BaseModelViewSet):
 
 class UserProfileViewSet(BaseModelViewSet):
     """用户资料视图集"""
-    from .models import UserProfile
     queryset = UserProfile.objects.all()
     serializer_class = UserProfileSerializer
 
@@ -719,12 +713,14 @@ def test_html_media(request):
         </script>
     </body>
     </html>
-    """.format(
-        media_root=settings.MEDIA_ROOT,
-        media_url=settings.MEDIA_URL,
-        debug=settings.DEBUG,
-        absolute_url=request.build_absolute_uri('/').rstrip('/'),
-        timestamp=int(datetime.now().timestamp() * 1000)
+    """
+    html_content = (
+        html_content
+        .replace('{media_root}', str(settings.MEDIA_ROOT))
+        .replace('{media_url}', str(settings.MEDIA_URL))
+        .replace('{debug}', str(settings.DEBUG))
+        .replace('{absolute_url}', request.build_absolute_uri('/').rstrip('/'))
+        .replace('{timestamp}', str(int(datetime.now().timestamp() * 1000)))
     )
     
     return HttpResponse(html_content, content_type='text/html')

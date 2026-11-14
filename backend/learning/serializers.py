@@ -137,12 +137,6 @@ class ChapterUpdateSerializer(serializers.ModelSerializer):
         fields = ['title', 'description', 'order']
 
 
-class LessonUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Lesson
-        fields = ['title', 'description', 'content', 'video_url', 'duration', 'is_free', 'order']
-
-
 class EnrollmentSerializer(serializers.ModelSerializer):
     user = UserSerializer()
     course = CourseSerializer()

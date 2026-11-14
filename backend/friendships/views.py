@@ -8,7 +8,6 @@ from .models import FriendRequest, Friend
 from .serializers import (
     FriendRequestSerializer,
     FriendRequestCreateSerializer,
-    FriendListSerializer,
     UserSerializer
 )
 from notifications.notification_sender import send_notification_to_user

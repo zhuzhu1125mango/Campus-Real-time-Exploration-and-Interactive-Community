@@ -6,7 +6,6 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
-from django.conf import settings
 from schools.models import School
 
 logger = logging.getLogger(__name__)
@@ -87,7 +86,7 @@ class Command(BaseCommand):
                             self.error_count += 1
                             logger.error(f"处理学校数据时出错: {str(e)}, 数据: {row}")
                             if self.error_count > 10:  # 如果错误过多，终止导入
-                                raise CommandError(f"导入过程中错误过多，已终止导入。")
+                                raise CommandError("导入过程中错误过多，已终止导入。")
         except UnicodeDecodeError:
             raise CommandError(f"无法以 {encoding} 编码读取CSV文件，请尝试不同的编码，例如 'gbk', 'gb2312', 'utf-8-sig'等")
 
@@ -127,7 +126,7 @@ class Command(BaseCommand):
                         self.error_count += 1
                         logger.error(f"处理学校数据时出错: {str(e)}, 数据: {row.to_dict()}")
                         if self.error_count > 10:  # 如果错误过多，终止导入
-                            raise CommandError(f"导入过程中错误过多，已终止导入。")
+                            raise CommandError("导入过程中错误过多，已终止导入。")
         except Exception as e:
             raise CommandError(f"读取Excel文件失败: {str(e)}")
 
@@ -163,7 +162,7 @@ class Command(BaseCommand):
                             self.error_count += 1
                             logger.error(f"处理学校数据时出错: {str(e)}, 数据: {school_data}")
                             if self.error_count > 10:  # 如果错误过多，终止导入
-                                raise CommandError(f"导入过程中错误过多，已终止导入。")
+                                raise CommandError("导入过程中错误过多，已终止导入。")
         except json.JSONDecodeError:
             raise CommandError("JSON文件格式错误")
         except UnicodeDecodeError:
@@ -178,7 +177,7 @@ class Command(BaseCommand):
         
         # 提取必填字段 - 只要求名称字段
         if 'name' not in normalized_data or not normalized_data['name']:
-            raise ValueError(f"缺少必填字段: name")
+            raise ValueError("缺少必填字段: name")
         
         # 检查学校是否已存在（优先通过代码检查，如果没有代码则通过名称检查）
         try:

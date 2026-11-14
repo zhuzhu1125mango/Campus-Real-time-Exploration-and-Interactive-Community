@@ -1,5 +1,7 @@
 # Campus-Real-time-Exploration-and-Interactive-Community
 
+[![CI](https://github.com/zhuzhu1125mango/Campus-Real-time-Exploration-and-Interactive-Community/actions/workflows/ci.yml/badge.svg)](https://github.com/zhuzhu1125mango/Campus-Real-time-Exploration-and-Interactive-Community/actions/workflows/ci.yml)
+
 一个面向高校场景的实时互动社区平台，支持院校查询、校园论坛、在线学习、内容分享、私信沟通等功能。项目采用前后端分离架构，并同步开发微信小程序端。
 
 ## 技术栈

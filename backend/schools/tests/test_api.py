@@ -440,6 +440,7 @@ class ExploreAPITest(TestCase):
 
     def test_checkin_success(self):
         """用户可以在地点打卡并获得积分。"""
+        self.user.refresh_from_db()
         initial_points = self.user.points
         response = self.client.post(
             '/api/schools/explore/checkin/',

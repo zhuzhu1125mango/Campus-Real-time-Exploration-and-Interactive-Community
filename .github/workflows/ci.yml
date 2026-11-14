@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend checks, lint & tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: university_exchange
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings_ci
+      DJANGO_SECRET_KEY: ci-only-secret-key-0123456789abcdef0123456789abcdef
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      DB_ENGINE: django.db.backends.mysql
+      DB_NAME: university_exchange
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_REPLICA_HOST: ""
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Lint
+        working-directory: backend
+        run: uv run ruff check .
+
+      - name: Dependency audit
+        working-directory: backend
+        run: uv run pip-audit --path .venv --progress-spinner off
+
+      - name: Django system check
+        working-directory: backend
+        run: uv run python manage.py check
+
+      - name: Migration drift check
+        working-directory: backend
+        run: uv run python manage.py makemigrations --check --dry-run
+
+      - name: Run backend tests
+        working-directory: backend
+        run: uv run python manage.py test --noinput --verbosity=1
+
+  frontend:
+    name: Frontend lint, audit & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "11.9.0"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: frontend
+        run: pnpm lint
+
+      - name: Dependency audit
+        working-directory: frontend
+        run: pnpm audit --audit-level high --prod --registry https://registry.npmjs.org
+
+      - name: Type check & build
+        working-directory: frontend
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: pnpm build

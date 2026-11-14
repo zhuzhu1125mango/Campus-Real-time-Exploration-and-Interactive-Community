@@ -113,7 +113,7 @@ class CheckinPointsTests(EagerCeleryTestCase):
         self.client.force_authenticate(user=self.user)
 
     def _make_checkin_record(self, action, days_ago):
-        date = timezone.now().date() - timedelta(days=days_ago)
+        date = timezone.localdate() - timedelta(days=days_ago)
         created_at = timezone.make_aware(datetime.combine(date, dt_time.min))
         record = PointsRecord.objects.create(
             user=self.user,
@@ -156,11 +156,11 @@ class CheckinPointsTests(EagerCeleryTestCase):
         # 先删除今天的 daily_checkin 以模拟明天（仅用于测试幂等）
         PointsRecord.objects.filter(
             user=self.user, action='daily_checkin',
-            created_at__date=timezone.now().date()
+            created_at__date=timezone.localdate()
         ).delete()
         PointsRecord.objects.filter(
             user=self.user, action='daily_checkin',
-            created_at__gte=timezone.now().date()
+            created_at__gte=timezone.localdate()
         ).delete()
 
         response = self.client.post(reverse('user-daily-checkin'))
@@ -290,5 +290,5 @@ class NotificationTests(EagerCeleryTestCase):
             message='有人评论了你的内容',
         )
         notification = Notification.objects.first()
-        self.assertEqual(notification.notification_type, 'interaction')
+        self.assertEqual(notification.notification_type, 'content_comment')
         self.assertEqual(notification.title, '新评论')
