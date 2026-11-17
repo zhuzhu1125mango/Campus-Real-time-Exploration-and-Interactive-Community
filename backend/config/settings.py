@@ -461,3 +461,7 @@ ELASTICSEARCH_RETRY_ON_TIMEOUT = True
 ELASTICSEARCH_FALLBACK_TO_DB = os.environ.get('ELASTICSEARCH_FALLBACK_TO_DB', 'True') == 'True'
 # 搜索索引名称前缀
 ELASTICSEARCH_INDEX_PREFIX = os.environ.get('ELASTICSEARCH_INDEX_PREFIX', 'campus')
+
+# 公共聊天室敏感词表（部署时可通过环境/配置覆盖）。
+# 为空时使用 core.sensitive_filter 内置的默认词表；非空时与默认词表合并。
+SENSITIVE_WORDS = []

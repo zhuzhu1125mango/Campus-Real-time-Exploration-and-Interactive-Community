@@ -59,14 +59,22 @@
               </div>
               <div class="message-body">
                 <div class="message-content" :class="{ 'send-failed': message.sendFailed }">
-                  <p class="message-text">{{ message.content }}</p>
+                  <p v-if="message.is_recalled" class="message-text recalled">消息已撤回</p>
+                  <p v-else class="message-text">{{ message.content }}</p>
                 </div>
                 <div class="message-meta">
                   <span v-if="message.isTemp" class="message-status sending">发送中...</span>
                   <span v-else-if="message.sendFailed" class="message-status failed" @click="resendMessage(message)">
                     发送失败，点击重试
                   </span>
-                  <span v-else-if="isMine(message)" class="message-status sent">已发送</span>
+                  <span v-else-if="isMine(message) && !message.is_recalled" class="message-status sent">已发送</span>
+                  <button
+                    v-if="canRecall(message)"
+                    class="recall-link"
+                    @click="recallMessage(message)"
+                  >
+                    撤回
+                  </button>
                   <span class="message-time">{{ formatTime(message.created_at) }}</span>
                 </div>
               </div>
@@ -79,6 +87,11 @@
     <div v-if="!isConnected && !loading" class="reconnect-bar">
       <span>连接已断开，可能无法实时收到新消息</span>
       <button class="reconnect-btn" @click="connectWebSocket">重新连接</button>
+    </div>
+
+    <div v-if="typingUsername" class="typing-indicator">
+      <span class="typing-dots"><i></i><i></i><i></i></span>
+      {{ typingUsername }} 正在输入...
     </div>
 
     <div class="chat-input-area">
@@ -127,6 +140,8 @@ type WebSocketPrivateMessage = {
   receiver_avatar?: string | null
   content: string
   is_read?: boolean
+  is_recalled?: boolean
+  recalled_at?: string | null
   created_at?: string
 }
 
@@ -160,6 +175,9 @@ const heartbeatInterval = ref<number | null>(null)
 const lastError = ref('')
 const reconnectDelay = 1000
 const sending = ref(false)
+const typingUsername = ref('')
+let typingHideTimer: number | null = null
+let lastTypingSent = 0
 
 // 获取WebSocket基础URL
 const WS_BASE_URL = config.wsBaseUrl
@@ -337,6 +355,7 @@ const sendMessage = async () => {
       receiver: user.value as User,
       content,
       is_read: false,
+      is_recalled: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       isTemp: true,
@@ -410,6 +429,52 @@ const handleInputKeydown = (e: KeyboardEvent) => {
     sendMessage()
   }
 }
+
+// 撤回消息：仅自己发送、未撤回且在 2 分钟内
+const canRecall = (message: ChatMessageItem) => {
+  if (!isMine(message) || message.is_recalled || typeof message.id !== 'number') return false
+  return Date.now() - new Date(message.created_at).getTime() <= 120000
+}
+
+const recallMessage = async (message: ChatMessageItem) => {
+  if (typeof message.id !== 'number') return
+  try {
+    await userApi.recallMessage(message.id)
+    message.is_recalled = true
+    message.content = ''
+    message.recalled_at = new Date().toISOString()
+  } catch (error) {
+    console.error('[ChatDetail] 撤回消息失败:', error)
+    showToast('撤回失败，可能已超过 2 分钟', 'error')
+  }
+}
+
+const handleTypingEvent = (data: { user_id?: number; username?: string }) => {
+  if (Number(data.user_id) === currentUserId.value) return
+  typingUsername.value = data.username || '对方'
+  if (typingHideTimer) window.clearTimeout(typingHideTimer)
+  typingHideTimer = window.setTimeout(() => {
+    typingUsername.value = ''
+  }, 3000)
+}
+
+const handleMessageRecalled = (data: { message_id?: number; recalled_at?: string }) => {
+  const id = Number(data.message_id)
+  const target = messages.value.find(msg => msg.id === id)
+  if (!target) return
+  target.is_recalled = true
+  target.content = ''
+  target.recalled_at = data.recalled_at || new Date().toISOString()
+}
+
+// 输入中状态：最多每 2 秒发送一次
+watch(messageInput, (value) => {
+  if (!value.trim() || !isConnected.value || !ws.value || ws.value.readyState !== 1) return
+  const now = Date.now()
+  if (now - lastTypingSent < 2000) return
+  lastTypingSent = now
+  ws.value.send(JSON.stringify({ type: 'typing' }))
+})
 
 // 滚动到底部
 const scrollToBottom = () => {
@@ -489,6 +554,10 @@ const connectWebSocket = async () => {
 
         if (data.type === 'private_message') {
           handlePrivateMessage(data)
+        } else if (data.type === 'typing') {
+          handleTypingEvent(data)
+        } else if (data.type === 'message_recalled') {
+          handleMessageRecalled(data)
         } else if (data.type === 'private_chat_ready') {
           logger.log('[ChatDetail] 私聊频道就绪:', data.message)
         } else if (data.type === 'heartbeat_response') {
@@ -596,6 +665,8 @@ const handlePrivateMessage = (data: WebSocketPrivateMessage) => {
     } as User,
     content: data.content,
     is_read: data.is_read || false,
+    is_recalled: data.is_recalled || false,
+    recalled_at: data.recalled_at ?? null,
     created_at: data.created_at || new Date().toISOString(),
     updated_at: data.created_at || new Date().toISOString()
   }
@@ -636,6 +707,11 @@ const closeWebSocket = () => {
     clearTimeout(reconnectTimeout.value)
     reconnectTimeout.value = null
   }
+  if (typingHideTimer) {
+    window.clearTimeout(typingHideTimer)
+    typingHideTimer = null
+  }
+  typingUsername.value = ''
 }
 
 // 获取用户名首字母
@@ -974,6 +1050,60 @@ onUnmounted(() => {
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.message-text.recalled {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.recall-link {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.recall-link:hover {
+  color: var(--primary-500);
+  text-decoration: underline;
+}
+
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 16px;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+}
+
+.typing-dots {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.typing-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--text-tertiary);
+  animation: typing-blink 1.2s infinite ease-in-out;
+}
+
+.typing-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-blink {
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
 }
 
 .message-meta {

@@ -33,6 +33,10 @@ class Message(models.Model):
     # 消息状态
     is_read = models.BooleanField(_('是否已读'), default=False)
 
+    # 撤回状态
+    is_recalled = models.BooleanField(_('是否已撤回'), default=False)
+    recalled_at = models.DateTimeField(_('撤回时间'), null=True, blank=True)
+
     # 时间戳
     created_at = models.DateTimeField(_('创建时间'), auto_now_add=True)
     updated_at = models.DateTimeField(_('更新时间'), auto_now=True)

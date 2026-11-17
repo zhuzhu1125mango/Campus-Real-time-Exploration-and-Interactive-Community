@@ -75,6 +75,17 @@
 - 修复用户搜索在 ES 降级模式下对已切片 QuerySet 再次过滤导致的 500。
 - 修复签到在本地跨日时区下重复/并发校验失效的问题，签到积分改为事务内同步发放。
 
+### Added（2026-11-17）
+
+- 内容举报：新增 `ContentReport` 模型、`report` 接口与管理员处理接口。
+- 富文本图片：新增 `ContentImage`、上传接口与 `cleanup_content_images` 清理命令；编辑器改为上传后端而非 base64。
+- 实时通信：私信撤回、公共/私信输入中状态、公共聊天室敏感词过滤。
+- 前端：接入 Vitest，新增工具函数单测，CI 增加 `pnpm test` 步骤。
+
+### Changed（2026-11-17）
+
+- `Message` 增加 `is_recalled`、`recalled_at` 字段，接口与 WebSocket 同步返回。
+
 ### 已知问题
 
 - 部分 app 测试为空。

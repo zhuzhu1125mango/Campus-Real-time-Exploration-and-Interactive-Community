@@ -119,6 +119,10 @@ jobs:
         working-directory: frontend
         run: pnpm audit --audit-level high --prod --registry https://registry.npmjs.org
 
+      - name: Unit tests
+        working-directory: frontend
+        run: pnpm test
+
       - name: Type check & build
         working-directory: frontend
         env:

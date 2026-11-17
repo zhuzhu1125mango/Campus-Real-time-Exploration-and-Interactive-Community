@@ -9,7 +9,9 @@
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
@@ -42,6 +44,7 @@
     "typescript-eslint": "^8.72.2",
     "unocss": "^66.7.4",
     "vite": "^6.2.0",
+    "vitest": "^5.1.0",
     "vue-eslint-parser": "^10.4.1",
     "vue-tsc": "^3.2.5"
   }

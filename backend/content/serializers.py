@@ -1,6 +1,9 @@
 from django.utils.text import slugify
 from rest_framework import serializers
-from .models import ContentType, Category, Tag, Content, Comment, ContentRevision
+from .models import (
+    ContentType, Category, Tag, Content, Comment, ContentRevision,
+    ContentReport, ContentImage,
+)
 from users.serializers import UserSerializer
 
 
@@ -126,3 +129,51 @@ class ContentRevisionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContentRevision
         fields = ['id', 'content_title', 'author', 'title', 'content_text', 'summary', 'created_at']
+
+
+class ContentReportSerializer(serializers.ModelSerializer):
+    """内容举报（管理员查看，只读）"""
+    content = serializers.CharField(source='content.title')
+    reporter = serializers.SerializerMethodField()
+    handled_by = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ContentReport
+        fields = [
+            'id', 'content', 'reporter', 'reason', 'description',
+            'status', 'handled_by', 'handled_at', 'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_reporter(self, obj):
+        return {'id': obj.reporter_id, 'username': obj.reporter.username}
+
+    def get_handled_by(self, obj):
+        if not obj.handled_by_id:
+            return None
+        return {'id': obj.handled_by_id, 'username': obj.handled_by.username}
+
+
+class ContentReportCreateSerializer(serializers.ModelSerializer):
+    """创建内容举报"""
+
+    class Meta:
+        model = ContentReport
+        fields = ['reason', 'description']
+
+
+class ContentImageSerializer(serializers.ModelSerializer):
+    """富文本图片"""
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ContentImage
+        fields = ['id', 'url']
+        read_only_fields = fields
+
+    def get_url(self, obj):
+        url = obj.image.url
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(url)
+        return url

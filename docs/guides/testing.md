@@ -9,6 +9,7 @@
 | 跨模块测试 | `backend/tests/test_points_notifications.py` | 积分、通知、Celery 协作 |
 | 集成脚本 | `backend/tests/integration/` | 需要先启动后端，使用真实 HTTP/WS |
 | 前端类型检查 | `frontend/` | `vue-tsc --noEmit` |
+| 前端单元测试 | `frontend/src/**/*.spec.ts` | `pnpm test`（Vitest） |
 | 前端 E2E | 暂无自动化 | 手动或后续引入 Playwright |
 
 当前测试文件：
@@ -118,6 +119,7 @@ DJANGO_SETTINGS_MODULE=config.settings_ci
 | 安装依赖 | `pnpm install --frozen-lockfile` |
 | 代码检查 | `pnpm lint` |
 | 依赖审计 | `pnpm audit --audit-level high --prod --registry https://registry.npmjs.org` |
+| 单元测试 | `pnpm test` |
 | 类型检查 + 构建 | `pnpm build` |
 
 > 默认镜像源（npmmirror）不提供 npm audit 接口，因此依赖审计显式使用官方 registry。
@@ -142,6 +144,7 @@ cd frontend
 pnpm install --frozen-lockfile
 pnpm lint
 pnpm audit --audit-level high --prod --registry https://registry.npmjs.org
+pnpm test
 pnpm build
 ```
 

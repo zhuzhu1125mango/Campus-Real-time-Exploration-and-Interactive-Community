@@ -286,6 +286,11 @@ export const userApi = {
     return request.post(`/users/messages/${receiverId}/`, data)
   },
 
+  // 撤回私信
+  recallMessage(messageId: number): Promise<{ message: string; message_id: number; recalled_at: string }> {
+    return request.post(`/users/messages/${messageId}/recall/`)
+  },
+
   // 获取未读消息数量
   getUnreadMessagesCount(): Promise<{ unread_count: number }> {
     return request.get('/users/messages/unread_count/')

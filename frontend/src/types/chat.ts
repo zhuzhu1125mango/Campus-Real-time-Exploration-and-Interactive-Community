@@ -26,6 +26,8 @@ export interface PrivateMessage {
   receiver: User
   content: string
   is_read: boolean
+  is_recalled: boolean
+  recalled_at?: string | null
   created_at: string
   updated_at: string
 }

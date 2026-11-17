@@ -33,6 +33,34 @@ class WebSocketMessageService:
             logger.error(f"WebSocket 消息发送失败: {str(e)}")
             return False
 
+    def send_message_recalled(self, sender, receiver, message):
+        """向私聊双方推送消息撤回事件。"""
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            logger.warning("Channel layer 不可用，无法发送 WebSocket 消息")
+            return False
+
+        try:
+            room_group_name = self._get_room_group_name(sender, receiver)
+            recalled_at = message.recalled_at.isoformat() if message.recalled_at else None
+
+            async_to_sync(channel_layer.group_send)(
+                room_group_name,
+                {
+                    'type': 'message_recalled',
+                    'message_id': message.id,
+                    'sender_id': sender.id,
+                    'recalled_at': recalled_at,
+                }
+            )
+
+            logger.info(f"WebSocket 撤回事件发送成功: message_id={message.id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"WebSocket 撤回事件发送失败: {str(e)}")
+            return False
+
     def _build_message_data(self, sender, receiver, message):
         sender_avatar = self._get_avatar_url(sender)
 

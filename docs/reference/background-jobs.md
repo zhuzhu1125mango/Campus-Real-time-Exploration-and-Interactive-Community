@@ -139,6 +139,10 @@ uv run celery -A config inspect registered
 
 # 全量重建索引
 uv run python manage.py rebuild_search_index --delete
+
+# 清理未被内容引用的富文本图片（默认 7 天前）
+uv run python manage.py cleanup_content_images --days 7 --dry-run
+uv run python manage.py cleanup_content_images --days 7
 ```
 
 ## 8. 定时任务

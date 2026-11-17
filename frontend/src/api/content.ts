@@ -64,6 +64,20 @@ export const contentApi = {
     return request.get('/content/contents/my_contents/', { params })
   },
 
+  // 内容举报
+  reportContent(id: number | string, data: { reason: string; description?: string }): Promise<{ id: number; status: string }> {
+    return request.post(`/content/contents/${id}/report/`, data)
+  },
+
+  // 上传富文本图片
+  uploadContentImage(file: File): Promise<{ id: number; url: string }> {
+    const formData = new FormData()
+    formData.append('image', file)
+    return request.post('/content/images/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
   // 内容类型API
   getContentTypes(): Promise<PaginatedResponse<ContentType>> {
     return request.get('/content/content-types/')

@@ -29,7 +29,12 @@
 | POST | `/api/content/contents/{id}/unpublish/` | 管理员 | 撤回发布 |
 | POST | `/api/content/contents/{id}/like/` | 登录 | 点赞内容（重复点赞返回 400） |
 | POST | `/api/content/contents/{id}/unlike/` | 登录 | 取消点赞 |
+| POST | `/api/content/contents/{id}/report/` | 登录 | 举报内容（同一内容仅可举报一次） |
 | GET | `/api/content/contents/{id}/revisions/` | 作者/管理员 | 修订历史 |
+| POST | `/api/content/images/` | 登录 | 上传富文本图片（multipart `image`，≤5MB） |
+| GET | `/api/content/reports/` | 管理员 | 举报列表，可按 `?status=pending` 筛选 |
+| POST | `/api/content/reports/{id}/handle/` | 管理员 | 标记举报为已处理 |
+| POST | `/api/content/reports/{id}/reject/` | 管理员 | 驳回举报 |
 
 内容响应中的 `is_liked` 表示当前登录用户是否已点赞；未登录时恒为 `false`。
 

@@ -58,6 +58,7 @@ ws://host/ws/chat/public/?token=<access_token>
 |---|---|---|
 | `heartbeat` | `timestamp` | 心跳 |
 | `chat_message` | `message`、可选 `client_id` | 发送消息 |
+| `typing` | 无 | 输入中状态（需登录） |
 | `mark_notification_read` | `notification_id` | 标记单条通知已读 |
 | `mark_all_notifications_read` | 无 | 标记全部通知已读 |
 
@@ -80,6 +81,7 @@ ws://host/ws/chat/public/?token=<access_token>
 | `welcome` | `message`、`time`、`online_users{count,metric}` | 连接成功 |
 | `online_users` | `count`、`time` | 人数变化 |
 | `chat_message` | `message`、`username`、`user_id`、`avatar`、`time` | 收到广播 |
+| `typing` | `user_id`、`username`、`room`、`time` | 有人正在输入 |
 | `message_received` | `message`、`time` | 发送确认 |
 | `notification` | `notification{}`、`time` | 新通知 |
 | `notification_marked_read` | `notification_id` | 单条已读 |
@@ -97,6 +99,7 @@ ws://host/ws/chat/public/?token=<access_token>
 | 长度 | ≤ 1000 字符 |
 | 空内容 | 拒绝 |
 | HTML | `sanitize_html` 清洗 |
+| 敏感词 | `mask_sensitive` 命中替换为 `***` |
 | 持久化 | 写入 `chat_chatmessage` |
 
 ## 5. 私信
@@ -116,6 +119,7 @@ ws://host/ws/chat/public/?token=<access_token>
 |---|---|---|
 | `heartbeat` | `timestamp` | 心跳 |
 | `private_message` | `content` | 发送私信 |
+| `typing` | 无 | 输入中状态 |
 
 ```json
 {"type": "private_message", "content": "你好"}
@@ -126,7 +130,9 @@ ws://host/ws/chat/public/?token=<access_token>
 | `type` | 字段 | 触发 |
 |---|---|---|
 | `private_chat_ready` | `message`、`target_user_id`、`time` | 连接成功 |
-| `private_message` | `id`、`content`、`sender_id`、`sender_username`、`sender_avatar`、`receiver_id`、`receiver_username`、`is_read`、`created_at` | 收到消息 |
+| `private_message` | `id`、`content`、`sender_id`、`sender_username`、`sender_avatar`、`receiver_id`、`receiver_username`、`is_read`、`is_recalled`、`recalled_at`、`created_at` | 收到消息 |
+| `typing` | `user_id`、`username`、`room`、`time` | 对方正在输入 |
+| `message_recalled` | `message_id`、`sender_id`、`recalled_at`、`time` | 消息被撤回 |
 | `message_received` | `message`、`time` | 发送确认 |
 | `heartbeat_response` | `timestamp` | 心跳 |
 | `error` | `message`、`time` | 校验失败 |
@@ -136,6 +142,7 @@ ws://host/ws/chat/public/?token=<access_token>
 - 持久化到 `users_message`
 - 给接收者创建 `message` 类型通知
 - 通知通过 Celery 异步推送
+- 撤回通过 `POST /api/users/messages/{id}/recall/` 触发，服务端向私聊组推送 `message_recalled`
 
 ## 6. 分组
 

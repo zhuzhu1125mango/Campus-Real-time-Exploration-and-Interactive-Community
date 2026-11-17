@@ -131,6 +131,8 @@ Content ──1:N── Comment / ContentRevision
 | `Tag` | `content_tag` | `name`（唯一） |
 | `Content` | `content_content` | `title`、`slug`（唯一）、`content_type`、`category`、`author`、`content`、`summary`、`status`、`is_published`、`publish_date`、计数 |
 | `ContentLike` | `content_like` | `content`、`user`（唯一组合） |
+| `ContentReport` | `content_report` | `content`、`reporter`、`reason`、`description`、`status`、`handled_by`、`handled_at`（举报人与内容唯一） |
+| `ContentImage` | `content_image` | `uploader`、`image`、`created_at` |
 | `Comment` | `content_comment` | `content`、`user`、`parent`、`content_text`、`is_approved` |
 | `ContentRevision` | `content_contentrevision` | `content`、`author`、`title`、`content_text`、`summary` |
 
@@ -144,7 +146,7 @@ Content ──1:N── Comment / ContentRevision
 | `Favorite` | `users_favorite` | `user`、`content_type`、`object_id`、`category`、`note`、`content_object`（GenericFK） |
 | `FriendRequest` | `users_friendrequest` | `sender`、`receiver`、`status` |
 | `Friend` | `users_friend` | `user1`、`user2` |
-| `Message` | `users_message` | `sender`、`receiver`、`content`、`is_read` |
+| `Message` | `users_message` | `sender`、`receiver`、`content`、`is_read`、`is_recalled`、`recalled_at` |
 
 ## 8. 聊天与通知（`chat` / `notifications`）
 

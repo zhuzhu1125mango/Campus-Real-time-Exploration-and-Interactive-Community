@@ -11,6 +11,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
 import Editor from '@tinymce/tinymce-vue'
+import { contentApi } from '../api/content'
 
 // 定义组件的props
 const props = defineProps({
@@ -46,19 +47,12 @@ const editorOptions = computed(() => {
              'bullist numlist outdent indent | removeformat | help | ' +
              'link image',
     images_upload_handler: function (blobInfo: any, success: any, failure: any) {
-      // 图片上传处理，使用FileReader将图片转换为base64
-      const reader = new FileReader();
-      reader.onload = function () {
-        if (reader.result) {
-          success(reader.result as string);
-        } else {
-          failure('图片加载失败');
-        }
-      };
-      reader.onerror = function () {
-        failure('图片加载失败');
-      };
-      reader.readAsDataURL(blobInfo.blob());
+      // 上传到后端内容图片接口，避免把 base64 直接写入正文
+      const blob = blobInfo.blob()
+      const file = new File([blob], blobInfo.filename() || 'image.png', { type: blob.type })
+      contentApi.uploadContentImage(file)
+        .then((res) => success(res.url))
+        .catch(() => failure('图片上传失败'))
     }
   }
 })

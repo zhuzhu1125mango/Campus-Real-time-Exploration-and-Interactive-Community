@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 
 from core.html_sanitizer import sanitize_html
+from core.sensitive_filter import mask_sensitive
 from notifications.models import Notification
 from notifications.notification_sender import send_notification_to_user
 from friendships.models import Friend
@@ -178,6 +179,26 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 }))
                 return
             
+            # 处理输入中状态
+            if message_type == 'typing':
+                if not self.user.is_authenticated:
+                    await self.send(text_data=json.dumps({
+                        'type': 'error',
+                        'message': '请先登录'
+                    }))
+                    return
+
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'typing',
+                        'user_id': self.user.id,
+                        'username': self.user.username,
+                        'room': 'public'
+                    }
+                )
+                return
+
             # 处理聊天消息 - 增加验证和安全检查
             if message_type == 'chat_message':
                 # 频率限制（仅对已认证用户）
@@ -193,6 +214,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         return
 
                 content = sanitize_html(data.get('message', '').strip())
+                # 敏感词过滤（公共聊天室）
+                content = mask_sensitive(content)
 
                 # 内容验证
                 if not content:
@@ -354,6 +377,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
         except RuntimeError as e:
             logger.debug(f"无法发送消息到已关闭的连接: {e}")
 
+    async def typing(self, event):
+        """当收到输入中状态时，转发给WebSocket客户端"""
+        try:
+            await self.send(text_data=json.dumps({
+                'type': 'typing',
+                'user_id': event.get('user_id'),
+                'username': event.get('username'),
+                'room': event.get('room', 'public'),
+                'time': datetime.now().isoformat()
+            }))
+        except RuntimeError as e:
+            logger.debug(f"无法发送输入状态到已关闭的连接: {e}")
+
     async def online_users_update(self, event):
         """当在线用户数量变化时，发送给WebSocket客户端"""
         try:
@@ -476,6 +512,18 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
                 }))
                 return
                 
+            if message_type == 'typing':
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'typing',
+                        'user_id': self.user.id,
+                        'username': self.user.username,
+                        'room': 'private'
+                    }
+                )
+                return
+
             if message_type == 'private_message':
                 # 频率限制
                 allowed = await sync_to_async(_chat_limiter.is_allowed)(
@@ -586,6 +634,32 @@ class PrivateChatConsumer(AsyncWebsocketConsumer):
             }))
         except RuntimeError as e:
             logger.debug(f"无法发送私聊消息到已关闭的连接: {e}")
+
+    async def typing(self, event):
+        """发送私聊输入中状态给客户端"""
+        try:
+            await self.send(text_data=json.dumps({
+                'type': 'typing',
+                'user_id': event.get('user_id'),
+                'username': event.get('username'),
+                'room': event.get('room', 'private'),
+                'time': datetime.now().isoformat()
+            }))
+        except RuntimeError as e:
+            logger.debug(f"无法发送输入状态到已关闭的连接: {e}")
+
+    async def message_recalled(self, event):
+        """发送消息撤回事件给客户端"""
+        try:
+            await self.send(text_data=json.dumps({
+                'type': 'message_recalled',
+                'message_id': event.get('message_id'),
+                'sender_id': event.get('sender_id'),
+                'recalled_at': event.get('recalled_at'),
+                'time': datetime.now().isoformat()
+            }))
+        except RuntimeError as e:
+            logger.debug(f"无法发送撤回事件到已关闭的连接: {e}")
 
     def _select_subprotocol(self):
         """从客户端声明的子协议中选择 jwt 子协议（若存在）。"""

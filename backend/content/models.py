@@ -164,6 +164,66 @@ class Comment(models.Model):
         super().save(*args, **kwargs)
 
 
+class ContentReport(models.Model):
+    """内容举报模型"""
+    REASON_CHOICES = [
+        ('spam', '垃圾广告'),
+        ('abuse', '辱骂攻击'),
+        ('porn', '色情低俗'),
+        ('illegal', '违法违规'),
+        ('other', '其他'),
+    ]
+    STATUS_CHOICES = [
+        ('pending', '待处理'),
+        ('handled', '已处理'),
+        ('rejected', '已驳回'),
+    ]
+
+    content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='reports', verbose_name='内容')
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='content_reports', verbose_name='举报人'
+    )
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES, verbose_name='举报原因')
+    description = models.TextField(blank=True, verbose_name='补充说明')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='处理状态')
+    handled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='handled_content_reports', verbose_name='处理人'
+    )
+    handled_at = models.DateTimeField(null=True, blank=True, verbose_name='处理时间')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    class Meta:
+        db_table = 'content_report'
+        verbose_name = '内容举报'
+        verbose_name_plural = '内容举报'
+        unique_together = ('content', 'reporter')
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.reporter.username} 举报 {self.content.title}'
+
+
+class ContentImage(models.Model):
+    """富文本内嵌图片模型"""
+    uploader = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='content_images', verbose_name='上传者'
+    )
+    image = models.ImageField(upload_to='content/images/%Y/%m/', verbose_name='图片')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    class Meta:
+        db_table = 'content_image'
+        verbose_name = '内容图片'
+        verbose_name_plural = '内容图片'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.image.name
+
+
 class ContentRevision(models.Model):
     """内容修订历史模型"""
     content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='revisions', verbose_name='内容')

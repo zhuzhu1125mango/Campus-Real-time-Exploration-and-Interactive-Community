@@ -1,18 +1,28 @@
 """内容模块测试。
 
-覆盖可见性、创建与修订、审核状态机、评论计数与通知、个人内容列表。
+覆盖可见性、创建与修订、审核状态机、评论计数与通知、个人内容列表、举报与图片上传清理。
 """
 
+import os
+import shutil
+import tempfile
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
+from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from notifications.models import Notification
 
-from .models import Category, Comment, Content, ContentLike, ContentRevision, ContentType, Tag
+from .models import (
+    Category, Comment, Content, ContentImage, ContentLike, ContentReport,
+    ContentRevision, ContentType, Tag,
+)
 
 User = get_user_model()
 
@@ -396,3 +406,240 @@ class ContentAPITests(TestCase):
         self.assertEqual(response.status_code, 200)
         titles = {item['title'] for item in response.data['results']}
         self.assertEqual(titles, {'已发布文章', '草稿文章'})
+
+
+GIF_BYTES = (
+    b'GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff'
+    b'!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
+)
+
+
+def make_gif(name='tiny.gif'):
+    return SimpleUploadedFile(name, GIF_BYTES, content_type='image/gif')
+
+
+class ContentReportAPITests(TestCase):
+    """内容举报接口测试。"""
+
+    def setUp(self):
+        cache.clear()
+        self.reporter = User.objects.create_user(
+            username='reporter', password='testpass', email='reporter@example.com'
+        )
+        self.other = User.objects.create_user(
+            username='other', password='testpass', email='other@example.com'
+        )
+        self.admin = User.objects.create_user(
+            username='report-admin', password='testpass', email='admin@example.com', is_staff=True
+        )
+        self.content_type = ContentType.objects.create(name='举报测试类型')
+        self.content = Content.objects.create(
+            title='被举报内容',
+            slug='reported-content',
+            content_type=self.content_type,
+            author=self.other,
+            content='<p>正文</p>',
+            status='published',
+        )
+        self.reports_url = '/api/content/reports/'
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.reporter)
+
+    def test_report_content_success(self):
+        """登录用户举报内容成功，举报记录状态为待处理。"""
+        response = self.client.post(
+            f'/api/content/contents/{self.content.id}/report/',
+            {'reason': 'spam', 'description': '广告内容'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['status'], 'pending')
+
+        report = ContentReport.objects.get(pk=response.data['id'])
+        self.assertEqual(report.content, self.content)
+        self.assertEqual(report.reporter, self.reporter)
+        self.assertEqual(report.reason, 'spam')
+        self.assertEqual(report.status, 'pending')
+
+    def test_report_same_content_twice_returns_400(self):
+        """同一用户重复举报同一内容返回 400。"""
+        self.client.post(
+            f'/api/content/contents/{self.content.id}/report/', {'reason': 'spam'}, format='json'
+        )
+
+        response = self.client.post(
+            f'/api/content/contents/{self.content.id}/report/', {'reason': 'abuse'}, format='json'
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['error'], '您已举报过该内容')
+        self.assertEqual(ContentReport.objects.filter(content=self.content).count(), 1)
+
+    def test_report_requires_authentication(self):
+        """未登录用户不能举报。"""
+        self.client.force_authenticate(user=None)
+
+        response = self.client.post(
+            f'/api/content/contents/{self.content.id}/report/', {'reason': 'spam'}, format='json'
+        )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(ContentReport.objects.count(), 0)
+
+    def test_non_admin_cannot_list_reports(self):
+        """普通用户访问举报列表返回 403。"""
+        response = self.client.get(self.reports_url)
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_list_reports_with_status_filter(self):
+        """管理员可查看举报列表并按状态筛选。"""
+        ContentReport.objects.create(content=self.content, reporter=self.reporter, reason='spam')
+        handled = ContentReport.objects.create(
+            content=self.content, reporter=self.other, reason='abuse', status='handled'
+        )
+
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(self.reports_url, {'status': 'handled'})
+
+        self.assertEqual(response.status_code, 200)
+        ids = [item['id'] for item in response.data['results']]
+        self.assertEqual(ids, [handled.id])
+
+        item = response.data['results'][0]
+        self.assertEqual(item['content'], self.content.title)
+        self.assertEqual(item['reporter'], {'id': self.other.id, 'username': self.other.username})
+
+    def test_admin_handle_and_reject_reports(self):
+        """管理员处理/驳回举报后状态与处理人落库。"""
+        first = ContentReport.objects.create(content=self.content, reporter=self.reporter, reason='spam')
+        second = ContentReport.objects.create(content=self.content, reporter=self.other, reason='abuse')
+
+        self.client.force_authenticate(user=self.admin)
+
+        handled_response = self.client.post(f'{self.reports_url}{first.id}/handle/')
+        rejected_response = self.client.post(f'{self.reports_url}{second.id}/reject/')
+
+        self.assertEqual(handled_response.status_code, 200)
+        self.assertEqual(handled_response.data['status'], 'handled')
+        self.assertEqual(rejected_response.status_code, 200)
+        self.assertEqual(rejected_response.data['status'], 'rejected')
+
+        first.refresh_from_db()
+        self.assertEqual(first.status, 'handled')
+        self.assertEqual(first.handled_by, self.admin)
+        self.assertIsNotNone(first.handled_at)
+
+        second.refresh_from_db()
+        self.assertEqual(second.status, 'rejected')
+        self.assertEqual(second.handled_by, self.admin)
+        self.assertIsNotNone(second.handled_at)
+
+
+class ContentImageUploadAPITests(TestCase):
+    """富文本图片上传接口测试。"""
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(
+            username='uploader', password='testpass', email='uploader@example.com'
+        )
+        self.media_root = tempfile.mkdtemp()
+        self.override = override_settings(MEDIA_ROOT=self.media_root)
+        self.override.enable()
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        self.upload_url = '/api/content/images/'
+
+    def tearDown(self):
+        self.override.disable()
+        shutil.rmtree(self.media_root, ignore_errors=True)
+
+    def test_upload_gif_success(self):
+        """登录用户上传图片成功并返回 url。"""
+        response = self.client.post(
+            self.upload_url, {'image': make_gif()}, format='multipart'
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn('/media/content/images/', response.data['url'])
+        self.assertTrue(ContentImage.objects.filter(pk=response.data['id']).exists())
+
+    def test_upload_non_image_rejected(self):
+        """非图片文件返回 400。"""
+        upload = SimpleUploadedFile('note.txt', b'hello world', content_type='text/plain')
+
+        response = self.client.post(self.upload_url, {'image': upload}, format='multipart')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(ContentImage.objects.count(), 0)
+
+    def test_upload_too_large_rejected(self):
+        """超过 5MB 的图片返回 400。"""
+        big = SimpleUploadedFile(
+            'big.gif', b'GIF89a' + b'\x00' * (5 * 1024 * 1024), content_type='image/gif'
+        )
+
+        response = self.client.post(self.upload_url, {'image': big}, format='multipart')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(ContentImage.objects.count(), 0)
+
+    def test_upload_requires_authentication(self):
+        """未登录用户不能上传图片。"""
+        self.client.force_authenticate(user=None)
+
+        response = self.client.post(self.upload_url, {'image': make_gif()}, format='multipart')
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(ContentImage.objects.count(), 0)
+
+
+class CleanupContentImagesCommandTests(TestCase):
+    """清理未被引用图片的管理命令测试。"""
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(
+            username='cleaner', password='testpass', email='cleaner@example.com'
+        )
+        self.media_root = tempfile.mkdtemp()
+        self.override = override_settings(MEDIA_ROOT=self.media_root)
+        self.override.enable()
+        self.content_type = ContentType.objects.create(name='清理测试类型')
+        self.content = Content.objects.create(
+            title='引用图片的内容',
+            slug='cleanup-content',
+            content_type=self.content_type,
+            author=self.user,
+            content='<p>占位</p>',
+        )
+
+    def tearDown(self):
+        self.override.disable()
+        shutil.rmtree(self.media_root, ignore_errors=True)
+
+    def _create_image(self, name):
+        return ContentImage.objects.create(uploader=self.user, image=make_gif(name))
+
+    def test_deletes_only_unreferenced_old_images(self):
+        """仅删除未被内容引用且创建超过 N 天的图片。"""
+        referenced = self._create_image('referenced.gif')
+        self.content.content = f'<p><img src="{referenced.image.url}" alt="引用"></p>'
+        self.content.save()
+
+        unreferenced = self._create_image('unreferenced.gif')
+
+        old_time = timezone.now() - timedelta(days=5)
+        ContentImage.objects.filter(pk__in=[referenced.pk, unreferenced.pk]).update(created_at=old_time)
+
+        referenced_path = referenced.image.path
+        unreferenced_path = unreferenced.image.path
+
+        call_command('cleanup_content_images', days=1)
+
+        self.assertTrue(ContentImage.objects.filter(pk=referenced.pk).exists())
+        self.assertFalse(ContentImage.objects.filter(pk=unreferenced.pk).exists())
+        self.assertTrue(os.path.exists(referenced_path))
+        self.assertFalse(os.path.exists(unreferenced_path))

@@ -4,6 +4,7 @@ from rest_framework.decorators import action
 from django.db.models import Q
 from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator
+from django.utils import timezone
 
 from core.base_viewsets import BaseModelViewSet
 from users.permissions import IsOwnerOrAdmin
@@ -36,6 +37,7 @@ class MessageViewSet(BaseModelViewSet):
         'mark_all_read': [permissions.IsAuthenticated],
         'user_messages': [permissions.IsAuthenticated],
         'mark_user_messages_read': [permissions.IsAuthenticated],
+        'recall': [permissions.IsAuthenticated],
         'update': [permissions.IsAuthenticated, IsOwnerOrAdmin],
         'partial_update': [permissions.IsAuthenticated, IsOwnerOrAdmin],
         'destroy': [permissions.IsAuthenticated, IsOwnerOrAdmin],
@@ -180,6 +182,44 @@ class MessageViewSet(BaseModelViewSet):
                 {'error': '消息已经是已读状态'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+    @action(detail=True, methods=['post'])
+    def recall(self, request, pk=None):
+        """撤回自己发送的私信（发送后 120 秒内）。"""
+        message = self.get_object()
+
+        # 仅发送者本人可撤回
+        if message.sender != request.user:
+            return Response(
+                {'error': '只能撤回自己发送的消息'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if message.is_recalled:
+            return Response(
+                {'error': '消息已撤回'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        elapsed_seconds = (timezone.now() - message.created_at).total_seconds()
+        if elapsed_seconds > 120:
+            return Response(
+                {'error': '消息已超过可撤回时间'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        message.is_recalled = True
+        message.recalled_at = timezone.now()
+        message.save(update_fields=['is_recalled', 'recalled_at', 'updated_at'])
+
+        # 通过 WebSocket 通知私聊双方
+        websocket_service.send_message_recalled(message.sender, message.receiver, message)
+
+        return Response({
+            'message': '消息已撤回',
+            'message_id': message.id,
+            'recalled_at': message.recalled_at.isoformat(),
+        })
 
     @action(detail=False, methods=['post'])
     def mark_all_read(self, request):

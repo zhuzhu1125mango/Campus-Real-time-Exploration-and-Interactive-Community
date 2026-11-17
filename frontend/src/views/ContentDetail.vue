@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { contentApi } from '../api/content'
 import { useUserStore } from '../stores/userStore'
 import { sanitizeHtml } from '../utils/xss'
+import { getApiErrorMessage } from '../utils/error'
 import type { ContentItem, Comment } from '../types/content'
 import GlassCard from '../components/GlassCard.vue'
 import SectionHeader from '../components/SectionHeader.vue'
@@ -18,6 +20,7 @@ const loading = ref(false)
 const commentLoading = ref(false)
 const commentText = ref('')
 const error = ref('')
+const reporting = ref(false)
 
 const isLoggedIn = computed(() => userStore.isLoggedIn)
 const safeContent = computed(() => content.value ? sanitizeHtml(content.value.content) : '')
@@ -71,6 +74,35 @@ const goBack = () => {
   router.push('/content')
 }
 
+const reportContent = async () => {
+  if (!content.value || reporting.value) return
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '请填写举报原因（如广告、辱骂、色情、违法等）',
+      '举报内容',
+      {
+        confirmButtonText: '提交',
+        cancelButtonText: '取消',
+        inputType: 'textarea',
+        inputValidator: (input: string) => (input && input.trim() ? true : '请填写举报原因')
+      }
+    )
+    reporting.value = true
+    await contentApi.reportContent(content.value.id, {
+      reason: 'other',
+      description: value.trim()
+    })
+    ElMessage.success('举报已提交，我们会尽快处理')
+  } catch (err: any) {
+    if (err !== 'cancel' && err !== 'close') {
+      console.error('提交举报失败', err)
+      ElMessage.error(getApiErrorMessage(err, '提交举报失败，请稍后重试'))
+    }
+  } finally {
+    reporting.value = false
+  }
+}
+
 const formatDate = (date: string) => {
   return new Date(date).toLocaleString('zh-CN')
 }
@@ -114,6 +146,14 @@ onMounted(() => {
               <span class="i-ep-chat-dot-round stat-icon" />
               {{ content.comment_count }} 评论
             </span>
+            <button
+              v-if="isLoggedIn"
+              class="report-btn"
+              :disabled="reporting"
+              @click="reportContent"
+            >
+              {{ reporting ? '提交中...' : '举报' }}
+            </button>
           </div>
         </div>
 
@@ -221,6 +261,27 @@ onMounted(() => {
   gap: var(--space-4);
   color: var(--text-secondary);
   font-size: 0.9rem;
+  align-items: center;
+}
+
+.report-btn {
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  padding: 2px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.report-btn:hover {
+  color: var(--error-color);
+  border-color: var(--error-color);
+}
+
+.report-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .stat-item {

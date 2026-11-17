@@ -36,17 +36,17 @@
 | `favorites` | 已覆盖多态收藏、重复收藏、学校同步与取消 | 已完成 |
 | `activities` | 已覆盖可见性、点赞幂等、评论与关注流 | 已完成 |
 | `content` | 已覆盖可见性、修订、审核状态机与评论 | 已完成 |
-| 前端 | 无单元/E2E | 引入 Vitest + Playwright |
+| 前端 | 已有 Vitest 基础单测 | 继续补充组件测试与 Playwright E2E |
 | 小程序 | 手动 | 关键页面回归清单 |
 
 ## 3. 功能
 
 ### 3.1 实时通信
 
-- [ ] 消息撤回
-- [ ] 输入中状态
+- [x] 消息撤回（REST + WebSocket `message_recalled`）
+- [x] 输入中状态（公共聊天室与私信）
 - [ ] 离线消息补推
-- [ ] 公共聊天室敏感词过滤
+- [x] 公共聊天室敏感词过滤（`core/sensitive_filter.py`）
 - [ ] WebSocket 连接指标与告警
 
 ### 3.2 学习
@@ -58,8 +58,8 @@
 ### 3.3 内容
 
 - [x] 内容点赞接口补齐（`ContentLike` + `like`/`unlike` + `is_liked`）
-- [ ] 富文本图片上传与清理
-- [ ] 内容举报流程
+- [x] 富文本图片上传与清理（`/api/content/images/` + `cleanup_content_images`）
+- [x] 内容举报流程（`ContentReport` + 举报接口 + 管理员处理）
 
 ### 3.4 小程序
 

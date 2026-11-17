@@ -30,6 +30,9 @@
 
 前缀：`/api/users/messages/`，详见 [社交 API](social.md)。
 
+补充：`POST /api/users/messages/{id}/recall/` 用于撤回自己发送的私信（发送后 120 秒内），
+成功后通过 WebSocket 推送 `message_recalled` 事件。
+
 ## 3. 通知
 
 统一使用 `notifications.Notification`。推荐前缀：`/api/users/notifications/`。

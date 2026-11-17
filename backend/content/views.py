@@ -1,13 +1,19 @@
 from django.db import transaction
 from django.db.models import Q, F, Exists, OuterRef
-from rest_framework import status, filters
+from django.utils import timezone
+from rest_framework import status, filters, mixins, viewsets
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from .models import ContentType, Category, Tag, Content, ContentLike, Comment, ContentRevision
+from rest_framework.views import APIView
+from .models import (
+    ContentType, Category, Tag, Content, ContentLike, Comment, ContentRevision,
+    ContentReport, ContentImage,
+)
 from .serializers import (
     ContentTypeSerializer, CategorySerializer, TagSerializer,
     ContentSerializer, ContentCreateSerializer, ContentUpdateSerializer,
-    CommentSerializer, CommentCreateSerializer, ContentRevisionSerializer
+    CommentSerializer, CommentCreateSerializer, ContentRevisionSerializer,
+    ContentReportSerializer, ContentReportCreateSerializer, ContentImageSerializer,
 )
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from users.permissions import IsOwnerOrAdmin
@@ -18,7 +24,10 @@ from search.services import SearchService
 from core.base_viewsets import (
     PublicReadOnlyModelViewSet,
     BaseModelViewSet,
+    StandardResultsSetPagination,
 )
+
+MAX_CONTENT_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 class ContentTypeViewSet(PublicReadOnlyModelViewSet):
@@ -84,6 +93,7 @@ class ContentViewSet(BaseModelViewSet):
         'reject': [IsAuthenticated, IsAdminUser],
         'publish': [IsAuthenticated, IsAdminUser],
         'unpublish': [IsAuthenticated, IsAdminUser],
+        'report': [IsAuthenticated],
     }
     throttle_config = {
         'list': [SearchThrottle],
@@ -93,6 +103,7 @@ class ContentViewSet(BaseModelViewSet):
         'partial_update': [WriteThrottle],
         'destroy': [WriteThrottle],
         'submit': [WriteThrottle],
+        'report': [WriteThrottle],
     }
 
     def get_queryset(self):
@@ -259,6 +270,21 @@ class ContentViewSet(BaseModelViewSet):
 
         return Response({'status': 'unliked'})
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def report(self, request, pk=None):
+        """举报内容（同一用户对同一内容只能举报一次）。"""
+        content = self.get_object()
+        serializer = ContentReportCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        report, created = ContentReport.objects.get_or_create(
+            content=content,
+            reporter=request.user,
+            defaults=serializer.validated_data,
+        )
+        if not created:
+            return Response({'error': '您已举报过该内容'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'id': report.id, 'status': report.status}, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=['get'])
     def revisions(self, request, pk=None):
         content = self.get_object()
@@ -362,3 +388,54 @@ class CommentViewSet(BaseModelViewSet):
             comment.save()
             Content.objects.filter(pk=comment.content_id).update(comment_count=F('comment_count') - 1)
         return Response({'status': 'disapproved'})
+
+
+class ContentReportViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    """内容举报管理视图集，仅管理员可访问。"""
+    queryset = ContentReport.objects.select_related('content', 'reporter', 'handled_by')
+    serializer_class = ContentReportSerializer
+    permission_classes = [IsAdminUser]
+    pagination_class = StandardResultsSetPagination
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            queryset = queryset.filter(status=status_param)
+        return queryset
+
+    def _mark(self, report, request, new_status):
+        report.status = new_status
+        report.handled_by = request.user
+        report.handled_at = timezone.now()
+        report.save(update_fields=['status', 'handled_by', 'handled_at'])
+        return Response({'status': report.status})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def handle(self, request, pk=None):
+        """管理员标记举报为已处理。"""
+        return self._mark(self.get_object(), request, 'handled')
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def reject(self, request, pk=None):
+        """管理员驳回举报。"""
+        return self._mark(self.get_object(), request, 'rejected')
+
+
+class ContentImageUploadView(APIView):
+    """富文本图片上传接口。"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        image = request.FILES.get('image')
+        if not image:
+            return Response({'error': '请选择要上传的图片'}, status=status.HTTP_400_BAD_REQUEST)
+        if image.size > MAX_CONTENT_IMAGE_SIZE:
+            return Response({'error': '图片大小不能超过 5MB'}, status=status.HTTP_400_BAD_REQUEST)
+        content_type = getattr(image, 'content_type', '') or ''
+        if not content_type.startswith('image/'):
+            return Response({'error': '仅支持上传图片文件'}, status=status.HTTP_400_BAD_REQUEST)
+
+        content_image = ContentImage.objects.create(uploader=request.user, image=image)
+        serializer = ContentImageSerializer(content_image, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

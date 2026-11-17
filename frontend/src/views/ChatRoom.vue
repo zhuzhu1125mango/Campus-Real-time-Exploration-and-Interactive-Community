@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/userStore'
 import { useTokenStore } from '../stores/tokenStore'
@@ -39,6 +39,9 @@ const loading = ref(false)
 const connected = ref(false)
 const connectionStatus = ref<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected')
 const messagesContainer = ref<HTMLElement | null>(null)
+const typingText = ref('')
+let typingHideTimer: number | null = null
+let lastTypingSent = 0
 
 // WebSocket
 const ws = ref<WebSocket | null>(null)
@@ -232,6 +235,14 @@ const connectWebSocket = async () => {
           }
         } else if (data.type === 'online_users') {
           onlineCount.value = data.count || 0
+        } else if (data.type === 'typing') {
+          if (Number(data.user_id) !== currentUserId.value) {
+            typingText.value = `${data.username || '有人'} 正在输入...`
+            if (typingHideTimer) window.clearTimeout(typingHideTimer)
+            typingHideTimer = window.setTimeout(() => {
+              typingText.value = ''
+            }, 3000)
+          }
         } else if (data.type === 'welcome') {
           onlineCount.value = data.online_users?.count || 0
         } else if (data.type === 'heartbeat_response') {
@@ -311,8 +322,18 @@ const sendMessage = () => {
   }))
 
   messageInput.value = ''
+  typingText.value = ''
   saveMessagesToStorage()
 }
+
+// 输入中状态：最多每 2 秒发送一次
+watch(messageInput, (value) => {
+  if (!value.trim() || !connected.value || !ws.value || ws.value.readyState !== 1) return
+  const now = Date.now()
+  if (now - lastTypingSent < 2000) return
+  lastTypingSent = now
+  ws.value.send(JSON.stringify({ type: 'typing' }))
+})
 
 const handleInputKeydown = (e: KeyboardEvent) => {
   if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
@@ -347,6 +368,11 @@ const closeWebSocket = () => {
     clearTimeout(reconnectTimeout.value)
     reconnectTimeout.value = null
   }
+  if (typingHideTimer) {
+    window.clearTimeout(typingHideTimer)
+    typingHideTimer = null
+  }
+  typingText.value = ''
 }
 
 onMounted(async () => {
@@ -441,6 +467,11 @@ onUnmounted(() => {
       <button class="btn btn-secondary reconnect-btn" @click="connectWebSocket">重新连接</button>
     </div>
 
+    <div v-if="typingText" class="typing-indicator">
+      <span class="typing-dots"><i></i><i></i><i></i></span>
+      {{ typingText }}
+    </div>
+
     <GlassCard :hover="false" class="input-card" padding="md">
       <div class="chat-input-area">
         <textarea
@@ -481,6 +512,41 @@ onUnmounted(() => {
 
 .input-card {
   flex-shrink: 0;
+}
+
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+}
+
+.typing-dots {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.typing-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--text-tertiary);
+  animation: typing-blink 1.2s infinite ease-in-out;
+}
+
+.typing-dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-blink {
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
 }
 
 .connection-status-bar {
