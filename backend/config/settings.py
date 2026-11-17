@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
+    'drf_spectacular',
     'corsheaders',
     'channels',
     'rest_framework_simplejwt.token_blacklist',
@@ -321,6 +322,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 12,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
@@ -333,6 +335,14 @@ REST_FRAMEWORK = {
         'search': '30/min',
         'write': '60/min',
     },
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': '校园实时互动社区 API',
+    'DESCRIPTION': '校园实时互动社区后端接口文档。',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
 }
 
 SIMPLE_JWT = {
@@ -362,11 +372,17 @@ LOGGING = {
             'style': '{',
         },
     },
+    'filters': {
+        'sensitive_data': {
+            '()': 'core.logging_filters.SensitiveDataFilter',
+        },
+    },
     'handlers': {
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
+            'filters': ['sensitive_data'],
         },
         'file': {
             'level': 'INFO',
@@ -374,6 +390,7 @@ LOGGING = {
             'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
             'formatter': 'verbose',
             'encoding': 'utf-8',
+            'filters': ['sensitive_data'],
         },
     },
     'loggers': {
@@ -396,7 +413,8 @@ LOGGING = {
 }
 
 # SMS配置
-SMS_ENABLED = False  # 默认关闭短信功能，使用开发模式
+# 生产环境通过环境变量 SMS_ENABLED=True 开启真实短信发送
+SMS_ENABLED = os.environ.get('SMS_ENABLED', 'False') == 'True'
 
 # 阿里云SMS配置（仅在SMS_ENABLED=True时使用）
 ALIYUN_ACCESS_KEY_ID = os.environ.get('ALIYUN_ACCESS_KEY_ID', '')

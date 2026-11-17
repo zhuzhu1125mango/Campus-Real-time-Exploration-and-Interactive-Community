@@ -27,7 +27,11 @@
 | POST | `/api/content/contents/{id}/reject/` | 管理员 | 审核拒绝 |
 | POST | `/api/content/contents/{id}/publish/` | 管理员 | 直接发布 |
 | POST | `/api/content/contents/{id}/unpublish/` | 管理员 | 撤回发布 |
+| POST | `/api/content/contents/{id}/like/` | 登录 | 点赞内容（重复点赞返回 400） |
+| POST | `/api/content/contents/{id}/unlike/` | 登录 | 取消点赞 |
 | GET | `/api/content/contents/{id}/revisions/` | 作者/管理员 | 修订历史 |
+
+内容响应中的 `is_liked` 表示当前登录用户是否已点赞；未登录时恒为 `false`。
 
 ### 2.1 状态机
 

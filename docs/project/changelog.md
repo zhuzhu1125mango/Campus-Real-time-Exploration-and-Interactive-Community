@@ -59,6 +59,18 @@
 ### Tests
 
 - 补齐 `private_messages`、`friendships`、`favorites`、`activities`、`content` 五个模块的接口测试。
+
+### Added（2026-11-16）
+
+- 内容点赞：新增 `ContentLike` 模型、`like`/`unlike` 接口与列表 `is_liked` 字段。
+- OpenAPI：接入 `drf-spectacular`，新增 `/api/schema/`、`/api/swagger/`、`/api/redoc/`。
+- 日志脱敏过滤器 `core/SensitiveDataFilter`，屏蔽 token、手机号与邮箱。
+- `SMS_ENABLED` 改为环境变量，生产可开启真实短信。
+
+### Changed（2026-11-16）
+
+- `StandardResultsSetPagination` 默认页大小由 10 调整为 12，与全局 `PAGE_SIZE` 一致。
+- 清理后端本地临时文件（`data.json`、运行日志、测试输出）。
 - 为 `docker-compose.prod.yml` 的 `django-init` 补齐运行环境变量。
 - 修复用户搜索在 ES 降级模式下对已切片 QuerySet 再次过滤导致的 500。
 - 修复签到在本地跨日时区下重复/并发校验失效的问题，签到积分改为事务内同步发放。

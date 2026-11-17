@@ -15,8 +15,8 @@ from users.permissions import IsOwnerOrAdmin
 
 
 class StandardResultsSetPagination(PageNumberPagination):
-    """标准分页类。"""
-    page_size = 10
+    """标准分页类，默认页大小与全局 PAGE_SIZE（12）保持一致。"""
+    page_size = 12
     page_size_query_param = 'page_size'
     max_page_size = 100
 

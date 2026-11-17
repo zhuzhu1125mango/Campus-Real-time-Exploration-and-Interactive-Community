@@ -1,8 +1,9 @@
-from django.db.models import Q, F
+from django.db import transaction
+from django.db.models import Q, F, Exists, OuterRef
 from rest_framework import status, filters
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from .models import ContentType, Category, Tag, Content, Comment, ContentRevision
+from .models import ContentType, Category, Tag, Content, ContentLike, Comment, ContentRevision
 from .serializers import (
     ContentTypeSerializer, CategorySerializer, TagSerializer,
     ContentSerializer, ContentCreateSerializer, ContentUpdateSerializer,
@@ -108,6 +109,14 @@ class ContentViewSet(BaseModelViewSet):
                 Q(status='published') | Q(author=user)
             ).distinct()
 
+        if user and user.is_authenticated:
+            # 一次性标注当前用户是否已点赞，避免列表 N+1 查询
+            queryset = queryset.annotate(
+                is_liked=Exists(
+                    ContentLike.objects.filter(content=OuterRef('pk'), user=user)
+                )
+            )
+
         # 支持按状态筛选：普通用户仅能筛选自己的内容，管理员可筛选全部
         status_param = self.request.query_params.get('status')
         if status_param:
@@ -211,6 +220,44 @@ class ContentViewSet(BaseModelViewSet):
         content.status = 'draft'
         content.save()
         return Response({'status': 'draft'})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def like(self, request, pk=None):
+        """点赞内容（幂等：重复点赞返回 400）。"""
+        content = self.get_object()
+        with transaction.atomic():
+            _, created = ContentLike.objects.get_or_create(content=content, user=request.user)
+            if not created:
+                return Response({'status': 'already_liked'}, status=status.HTTP_400_BAD_REQUEST)
+            Content.objects.filter(pk=content.pk).update(like_count=F('like_count') + 1)
+
+        queue_update_user_points(request.user.id, 'like', description='点赞内容')
+
+        if content.author != request.user:
+            queue_update_user_points(content.author.id, 'liked', description='内容被点赞')
+            notify_forum_event(
+                recipient=content.author,
+                sender=request.user,
+                forum_type='like',
+                message=f"{request.user.username} 点赞了你的内容 '{content.title}'",
+                topic=None,
+                post=None,
+            )
+
+        return Response({'status': 'liked'})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def unlike(self, request, pk=None):
+        """取消点赞内容。"""
+        content = self.get_object()
+        with transaction.atomic():
+            like = ContentLike.objects.filter(content=content, user=request.user).first()
+            if not like:
+                return Response({'status': 'not_liked'}, status=status.HTTP_400_BAD_REQUEST)
+            like.delete()
+            Content.objects.filter(pk=content.pk, like_count__gt=0).update(like_count=F('like_count') - 1)
+
+        return Response({'status': 'unliked'})
 
     @action(detail=True, methods=['get'])
     def revisions(self, request, pk=None):

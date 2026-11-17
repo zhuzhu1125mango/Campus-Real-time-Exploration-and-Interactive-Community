@@ -108,7 +108,7 @@ WebSocket 独立限流：60 秒 60 条。
 - 证书路径通过环境变量注入，不写死域名。
 - 数据库/消息队列使用强密码。
 - 容器内 `.env` 不打包进镜像（`.dockerignore`）。
-- 日志不记录 token、密码、完整请求体。
+- 日志经 `SensitiveDataFilter` 脱敏后输出，屏蔽 token、手机号与邮箱。
 
 ## 9. 密钥管理
 
@@ -123,24 +123,23 @@ WebSocket 独立限流：60 秒 60 条。
 # Python
 cd backend
 uv lock --check
-# 可接入 pip-audit / safety
+uv run pip-audit --path .venv
 
 # 前端
 cd frontend
-pnpm audit
+pnpm audit --audit-level high --prod --registry https://registry.npmjs.org
 ```
 
-建议在 CI 中增加依赖漏洞扫描，并定期升级。
+CI 已接入 `pip-audit` 与 `pnpm audit`，发现高危漏洞会阻断合并。
 
 ## 11. 已知安全/合规缺口
 
 | 项 | 说明 | 建议 |
 |---|---|---|
-| 短信默认关闭 | `SMS_ENABLED=False`，开发验证码可能被滥用 | 生产开启并接入真实验证码 |
-| 调试接口 | `/api/users/debug-avatar/` 等 | 生产限制访问或移除 |
+| 短信默认关闭 | `SMS_ENABLED` 默认 `False`，开发验证码可能被滥用 | 生产设置 `SMS_ENABLED=True` 并配置阿里云参数 |
 | 日志级别 | `chat`/`users` 默认 DEBUG | 生产调为 INFO |
 | 小程序域名 | 需要 HTTPS/WSS 与备案 | 上线前完成配置 |
-| 无自动化安全扫描 | 当前无 CI 安全任务 | 接入依赖扫描与 SAST |
+| 上传文件检测 | 仅校验类型与大小 | 接入病毒扫描或对象存储 |
 
 ## 12. 漏洞上报
 

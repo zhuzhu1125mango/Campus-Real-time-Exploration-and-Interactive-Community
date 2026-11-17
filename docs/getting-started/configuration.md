@@ -73,13 +73,14 @@
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
+| `SMS_ENABLED` | `False` | 设为 `True` 后调用阿里云短信发送真实验证码 |
 | `ALIYUN_ACCESS_KEY_ID` | 空 | 仅在启用短信时使用 |
 | `ALIYUN_ACCESS_KEY_SECRET` | 空 | |
 | `ALIYUN_SMS_SIGN_NAME` | 空 | |
 | `ALIYUN_SMS_TEMPLATE_CODE` | 空 | |
 | `MEDIA_URL` / `STATIC_URL` | `/media/` / `/static/` | Django 侧固定配置，环境变量未实际读取 |
 
-> `SMS_ENABLED` 当前在 `settings.py` 中硬编码为 `False`，即默认走开发模式验证码，不调用阿里云短信。
+> 未设置 `SMS_ENABLED=True` 时走开发模式验证码，不调用阿里云短信。
 
 ## 3. H5 前端环境变量
 

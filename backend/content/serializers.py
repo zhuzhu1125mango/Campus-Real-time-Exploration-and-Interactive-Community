@@ -30,19 +30,28 @@ class ContentSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, allow_null=True)
     author = UserSerializer()
     featured_image = serializers.SerializerMethodField()
-    
+    is_liked = serializers.SerializerMethodField()
+
     class Meta:
         model = Content
         fields = [
             'id', 'title', 'slug', 'content_type', 'category', 'tags', 'author',
             'content', 'summary', 'featured_image', 'is_published', 'status', 'publish_date',
-            'view_count', 'comment_count', 'like_count', 'created_at', 'updated_at'
+            'view_count', 'comment_count', 'like_count', 'is_liked', 'created_at', 'updated_at'
         ]
-    
+
     def get_featured_image(self, obj):
         if obj.featured_image:
             return obj.featured_image.url
         return None
+
+    def get_is_liked(self, obj):
+        if hasattr(obj, 'is_liked'):
+            return obj.is_liked
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.likes.filter(user=request.user).exists()
+        return False
 
 
 class ContentCreateSerializer(serializers.ModelSerializer):

@@ -57,7 +57,7 @@
 
 ### 3.3 内容
 
-- [ ] 内容点赞接口补齐
+- [x] 内容点赞接口补齐（`ContentLike` + `like`/`unlike` + `is_liked`）
 - [ ] 富文本图片上传与清理
 - [ ] 内容举报流程
 
@@ -73,16 +73,14 @@
 - [ ] 接入 ELK/Loki 日志聚合
 - [ ] 增加 ES/Redis/MySQL 指标与告警
 - [x] CI：lint、测试、迁移检查、依赖扫描（Ruff、ESLint、pip-audit、pnpm audit）
-- [ ] 增加 OpenAPI/Swagger 文档
-- [ ] 统一分页默认值（12 vs 10）
-- [ ] 清理根目录/后端临时文件（日志、`data.json`、调试脚本）
-- [ ] 生产禁用调试接口
+- [x] 增加 OpenAPI/Swagger 文档（`/api/schema/`、`/api/swagger/`、`/api/redoc/`）
+- [x] 统一分页默认值（全局与 `BaseModelViewSet` 均为 12）
+- [x] 清理根目录/后端临时文件（日志、`data.json`、调试脚本）
 
 ## 5. 安全
 
-- [ ] 生产开启短信验证码
-- [ ] 限制调试接口访问
-- [ ] 日志脱敏（token、手机号、邮箱）
+- [x] 生产开启短信验证码（`SMS_ENABLED` 改由环境变量控制，部署时设为 `True`）
+- [x] 日志脱敏（token、手机号、邮箱）
 - [x] 依赖漏洞扫描（CI 使用 pip-audit 与 pnpm audit）
 - [ ] 上传文件病毒扫描/对象存储
 

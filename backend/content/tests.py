@@ -12,7 +12,7 @@ from rest_framework.test import APIClient
 
 from notifications.models import Notification
 
-from .models import Category, Comment, Content, ContentRevision, ContentType, Tag
+from .models import Category, Comment, Content, ContentLike, ContentRevision, ContentType, Tag
 
 User = get_user_model()
 
@@ -298,6 +298,87 @@ class ContentAPITests(TestCase):
 
         self.published.refresh_from_db()
         self.assertEqual(self.published.comment_count, 0)
+
+    def test_like_content_increments_and_awards_points(self):
+        """点赞内容应落库、更新计数并发放双方积分。"""
+        self.client.force_authenticate(user=self.bob)
+
+        response = self.client.post(f'{self.contents_url}{self.published.id}/like/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['status'], 'liked')
+
+        self.published.refresh_from_db()
+        self.assertEqual(self.published.like_count, 1)
+        self.assertTrue(
+            ContentLike.objects.filter(content=self.published, user=self.bob).exists()
+        )
+        self.mock_points.assert_any_call(self.bob.id, 'like', description='点赞内容')
+        self.mock_points.assert_any_call(self.alice.id, 'liked', description='内容被点赞')
+
+    def test_like_content_twice_returns_400(self):
+        """重复点赞返回 400 且计数只增加一次。"""
+        self.client.force_authenticate(user=self.bob)
+
+        first = self.client.post(f'{self.contents_url}{self.published.id}/like/')
+        second = self.client.post(f'{self.contents_url}{self.published.id}/like/')
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 400)
+        self.published.refresh_from_db()
+        self.assertEqual(self.published.like_count, 1)
+
+    def test_like_own_content_skips_author_reward_and_notification(self):
+        """点赞自己的内容不发放被赞积分，也不产生通知。"""
+        response = self.client.post(f'{self.contents_url}{self.published.id}/like/')
+
+        self.assertEqual(response.status_code, 200)
+        self.mock_points.assert_called_once_with(self.alice.id, 'like', description='点赞内容')
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_like_notifies_author(self):
+        """点赞他人内容应通知作者。"""
+        self.client.force_authenticate(user=self.bob)
+
+        self.client.post(f'{self.contents_url}{self.published.id}/like/')
+
+        notification = Notification.objects.get(recipient=self.alice)
+        self.assertEqual(notification.sender, self.bob)
+        self.assertEqual(notification.notification_type, 'interaction')
+        self.assertEqual(notification.title, '新点赞')
+
+    def test_unlike_content(self):
+        """取消点赞应删除记录并递减计数。"""
+        self.client.force_authenticate(user=self.bob)
+        self.client.post(f'{self.contents_url}{self.published.id}/like/')
+
+        response = self.client.post(f'{self.contents_url}{self.published.id}/unlike/')
+
+        self.assertEqual(response.status_code, 200)
+        self.published.refresh_from_db()
+        self.assertEqual(self.published.like_count, 0)
+        self.assertFalse(
+            ContentLike.objects.filter(content=self.published, user=self.bob).exists()
+        )
+
+    def test_unlike_without_like_returns_400(self):
+        """未点赞时取消点赞返回 400。"""
+        response = self.client.post(f'{self.contents_url}{self.published.id}/unlike/')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['status'], 'not_liked')
+
+    def test_list_marks_is_liked_for_current_user(self):
+        """列表中的 is_liked 反映当前用户的点赞状态。"""
+        ContentLike.objects.create(content=self.published, user=self.bob)
+
+        self.client.force_authenticate(user=self.bob)
+        response = self.client.get(self.contents_url)
+
+        item = next(
+            row for row in response.data['results'] if row['id'] == self.published.id
+        )
+        self.assertTrue(item['is_liked'])
 
     def test_my_contents_returns_only_own(self):
         """个人内容列表只返回当前用户的内容。"""

@@ -120,6 +120,27 @@ class Content(models.Model):
         super().save(*args, **kwargs)
 
 
+class ContentLike(models.Model):
+    """内容点赞模型"""
+    content = models.ForeignKey(
+        Content, on_delete=models.CASCADE, related_name='likes', verbose_name='内容'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='content_likes', verbose_name='用户'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    class Meta:
+        db_table = 'content_like'
+        verbose_name = '内容点赞'
+        verbose_name_plural = '内容点赞'
+        unique_together = ('content', 'user')
+
+    def __str__(self):
+        return f'{self.user.username} 点赞了 {self.content.title}'
+
+
 class Comment(models.Model):
     """评论模型"""
     content = models.ForeignKey(Content, on_delete=models.CASCADE, related_name='comments', verbose_name='内容')

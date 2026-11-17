@@ -70,7 +70,7 @@ Content-Type: application/json
 | 场景 | 默认 `page_size` | 查询参数 |
 |---|---|---|
 | DRF 全局默认 | 12 | `page`、`page_size`（视视图而定） |
-| `BaseModelViewSet` | 10 | `page`、`page_size`（上限 100） |
+| `BaseModelViewSet` | 12 | `page`、`page_size`（上限 100） |
 
 分页响应：
 
@@ -181,3 +181,21 @@ H5 与小程序的通知页均已切换到新路径。
 | GET | `/health/` | 公开 |
 | GET | `/api/chat/health/` | 公开 |
 | GET | `/api/schools/test-connection/` | 公开 |
+
+## 10. 在线文档
+
+基于 drf-spectacular 自动生成 OpenAPI 3 文档：
+
+| 路径 | 说明 |
+|---|---|
+| `/api/schema/` | OpenAPI 3 schema（YAML） |
+| `/api/swagger/` | Swagger UI |
+| `/api/redoc/` | ReDoc |
+
+本地生成 schema 并校验：
+
+```bash
+cd backend
+DJANGO_SETTINGS_MODULE=config.settings_ci uv run python manage.py spectacular \
+  --file schema.yml --validate
+```

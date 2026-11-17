@@ -130,6 +130,7 @@ Content ──1:N── Comment / ContentRevision
 | `Category` | `content_category` | `name`（唯一）、`parent`、`order` |
 | `Tag` | `content_tag` | `name`（唯一） |
 | `Content` | `content_content` | `title`、`slug`（唯一）、`content_type`、`category`、`author`、`content`、`summary`、`status`、`is_published`、`publish_date`、计数 |
+| `ContentLike` | `content_like` | `content`、`user`（唯一组合） |
 | `Comment` | `content_comment` | `content`、`user`、`parent`、`content_text`、`is_approved` |
 | `ContentRevision` | `content_contentrevision` | `content`、`author`、`title`、`content_text`、`summary` |
 
