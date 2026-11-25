@@ -17,6 +17,7 @@
 | 运行测试、补充测试 | [测试指南](guides/testing.md) |
 | 部署到测试/生产环境 | [部署指南](guides/deployment.md) |
 | 日常运维、排障 | [运维手册](guides/operations.md)、[故障排查](guides/troubleshooting.md) |
+| 小程序开发与对齐 | [小程序指南](guides/mini-program.md) |
 | 理解系统设计 | [架构总览](architecture/overview.md) |
 | 查接口、字段、WebSocket 协议 | [参考文档](reference/api/README.md) |
 | 提交代码、了解安全要求 | [贡献指南](project/contributing.md)、[安全说明](project/security.md) |

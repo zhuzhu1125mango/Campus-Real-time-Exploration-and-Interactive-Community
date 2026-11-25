@@ -1,7 +1,11 @@
 <script>
+	import { bindWechatAccount } from './utils/wechat'
+
 	export default {
 		onLaunch: function() {
 			console.log('App Launch')
+			// 已登录用户静默绑定微信 openid，用于订阅消息
+			bindWechatAccount()
 		},
 		onShow: function() {
 			console.log('App Show')

@@ -13,6 +13,9 @@
 | POST | `/api/users/users/email_code_login/` | 公开 | 邮箱验证码登录 |
 | POST | `/api/users/users/phone_code_login/` | 公开 | 手机验证码登录 |
 | POST | `/api/users/users/logout/` | 登录 | 登出，refresh 加入黑名单 |
+| POST | `/api/users/users/wechat_login/` | 公开 | 微信 code 登录（需先绑定 openid） |
+| POST | `/api/users/users/wechat_bind/` | 登录 | 用 `code` 绑定微信 openid |
+| POST | `/api/users/users/wechat_subscribe/` | 登录 | 记录已授权的订阅消息模板 |
 | POST | `/api/users/users/send_email_code/` | 公开 | 发送邮箱验证码 |
 | POST | `/api/users/users/send_phone_code/` | 公开 | 发送手机验证码 |
 | POST | `/api/users/users/verify_code/` | 公开 | 校验验证码 |

@@ -128,7 +128,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
+import { onLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import userApi from '../../api/user'
 
 const userId = ref('me')
@@ -169,11 +170,8 @@ const showFollowButton = computed(() => {
   return token && userId.value !== 'me' && Number(userId.value) !== Number(currentUserId.value)
 })
 
-onMounted(() => {
-  const pages = getCurrentPages()
-  const currentPage = pages[pages.length - 1]
-  const options = currentPage.options || currentPage.$page?.options || {}
-  userId.value = options.id || 'me'
+onLoad((options) => {
+  userId.value = options?.id || getPageQueryId() || 'me'
 
   const storedUserInfo = uni.getStorageSync('userInfo')
   if (storedUserInfo) {
@@ -187,6 +185,23 @@ onMounted(() => {
 
   fetchUserProfile()
 })
+
+onShareAppMessage(() => ({
+  title: user.value?.username || '用户资料',
+  path: `/pages/user-profile/user-profile?id=${userId.value}`
+}))
+
+onShareTimeline(() => ({
+  title: user.value?.username || '用户资料',
+  query: `id=${userId.value}`
+}))
+
+const getPageQueryId = () => {
+  const pages = getCurrentPages()
+  const currentPage = pages[pages.length - 1]
+  const options = currentPage?.options || currentPage?.$page?.options || {}
+  return options.id
+}
 
 const fetchUserProfile = async () => {
   loading.value = true

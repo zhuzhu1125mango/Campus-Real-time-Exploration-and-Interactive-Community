@@ -47,6 +47,11 @@
         <text class="menu-text">通知</text>
         <text class="arrow">></text>
       </view>
+      <view class="menu-item" @click="openSubscribeSettings">
+        <text class="icon">📬</text>
+        <text class="menu-text">通知设置</text>
+        <text class="arrow">></text>
+      </view>
       <view class="menu-item" @click="navigateTo('/pages/settings/settings')">
         <text class="icon">⚙️</text>
         <text class="menu-text">设置</text>
@@ -73,6 +78,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import userApi from '../../api/user'
+import { requestAndSaveSubscribe, SUBSCRIBE_TEMPLATE_KEYS } from '../../utils/wechat'
 
 const isLoggedIn = ref(false)
 const userInfo = ref({})
@@ -127,6 +133,19 @@ const navigateTo = (url) => {
 
 const viewProfile = () => {
   uni.navigateTo({ url: '/pages/user-profile/user-profile?id=me' })
+}
+
+const openSubscribeSettings = async () => {
+  if (!isLoggedIn.value) {
+    uni.showToast({ title: '请先登录', icon: 'none' })
+    return
+  }
+  const accepted = await requestAndSaveSubscribe(SUBSCRIBE_TEMPLATE_KEYS)
+  if (accepted.length) {
+    uni.showToast({ title: '已开启通知', icon: 'success' })
+  } else {
+    uni.showToast({ title: '未开启通知', icon: 'none' })
+  }
 }
 
 const handleLogout = () => {

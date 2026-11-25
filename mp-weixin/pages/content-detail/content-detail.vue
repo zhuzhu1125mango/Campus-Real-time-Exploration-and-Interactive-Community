@@ -60,6 +60,16 @@
         <rich-text class="content-text" :nodes="safeContent"></rich-text>
       </view>
 
+      <!-- 互动操作 -->
+      <view class="content-actions">
+        <view class="like-action" :class="{ liked: content.is_liked }" @click="toggleLike">
+          <text class="like-icon">{{ content.is_liked ? '❤️' : '🤍' }}</text>
+          <text class="like-text">{{ content.is_liked ? '已点赞' : '点赞' }}</text>
+          <text class="like-count">{{ content.like_count || 0 }}</text>
+        </view>
+        <text class="report-link" @click="openReport">举报</text>
+      </view>
+
       <!-- 评论区 -->
       <view class="comments-section">
         <view class="section-title">评论 ({{ comments.length }})</view>
@@ -107,7 +117,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { onUnload } from '@dcloudio/uni-app'
+import { onLoad, onUnload, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import contentApi from '../../api/content'
 import userApi from '../../api/user'
 import { sanitizeHtml } from '../../utils/xss'
@@ -127,7 +137,18 @@ const commentText = ref('')
 const error = ref('')
 const isLoggedIn = ref(false)
 const currentUserId = ref(null)
+const queryId = ref('')
+const liking = ref(false)
+const reporting = ref(false)
 let deleteRedirectTimer = null
+
+const reportReasons = [
+  { label: '垃圾广告', value: 'spam' },
+  { label: '辱骂攻击', value: 'abuse' },
+  { label: '色情低俗', value: 'porn' },
+  { label: '违法违规', value: 'illegal' },
+  { label: '其他', value: 'other' }
+]
 
 const safeContent = computed(() => sanitizeHtml(content.value?.content || ''))
 
@@ -149,12 +170,32 @@ const isAuthor = computed(() => {
   return content.value && currentUserId.value && content.value.author?.id === currentUserId.value
 })
 
+onLoad((options) => {
+  queryId.value = options?.id ? String(options.id) : ''
+})
+
 onMounted(() => {
   isLoggedIn.value = !!uni.getStorageSync('accessToken')
   if (isLoggedIn.value) {
     loadCurrentUser()
   }
   loadContent()
+})
+
+onShareAppMessage(() => {
+  const id = content.value?.id || queryId.value || props.id || getQueryId()
+  return {
+    title: content.value?.title || '内容详情',
+    path: `/pages/content-detail/content-detail?id=${id}`
+  }
+})
+
+onShareTimeline(() => {
+  const id = content.value?.id || queryId.value || props.id || getQueryId()
+  return {
+    title: content.value?.title || '内容详情',
+    query: `id=${id}`
+  }
 })
 
 onUnload(() => {
@@ -174,7 +215,7 @@ const loadCurrentUser = async () => {
 }
 
 const loadContent = async () => {
-  const id = props.id || getQueryId()
+  const id = props.id || queryId.value || getQueryId()
   if (!id) {
     error.value = '无效的内容ID'
     return
@@ -282,6 +323,77 @@ const withdrawToDraft = async () => {
   } catch (err) {
     console.error('撤回失败', err)
     uni.showToast({ title: '撤回失败', icon: 'none' })
+  }
+}
+
+const toggleLike = async () => {
+  if (!content.value || liking.value) return
+  if (!uni.getStorageSync('accessToken')) {
+    uni.showToast({ title: '请先登录', icon: 'none' })
+    return
+  }
+
+  liking.value = true
+  try {
+    if (content.value.is_liked) {
+      const res = await contentApi.unlikeContent(content.value.id)
+      if (!res || res.error) return
+      content.value.is_liked = false
+      if (res.status === 'unliked') {
+        content.value.like_count = Math.max(0, (content.value.like_count || 1) - 1)
+      }
+    } else {
+      const res = await contentApi.likeContent(content.value.id)
+      if (!res || res.error) return
+      content.value.is_liked = true
+      if (res.status === 'liked') {
+        content.value.like_count = (content.value.like_count || 0) + 1
+      }
+    }
+  } catch (err) {
+    console.error('点赞操作失败', err)
+  } finally {
+    liking.value = false
+  }
+}
+
+const openReport = () => {
+  if (!content.value || reporting.value) return
+  if (!uni.getStorageSync('accessToken')) {
+    uni.showToast({ title: '请先登录', icon: 'none' })
+    return
+  }
+
+  uni.showActionSheet({
+    itemList: reportReasons.map((item) => item.label),
+    success: (res) => {
+      const reason = reportReasons[res.tapIndex]
+      if (!reason) return
+      uni.showModal({
+        title: '举报内容',
+        editable: true,
+        placeholderText: '请补充说明（可选）',
+        confirmText: '提交',
+        success: (modalRes) => {
+          if (!modalRes.confirm) return
+          submitReport(reason.value, (modalRes.content || '').trim())
+        }
+      })
+    }
+  })
+}
+
+const submitReport = async (reason, description) => {
+  if (!content.value) return
+  reporting.value = true
+  try {
+    const res = await contentApi.reportContent(content.value.id, { reason, description })
+    if (res && res.error) return
+    uni.showToast({ title: '举报已提交', icon: 'success' })
+  } catch (err) {
+    console.error('举报失败', err)
+  } finally {
+    reporting.value = false
   }
 }
 
@@ -464,6 +576,45 @@ const formatDate = (date) => {
   line-height: 1.8;
   color: #333;
   font-size: 30rpx;
+}
+
+.content-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #fff;
+  padding: 24rpx 30rpx;
+  margin-bottom: 20rpx;
+}
+
+.like-action {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 10rpx 26rpx;
+  border-radius: 30rpx;
+  background-color: #f2f4ff;
+  color: #4361ee;
+  font-size: 26rpx;
+}
+
+.like-action.liked {
+  background-color: #ffecec;
+  color: #e74c3c;
+}
+
+.like-icon {
+  font-size: 30rpx;
+}
+
+.like-count {
+  font-weight: 600;
+}
+
+.report-link {
+  color: #999;
+  font-size: 26rpx;
+  padding: 10rpx 20rpx;
 }
 
 .comments-section {

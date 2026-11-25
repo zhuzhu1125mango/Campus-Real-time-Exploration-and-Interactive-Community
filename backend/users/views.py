@@ -17,6 +17,7 @@ from .serializers import (
     VerifyCodeSerializer, EmailCodeLoginSerializer, PhoneCodeLoginSerializer, ResetPasswordSerializer
 )
 from .models import UserProfile
+from .wechat import code_to_openid, configured_template_keys
 from forum.models import Topic, Post
 from forum.serializers import TopicListSerializer, PostSerializer
 from users.permissions import IsOwnerOrAdmin
@@ -70,6 +71,10 @@ class UserViewSet(BaseModelViewSet):
         'partial_update': [permissions.IsAuthenticated, IsOwnerOrAdmin],
         'destroy': [permissions.IsAuthenticated, IsOwnerOrAdmin],
         'login': [permissions.AllowAny],
+        'logout': [permissions.IsAuthenticated],
+        'wechat_login': [permissions.AllowAny],
+        'wechat_bind': [permissions.IsAuthenticated],
+        'wechat_subscribe': [permissions.IsAuthenticated],
         'me': [permissions.AllowAny],
         'send_email_code': [permissions.AllowAny],
         'send_phone_code': [permissions.AllowAny],
@@ -83,6 +88,9 @@ class UserViewSet(BaseModelViewSet):
 
     throttle_config = {
         'login': [LoginThrottle],
+        'wechat_login': [LoginThrottle],
+        'wechat_bind': [WriteThrottle],
+        'wechat_subscribe': [WriteThrottle],
         'email_code_login': [LoginThrottle],
         'phone_code_login': [LoginThrottle],
         'send_email_code': [CodeSendThrottle],
@@ -168,6 +176,84 @@ class UserViewSet(BaseModelViewSet):
                     pass
 
         return Response({"detail": "成功登出。"}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'])
+    def wechat_login(self, request):
+        """微信小程序 code 登录（需先绑定 openid）。"""
+        openid = code_to_openid(request.data.get('code'))
+        if not openid:
+            return Response(
+                {'error': '微信登录失败，请稍后重试'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = User.objects.filter(wechat_openid=openid).first()
+        if not user:
+            return Response(
+                {'error': '当前微信尚未绑定账号，请先登录后在个人中心绑定', 'need_bind': True},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+        _award_login_points_if_needed(user)
+
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'user': UserSerializer(user).data,
+        })
+
+    @action(detail=False, methods=['post'])
+    def wechat_bind(self, request):
+        """将当前账号与微信 openid 绑定。"""
+        openid = code_to_openid(request.data.get('code'))
+        if not openid:
+            return Response(
+                {'error': '微信绑定失败，请稍后重试'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if User.objects.filter(wechat_openid=openid).exclude(pk=request.user.pk).exists():
+            return Response(
+                {'error': '该微信已绑定其他账号'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        request.user.wechat_openid = openid
+        request.user.save(update_fields=['wechat_openid'])
+        return Response({'bound': True})
+
+    @action(detail=False, methods=['post'])
+    def wechat_subscribe(self, request):
+        """记录用户已授权的订阅消息模板。"""
+        templates = request.data.get('templates') or []
+        if isinstance(templates, str):
+            templates = [templates]
+
+        allowed = set(configured_template_keys())
+        if not allowed:
+            return Response(
+                {'error': '服务端未配置订阅消息模板'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        invalid = [item for item in templates if item not in allowed]
+        if invalid:
+            return Response(
+                {'error': f'不支持的模板: {", ".join(invalid)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        subscriptions = list(request.user.wechat_subscriptions or [])
+        for item in templates:
+            if item not in subscriptions:
+                subscriptions.append(item)
+        request.user.wechat_subscriptions = subscriptions
+        request.user.save(update_fields=['wechat_subscriptions'])
+        return Response({'templates': subscriptions})
     
     @action(detail=False, methods=['get'])
     def me(self, request):

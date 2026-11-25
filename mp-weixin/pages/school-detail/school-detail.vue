@@ -82,8 +82,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { onUnload } from '@dcloudio/uni-app'
+import { ref } from 'vue'
+import { onLoad, onUnload, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import schoolApi from '../../api/school'
 
 const schoolId = ref(null)
@@ -94,11 +94,8 @@ const isCollected = ref(false)
 const forumBoard = ref(null)
 let loginRedirectTimer = null
 
-onMounted(() => {
-  const pages = getCurrentPages()
-  const currentPage = pages[pages.length - 1]
-  const options = currentPage.options || currentPage.$page?.options || {}
-  schoolId.value = options.id
+onLoad((options) => {
+  schoolId.value = options?.id || getPageQueryId()
 
   if (schoolId.value) {
     loadSchoolDetail()
@@ -108,6 +105,23 @@ onMounted(() => {
     uni.showToast({ title: '参数错误', icon: 'none' })
   }
 })
+
+onShareAppMessage(() => ({
+  title: schoolInfo.value?.name || '院校详情',
+  path: `/pages/school-detail/school-detail?id=${schoolId.value}`
+}))
+
+onShareTimeline(() => ({
+  title: schoolInfo.value?.name || '院校详情',
+  query: `id=${schoolId.value}`
+}))
+
+const getPageQueryId = () => {
+  const pages = getCurrentPages()
+  const currentPage = pages[pages.length - 1]
+  const options = currentPage?.options || currentPage?.$page?.options || {}
+  return options.id
+}
 
 onUnload(() => {
   if (loginRedirectTimer) {

@@ -422,6 +422,16 @@ ALIYUN_ACCESS_KEY_SECRET = os.environ.get('ALIYUN_ACCESS_KEY_SECRET', '')
 ALIYUN_SMS_SIGN_NAME = os.environ.get('ALIYUN_SMS_SIGN_NAME', '')
 ALIYUN_SMS_TEMPLATE_CODE = os.environ.get('ALIYUN_SMS_TEMPLATE_CODE', '')
 
+# 微信小程序配置（订阅消息）
+WECHAT_APPID = os.environ.get('WECHAT_APPID', '')
+WECHAT_SECRET = os.environ.get('WECHAT_SECRET', '')
+# 订阅消息模板 ID：comment=评论，message=私信，interaction=点赞/好友
+WECHAT_SUBSCRIBE_TEMPLATES = {
+    'comment': os.environ.get('WECHAT_TEMPLATE_COMMENT', ''),
+    'message': os.environ.get('WECHAT_TEMPLATE_MESSAGE', ''),
+    'interaction': os.environ.get('WECHAT_TEMPLATE_INTERACTION', ''),
+}
+
 # Celery 配置
 # Broker 默认使用 RabbitMQ；未配置时回退到 Redis 缓存地址（开发环境可用）
 CELERY_BROKER_URL = os.environ.get(

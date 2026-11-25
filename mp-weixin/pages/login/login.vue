@@ -48,6 +48,7 @@
 import { ref } from 'vue'
 import { onUnload } from '@dcloudio/uni-app'
 import userApi from '../../api/user'
+import { bindWechatAccount } from '../../utils/wechat'
 
 const loading = ref(false)
 let loginSuccessTimer = null
@@ -80,6 +81,8 @@ const handleLogin = async () => {
       uni.setStorageSync('refreshToken', result.refresh)
       uni.setStorageSync('userInfo', result.user)
       uni.setStorageSync('username', result.user.username)
+      // 登录后静默绑定微信 openid（失败不影响登录）
+      bindWechatAccount()
       uni.showToast({ title: '登录成功', icon: 'success' })
 
       loginSuccessTimer = setTimeout(() => {

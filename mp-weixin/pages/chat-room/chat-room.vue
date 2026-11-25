@@ -69,6 +69,10 @@
       <text class="reconnect-btn" @click="initWebSocket">重新连接</text>
     </view>
 
+    <view v-if="typingText" class="typing-bar">
+      <text>{{ typingText }}</text>
+    </view>
+
     <view class="input-area safe-area-bottom">
       <input
         class="message-input"
@@ -77,6 +81,7 @@
         placeholder="输入消息..."
         confirm-type="send"
         :disabled="!connected"
+        @input="onInput"
         @confirm="sendMessage"
       />
       <button class="send-btn" :disabled="!inputMessage.trim() || !connected || sending" @click="sendMessage">
@@ -114,7 +119,10 @@ const reconnectDelay = 1000
 const currentUserId = ref(0)
 const currentUserAvatar = ref('')
 const statusBarHeight = ref(0)
+const typingUsers = ref([])
+const typingTimers = new Map()
 let navigateTimer = null
+let lastTypingSentAt = 0
 
 const headerStyle = computed(() => {
   return {
@@ -130,6 +138,13 @@ const connectionStatusText = computed(() => {
     error: '连接错误'
   }
   return map[connectionStatus.value] || ''
+})
+
+const typingText = computed(() => {
+  const names = typingUsers.value.map(u => u.name)
+  if (!names.length) return ''
+  const shown = names.length > 2 ? `${names.slice(0, 2).join('、')} 等 ${names.length} 人` : names.join('、')
+  return `${shown} 正在输入...`
 })
 
 const formatDate = (time) => {
@@ -342,6 +357,8 @@ const handleSocketMessage = (data) => {
     onlineCount.value = data.online_users?.count || 0
   } else if (data.type === 'heartbeat_response') {
     // 忽略
+  } else if (data.type === 'typing') {
+    handleTyping(data)
   } else if (data.type === 'message_received') {
     const index = messages.value.findIndex(msg => msg.isTemp && msg.clientId === data.client_id)
     if (index !== -1) {
@@ -353,6 +370,37 @@ const handleSocketMessage = (data) => {
     }
   } else if (data.type === 'error') {
     uni.showToast({ title: data.message || '服务器错误', icon: 'none' })
+  }
+}
+
+const handleTyping = (data) => {
+  const uid = Number(data.user_id)
+  if (!uid || uid === Number(currentUserId.value)) return
+  const name = data.username || '有人'
+
+  if (!typingUsers.value.some(u => u.id === uid)) {
+    typingUsers.value = [...typingUsers.value, { id: uid, name }]
+  }
+
+  const existing = typingTimers.get(uid)
+  if (existing) {
+    clearTimeout(existing)
+  }
+  typingTimers.set(uid, setTimeout(() => {
+    typingUsers.value = typingUsers.value.filter(u => u.id !== uid)
+    typingTimers.delete(uid)
+  }, 3000))
+}
+
+const onInput = () => {
+  if (!socketTask.value || !connected.value) return
+  const now = Date.now()
+  if (now - lastTypingSentAt < 2000) return
+  lastTypingSentAt = now
+  try {
+    socketTask.value.send({ data: JSON.stringify({ type: 'typing' }) })
+  } catch (err) {
+    console.error('发送输入状态失败:', err)
   }
 }
 
@@ -382,6 +430,9 @@ const closeSocket = () => {
   stopHeartbeat()
   ackTimers.value.forEach((timer) => clearTimeout(timer))
   ackTimers.value.clear()
+  typingTimers.forEach((timer) => clearTimeout(timer))
+  typingTimers.clear()
+  typingUsers.value = []
   if (socketTask.value) {
     socketTask.value.close()
     socketTask.value = null
@@ -700,6 +751,14 @@ const goBack = () => {
   padding: 8rpx 20rpx;
   border-radius: 24rpx;
   margin-left: 16rpx;
+}
+
+.typing-bar {
+  padding: 10rpx 24rpx;
+  background-color: #fff;
+  border-top: 1rpx solid #f0f0f0;
+  font-size: 24rpx;
+  color: #999;
 }
 
 .input-area {

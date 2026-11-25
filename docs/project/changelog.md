@@ -86,6 +86,18 @@
 
 - `Message` 增加 `is_recalled`、`recalled_at` 字段，接口与 WebSocket 同步返回。
 
+### Added（2026-11-25）
+
+- 小程序：注册动态页，内容详情支持点赞/取消/举报，私信与聊天室支持撤回和输入中状态。
+- 小程序：首页、内容/帖子/院校/课程/用户详情支持分享卡片与深链。
+- 微信订阅消息：新增 openid 绑定、订阅授权接口与 Celery 发送任务，未配置时自动跳过。
+- 微信登录：新增 `wechat_login`，已绑定账号可用 code 换取 JWT。
+- 文档：新增 [小程序开发与对齐指南](../guides/mini-program.md)。
+
+### Changed（2026-11-25）
+
+- `User` 增加 `wechat_openid`、`wechat_subscriptions` 字段。
+
 ### 已知问题
 
 - 部分 app 测试为空。

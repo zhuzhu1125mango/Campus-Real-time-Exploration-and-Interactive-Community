@@ -82,6 +82,19 @@
 
 > 未设置 `SMS_ENABLED=True` 时走开发模式验证码，不调用阿里云短信。
 
+### 2.7 微信小程序
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `WECHAT_APPID` | 空 | 小程序 AppID，订阅消息与 code2session 使用 |
+| `WECHAT_SECRET` | 空 | 小程序 AppSecret |
+| `WECHAT_TEMPLATE_COMMENT` | 空 | “新评论”订阅消息模板 ID |
+| `WECHAT_TEMPLATE_MESSAGE` | 空 | “新私信”模板 ID |
+| `WECHAT_TEMPLATE_INTERACTION` | 空 | “点赞/好友请求”模板 ID |
+
+模板字段约定为 `thing1` / `thing2` / `time3`，详见
+[小程序指南](../guides/mini-program.md#3-订阅消息)。
+
 ## 3. H5 前端环境变量
 
 Vite 只暴露 `VITE_` 前缀变量。当前代码实际读取情况：

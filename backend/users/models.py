@@ -48,6 +48,14 @@ class User(AbstractUser):
 
     # 关注关系
     following = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='followers')
+
+    # 微信小程序
+    wechat_openid = models.CharField(
+        max_length=64, blank=True, null=True, unique=True, verbose_name='微信 OpenID'
+    )
+    wechat_subscriptions = models.JSONField(
+        default=list, blank=True, verbose_name='已授权的订阅消息模板'
+    )
     
     @property
     def level_name(self):

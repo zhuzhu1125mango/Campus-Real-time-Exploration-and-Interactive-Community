@@ -70,6 +70,21 @@ const contentApi = {
   // 创建评论
   createComment(data) {
     return request.post('/content/comments/', data)
+  },
+
+  // 点赞内容
+  likeContent(id) {
+    return request.post(`/content/contents/${id}/like/`)
+  },
+
+  // 取消点赞内容
+  unlikeContent(id) {
+    return request.post(`/content/contents/${id}/unlike/`)
+  },
+
+  // 举报内容
+  reportContent(id, data) {
+    return request.post(`/content/contents/${id}/report/`, data)
   }
 }
 

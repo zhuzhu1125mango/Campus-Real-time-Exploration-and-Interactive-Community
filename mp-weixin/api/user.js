@@ -188,6 +188,15 @@ const userApi = {
   },
 
   /**
+   * 撤回私信（发送后 120 秒内，仅发送者）
+   * @param {number|string} messageId - 消息ID
+   * @returns {Promise} 撤回结果
+   */
+  recallMessage: (messageId) => {
+    return request.post(`/users/messages/${messageId}/recall/`)
+  },
+
+  /**
    * 获取未读私信数量
    * @returns {Promise} 未读数量
    */

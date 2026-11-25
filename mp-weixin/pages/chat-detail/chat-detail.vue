@@ -36,13 +36,15 @@
           >
             <image v-if="!isMine(msg)" class="msg-avatar" :src="formatAvatar(msg.sender?.avatar)" mode="aspectFill" />
             <view class="message-body">
-              <view class="message-content" :class="{ 'send-failed': msg.sendFailed }">
-                <text class="message-text">{{ msg.content }}</text>
+              <view class="message-content" :class="{ 'send-failed': msg.sendFailed, recalled: msg.is_recalled }">
+                <text v-if="msg.is_recalled" class="recalled-text">消息已撤回</text>
+                <text v-else class="message-text">{{ msg.content }}</text>
               </view>
               <view class="message-meta">
+                <text v-if="canRecall(msg)" class="recall-btn" @click="recallMsg(msg)">撤回</text>
                 <text v-if="msg.isTemp && !msg.sendFailed" class="status-hint sending">发送中...</text>
                 <text v-else-if="msg.sendFailed" class="status-hint failed" @click="resendMessage(msg)">发送失败，点击重试</text>
-                <text v-else-if="isMine(msg)" class="status-hint sent">已发送</text>
+                <text v-else-if="isMine(msg) && !msg.is_recalled" class="status-hint sent">已发送</text>
                 <text class="message-time">{{ formatDateTime(msg.created_at) }}</text>
               </view>
             </view>
@@ -57,6 +59,10 @@
       <text class="reconnect-btn" @click="initWebSocket">重新连接</text>
     </view>
 
+    <view v-if="isTyping" class="typing-bar">
+      <text>对方正在输入...</text>
+    </view>
+
     <view class="input-area safe-area-bottom">
       <input
         class="message-input"
@@ -65,6 +71,7 @@
         placeholder="输入消息..."
         confirm-type="send"
         :disabled="sending"
+        @input="onInput"
         @confirm="sendMessage"
       />
       <button class="send-btn" :disabled="!inputMessage.trim() || sending" @click="sendMessage">
@@ -104,7 +111,11 @@ const maxReconnectAttempts = 5
 const reconnectDelay = 1000
 const connectionStatus = ref('disconnected')
 const isConnected = ref(false)
+const isTyping = ref(false)
+const recalling = ref(false)
 let navigateTimer = null
+let typingTimer = null
+let lastTypingSentAt = 0
 
 const isMine = (msg) => {
   return msg.sender?.id === currentUserId.value
@@ -176,6 +187,10 @@ onUnload(() => {
   if (navigateTimer) {
     clearTimeout(navigateTimer)
     navigateTimer = null
+  }
+  if (typingTimer) {
+    clearTimeout(typingTimer)
+    typingTimer = null
   }
 })
 
@@ -314,6 +329,10 @@ const initWebSocket = () => {
         console.log('私聊频道就绪:', data.message)
       } else if (data.type === 'heartbeat_response') {
         // 忽略
+      } else if (data.type === 'typing') {
+        handleTyping(data)
+      } else if (data.type === 'message_recalled') {
+        handleMessageRecalled(data)
       } else if (data.type === 'message_received') {
         const index = messages.value.findIndex(
           msg => msg.isTemp && msg.content === data.content && msg.sender?.id === currentUserId.value
@@ -337,6 +356,7 @@ const initWebSocket = () => {
     console.log('私信 WebSocket 连接已关闭', res)
     socketTask.value = null
     isConnected.value = false
+    isTyping.value = false
     connectionStatus.value = 'disconnected'
     stopHeartbeat()
 
@@ -396,6 +416,8 @@ const handlePrivateMessage = (data) => {
     },
     content: data.content,
     is_read: data.is_read || false,
+    is_recalled: data.is_recalled || false,
+    recalled_at: data.recalled_at || null,
     created_at: data.created_at || new Date().toISOString()
   }
 
@@ -409,6 +431,74 @@ const handlePrivateMessage = (data) => {
   } else {
     messages.value.push(newMessage)
     scrollToBottom()
+  }
+}
+
+const handleTyping = (data) => {
+  const fromId = Number(data.user_id)
+  if (!fromId || fromId === Number(currentUserId.value)) return
+  if (typingTimer) {
+    clearTimeout(typingTimer)
+  }
+  isTyping.value = true
+  typingTimer = setTimeout(() => {
+    isTyping.value = false
+    typingTimer = null
+  }, 3000)
+}
+
+const handleMessageRecalled = (data) => {
+  const messageId = data.message_id
+  if (!messageId) return
+  const index = messages.value.findIndex(msg => Number(msg.id) === Number(messageId))
+  if (index !== -1) {
+    messages.value[index] = {
+      ...messages.value[index],
+      is_recalled: true,
+      recalled_at: data.recalled_at || new Date().toISOString()
+    }
+  }
+}
+
+const canRecall = (msg) => {
+  if (!msg || !isMine(msg) || msg.is_recalled || msg.isTemp || msg.sendFailed) return false
+  if (!msg.id || typeof msg.id === 'string') return false
+  const created = new Date(msg.created_at).getTime()
+  if (isNaN(created)) return false
+  return Date.now() - created <= 120000
+}
+
+const recallMsg = (msg) => {
+  if (!canRecall(msg) || recalling.value) return
+  uni.showModal({
+    title: '撤回消息',
+    content: '确定撤回这条消息吗？',
+    success: async (res) => {
+      if (!res.confirm) return
+      recalling.value = true
+      try {
+        const result = await userApi.recallMessage(msg.id)
+        if (result && result.error) return
+        handleMessageRecalled({ message_id: msg.id })
+        uni.showToast({ title: '已撤回', icon: 'success' })
+      } catch (err) {
+        console.error('撤回消息失败:', err)
+      } finally {
+        recalling.value = false
+      }
+    }
+  })
+}
+
+const onInput = () => {
+  if (!socketTask.value || !isConnected.value) return
+  const now = Date.now()
+  if (now - lastTypingSentAt < 2000) return
+  lastTypingSentAt = now
+  try {
+    socketTask.value.send({ data: JSON.stringify({ type: 'typing' }) })
+  } catch (err) {
+    console.error('发送输入状态失败:', err)
   }
 }
 
@@ -704,6 +794,23 @@ const goBack = () => {
   border: 1rpx solid #f5222d;
 }
 
+.message-content.recalled {
+  background-color: #f0f0f0 !important;
+}
+
+.recalled-text {
+  font-size: 26rpx;
+  color: #999;
+  font-style: italic;
+}
+
+.recall-btn {
+  font-size: 22rpx;
+  color: #999;
+  margin-right: 12rpx;
+  text-decoration: underline;
+}
+
 .message-text {
   font-size: 28rpx;
   color: #333;
@@ -779,6 +886,14 @@ const goBack = () => {
   padding: 8rpx 20rpx;
   border-radius: 24rpx;
   margin-left: 16rpx;
+}
+
+.typing-bar {
+  padding: 12rpx 30rpx;
+  background-color: #fff;
+  border-top: 1rpx solid #f0f0f0;
+  font-size: 24rpx;
+  color: #999;
 }
 
 .input-area {

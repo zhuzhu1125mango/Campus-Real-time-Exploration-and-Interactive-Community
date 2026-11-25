@@ -87,8 +87,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { onUnload } from '@dcloudio/uni-app'
+import { ref, computed } from 'vue'
+import { onLoad, onUnload, onPullDownRefresh, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import forumApi from '../../api/forum'
 import { sanitizeHtml } from '../../utils/xss'
 
@@ -111,11 +111,8 @@ const firstPost = computed(() => {
 const safeFirstPostContent = computed(() => sanitizeHtml(firstPost.value?.content || ''))
 const safeReplyContent = (content) => sanitizeHtml(content || '')
 
-onMounted(() => {
-  const pages = getCurrentPages()
-  const currentPage = pages[pages.length - 1]
-  const options = currentPage.options || currentPage.$page?.options || {}
-  topicId.value = options.id
+onLoad((options) => {
+  topicId.value = options?.id || getPageQueryId()
 
   if (topicId.value) {
     loadTopicDetail()
@@ -124,6 +121,23 @@ onMounted(() => {
     uni.showToast({ title: '参数错误', icon: 'none' })
   }
 })
+
+onShareAppMessage(() => ({
+  title: topic.value?.title || '帖子详情',
+  path: `/pages/post-detail/post-detail?id=${topicId.value}`
+}))
+
+onShareTimeline(() => ({
+  title: topic.value?.title || '帖子详情',
+  query: `id=${topicId.value}`
+}))
+
+const getPageQueryId = () => {
+  const pages = getCurrentPages()
+  const currentPage = pages[pages.length - 1]
+  const options = currentPage?.options || currentPage?.$page?.options || {}
+  return options.id
+}
 
 onUnload(() => {
   if (loginRedirectTimer) {

@@ -177,8 +177,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { onUnload } from '@dcloudio/uni-app'
+import { ref, computed } from 'vue'
+import { onLoad, onUnload, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import learningApi from '../../api/learning'
 import { sanitizeHtml } from '../../utils/xss'
 
@@ -208,11 +208,21 @@ const safeLessonContent = computed(() => sanitizeHtml(currentLesson.value?.conte
 
 const courseId = ref('')
 
-onMounted(() => {
+onLoad((options) => {
   isLoggedIn.value = !!uni.getStorageSync('accessToken')
-  courseId.value = getQueryId()
+  courseId.value = options?.id || getQueryId() || ''
   loadCourse()
 })
+
+onShareAppMessage(() => ({
+  title: course.value?.title || '课程详情',
+  path: `/pages/course-detail/course-detail?id=${courseId.value}`
+}))
+
+onShareTimeline(() => ({
+  title: course.value?.title || '课程详情',
+  query: `id=${courseId.value}`
+}))
 
 onUnload(() => {
   if (playbackRateTimer) {

@@ -171,6 +171,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import feedApi from '../../api/feed'
 
 const DEFAULT_LOCATION = { lat: 39.9042, lng: 116.4074 }
@@ -198,6 +199,15 @@ onMounted(() => {
   fetchFeed(true)
   fetchTrendingTopics()
 })
+
+onShareAppMessage(() => ({
+  title: '校园实时互动社区',
+  path: '/pages/index/index'
+}))
+
+onShareTimeline(() => ({
+  title: '校园实时互动社区'
+}))
 
 const getTypeLabel = (type) => {
   return typeOptions.find(o => o.value === type)?.label || type
