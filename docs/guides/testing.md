@@ -10,7 +10,7 @@
 | 集成脚本 | `backend/tests/integration/` | 需要先启动后端，使用真实 HTTP/WS |
 | 前端类型检查 | `frontend/` | `vue-tsc --noEmit` |
 | 前端单元测试 | `frontend/src/**/*.spec.ts` | `pnpm test`（Vitest） |
-| 前端 E2E | 暂无自动化 | 手动或后续引入 Playwright |
+| 前端 E2E | `frontend/e2e/*.spec.ts` | `pnpm test:e2e`（Playwright，拦截 `/api` 使用固定数据） |
 
 当前测试文件：
 
@@ -61,6 +61,9 @@ uv run python manage.py makemigrations --check --dry-run
 uv run python manage.py test --noinput --keepdb
 
 cd ../frontend
+pnpm lint
+pnpm test
+pnpm test:e2e
 pnpm type-check
 pnpm build
 ```
@@ -120,6 +123,7 @@ DJANGO_SETTINGS_MODULE=config.settings_ci
 | 代码检查 | `pnpm lint` |
 | 依赖审计 | `pnpm audit --audit-level high --prod --registry https://registry.npmjs.org` |
 | 单元测试 | `pnpm test` |
+| E2E 测试 | `pnpm test:e2e`（Playwright + Chromium） |
 | 类型检查 + 构建 | `pnpm build` |
 
 > 默认镜像源（npmmirror）不提供 npm audit 接口，因此依赖审计显式使用官方 registry。
@@ -127,7 +131,26 @@ DJANGO_SETTINGS_MODULE=config.settings_ci
 
 环境：Node.js 22、pnpm 11、`NODE_OPTIONS=--max-old-space-size=4096`。
 
-### 4.3 本地等价命令
+### 4.3 前端 E2E（Playwright）
+
+- 配置：`frontend/playwright.config.ts`，测试目录 `frontend/e2e/`。
+- 启动方式：配置内 `webServer` 自动执行 `pnpm dev --port 5174 --strictPort`，
+  无需手动启动前端，也不需要后端与数据库。
+- 数据隔离：`e2e/support/api-mock.ts` 拦截所有 `/api` 请求并返回固定数据，
+  覆盖健康检查、登录、用户信息、Feed、论坛等接口，避免依赖真实环境。
+- 用例：首页与导航、未登录守卫、密码登录成功/失败、论坛列表进入主题详情。
+
+```bash
+cd frontend
+pnpm exec playwright install chromium   # 首次运行安装浏览器
+pnpm test:e2e                          # 无头模式执行
+pnpm test:e2e:ui                       # UI 模式调试
+```
+
+失败时自动保留截图与 trace（`test-results/`），可用
+`pnpm exec playwright show-trace <trace.zip>` 查看。
+
+### 4.4 本地等价命令
 
 ```bash
 # 后端
@@ -145,10 +168,12 @@ pnpm install --frozen-lockfile
 pnpm lint
 pnpm audit --audit-level high --prod --registry https://registry.npmjs.org
 pnpm test
+pnpm exec playwright install chromium
+pnpm test:e2e
 pnpm build
 ```
 
-### 4.4 分支保护建议
+### 4.5 分支保护建议
 
 在 GitHub 仓库设置中开启：
 

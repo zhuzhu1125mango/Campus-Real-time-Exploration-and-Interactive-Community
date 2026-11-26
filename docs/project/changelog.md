@@ -104,6 +104,7 @@
 - 新增可选监控栈 `--profile monitoring`：Prometheus、Grafana、MySQL/Redis/Elasticsearch Exporter 与告警规则。
 - `/api/health/?deep=1` 支持检查数据库、缓存与 Elasticsearch，异常时返回 503。
 - 小程序：新增校园活动（列表筛选、详情、报名/取消）、好友管理（列表/请求/添加）、板块详情、标签详情与学习仪表盘页面。
+- 前端：接入 Playwright E2E（`frontend/e2e/`），拦截 `/api` 使用固定数据，覆盖首页导航、鉴权守卫、登录成功/失败与论坛进入主题详情；CI 增加 E2E 步骤。
 
 ### 已知问题
 

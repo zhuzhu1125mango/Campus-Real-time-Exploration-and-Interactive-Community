@@ -114,7 +114,7 @@ const goBack = () => {
 
 // 加载主题和帖子
 const loadTopicAndPosts = async () => {
-  const topicId = Number(route.params.id)
+  const topicId = Number(route.params.topicId || route.params.id)
   if (!topicId) {
     error.value = '主题ID不存在'
     loading.value = false
