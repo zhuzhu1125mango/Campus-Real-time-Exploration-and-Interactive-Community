@@ -103,6 +103,7 @@
 - 新增 Flower 服务与 `flower` 生产依赖，Compose 中默认启动并仅绑定本机端口。
 - 新增可选监控栈 `--profile monitoring`：Prometheus、Grafana、MySQL/Redis/Elasticsearch Exporter 与告警规则。
 - `/api/health/?deep=1` 支持检查数据库、缓存与 Elasticsearch，异常时返回 503。
+- 小程序：新增校园活动（列表筛选、详情、报名/取消）、好友管理（列表/请求/添加）、板块详情、标签详情与学习仪表盘页面。
 
 ### 已知问题
 

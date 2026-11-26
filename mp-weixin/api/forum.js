@@ -208,6 +208,52 @@ const forumApi = {
    */
   getMyBookmarks: () => {
     return request.get('/my-bookmarks/')
+  },
+
+  /**
+   * 获取板块详情
+   * @param {number} id - 板块ID
+   * @returns {Promise} 板块详情
+   */
+  getBoardDetail: (id) => {
+    return request.get(`/boards/${id}/`)
+  },
+
+  /**
+   * 获取板块下的主题列表
+   * @param {number} id - 板块ID
+   * @param {Object} params - 查询参数
+   * @returns {Promise} 主题列表
+   */
+  getBoardTopics: (id, params) => {
+    return request.get(`/boards/${id}/topics/`, params)
+  },
+
+  /**
+   * 获取热门标签
+   * @returns {Promise} 热门标签列表
+   */
+  getHotTags: () => {
+    return request.get('/tags/hot/')
+  },
+
+  /**
+   * 获取标签详情
+   * @param {number} id - 标签ID
+   * @returns {Promise} 标签详情
+   */
+  getTagDetail: (id) => {
+    return request.get(`/tags/${id}/`)
+  },
+
+  /**
+   * 获取标签下的主题列表
+   * @param {number} id - 标签ID
+   * @param {Object} params - 查询参数
+   * @returns {Promise} 主题列表
+   */
+  getTagTopics: (id, params) => {
+    return request.get(`/tags/${id}/topics/`, params)
   }
 }
 

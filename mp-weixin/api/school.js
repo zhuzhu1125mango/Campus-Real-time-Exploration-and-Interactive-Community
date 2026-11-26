@@ -199,6 +199,57 @@ const schoolApi = {
    */
   getMyCheckIns: () => {
     return request.get('/schools/explore/my_checkins/')
+  },
+
+  /**
+   * 获取活动列表
+   * @param {Object} params - 查询参数
+   * @param {number} [params.school_id] - 学校ID
+   * @param {string} [params.status] - upcoming/ongoing/completed/cancelled
+   * @param {string} [params.start_date] - 开始日期（YYYY-MM-DD）
+   * @param {string} [params.end_date] - 结束日期（YYYY-MM-DD）
+   * @param {number} [params.page] - 页码
+   * @param {number} [params.pageSize] - 每页数量
+   * @returns {Promise} 活动列表
+   */
+  getEvents: (params) => {
+    return request.get('/schools/events/', params)
+  },
+
+  /**
+   * 获取活动详情
+   * @param {number} id - 活动ID
+   * @returns {Promise} 活动详情
+   */
+  getEventDetail: (id) => {
+    return request.get(`/schools/events/${id}/`)
+  },
+
+  /**
+   * 报名活动
+   * @param {number} id - 活动ID
+   * @param {Object} [data] - 报名附加信息
+   * @returns {Promise} 报名结果
+   */
+  registerEvent: (id, data = {}) => {
+    return request.post(`/schools/events/${id}/register/`, data)
+  },
+
+  /**
+   * 取消活动报名
+   * @param {number} id - 活动ID
+   * @returns {Promise} 取消结果
+   */
+  cancelEventRegistration: (id) => {
+    return request.post(`/schools/events/${id}/cancel_registration/`)
+  },
+
+  /**
+   * 获取仪表盘综合统计
+   * @returns {Promise} 统计数据
+   */
+  getDashboardStats: () => {
+    return request.get('/schools/stats/dashboard/')
   }
 }
 

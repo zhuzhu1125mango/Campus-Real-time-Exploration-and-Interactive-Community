@@ -199,7 +199,7 @@ const goToSchoolForum = () => {
     uni.showToast({ title: '该学校暂无论坛', icon: 'none' })
     return
   }
-  uni.navigateTo({ url: `/pages/forum/forum?boardId=${boardId}` })
+  uni.navigateTo({ url: `/pages/board-detail/board-detail?id=${boardId}` })
 }
 </script>
 

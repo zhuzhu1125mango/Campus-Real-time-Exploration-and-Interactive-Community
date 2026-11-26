@@ -31,6 +31,10 @@
           <view class="function-icon">📚</view>
           <text class="function-text">在线学习</text>
         </view>
+        <view class="function-item" @click="navigateTo('/pages/events/events')">
+          <view class="function-icon">📅</view>
+          <text class="function-text">校园活动</text>
+        </view>
         <view class="function-item" @click="navigateTo('/pages/activity/activity')">
           <view class="function-icon">📣</view>
           <text class="function-text">动态</text>

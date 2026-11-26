@@ -149,6 +149,75 @@ const userApi = {
   },
 
   /**
+   * 获取好友列表
+   * @returns {Promise} 好友列表
+   */
+  getFriends: () => {
+    return request.get('/users/friends/friend_list/')
+  },
+
+  /**
+   * 移除好友
+   * @param {number} friendId - 好友用户ID
+   * @returns {Promise} 移除结果
+   */
+  removeFriend: (friendId) => {
+    return request.post('/users/friends/remove/', { friend_id: friendId })
+  },
+
+  /**
+   * 发送好友请求
+   * @param {number} receiverId - 接收者用户ID
+   * @returns {Promise} 请求结果
+   */
+  sendFriendRequest: (receiverId) => {
+    return request.post('/users/friend-requests/', { receiver: receiverId })
+  },
+
+  /**
+   * 获取收到的好友请求
+   * @returns {Promise} 好友请求列表
+   */
+  getReceivedFriendRequests: () => {
+    return request.get('/users/friend-requests/received/')
+  },
+
+  /**
+   * 获取已发送的好友请求
+   * @returns {Promise} 好友请求列表
+   */
+  getSentFriendRequests: () => {
+    return request.get('/users/friend-requests/sent/')
+  },
+
+  /**
+   * 接受好友请求
+   * @param {number} requestId - 请求ID
+   * @returns {Promise} 处理结果
+   */
+  acceptFriendRequest: (requestId) => {
+    return request.post(`/users/friend-requests/${requestId}/accept/`)
+  },
+
+  /**
+   * 拒绝好友请求
+   * @param {number} requestId - 请求ID
+   * @returns {Promise} 处理结果
+   */
+  rejectFriendRequest: (requestId) => {
+    return request.post(`/users/friend-requests/${requestId}/reject/`)
+  },
+
+  /**
+   * 搜索用户
+   * @param {string} query - 用户名或邮箱关键词
+   * @returns {Promise} 用户列表
+   */
+  searchUsers: (query) => {
+    return request.get('/users/users/search/', { q: query })
+  },
+
+  /**
    * 获取私信会话列表
    * @returns {Promise} 会话列表
    */

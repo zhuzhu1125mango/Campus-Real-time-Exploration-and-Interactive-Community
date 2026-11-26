@@ -52,7 +52,7 @@
             <text class="author-name">{{ topic.author?.username || '匿名用户' }}</text>
             <text class="topic-time">{{ formatTime(topic.created_at) }}</text>
           </view>
-          <view class="board-tag" v-if="topic.board_name">
+          <view class="board-tag" v-if="topic.board_name" @click.stop="viewBoard(topic.board)">
             <text>{{ topic.board_name }}</text>
           </view>
         </view>
@@ -71,7 +71,12 @@
           </view>
           <view class="footer-item" v-if="topic.tags && topic.tags.length > 0">
             <text class="icon">🏷️</text>
-            <text>{{ topic.tags.map(t => t.name).join(' ') }}</text>
+            <text
+              class="footer-tag"
+              v-for="tag in topic.tags"
+              :key="tag.id"
+              @click.stop="viewTag(tag.id)"
+            ># {{ tag.name }}</text>
           </view>
         </view>
       </view>
@@ -199,6 +204,16 @@ const loadMore = () => {
 
 const viewTopic = (id) => {
   uni.navigateTo({ url: `/pages/post-detail/post-detail?id=${id}` })
+}
+
+const viewTag = (tagId) => {
+  if (!tagId) return
+  uni.navigateTo({ url: `/pages/tag-detail/tag-detail?id=${tagId}` })
+}
+
+const viewBoard = (boardId) => {
+  if (!boardId) return
+  uni.navigateTo({ url: `/pages/board-detail/board-detail?id=${boardId}` })
 }
 
 const goToPublish = () => {
@@ -391,6 +406,10 @@ onUnload(() => {
   gap: 10rpx;
   font-size: 26rpx;
   color: #999;
+}
+
+.footer-tag {
+  color: #4361ee;
 }
 
 .publish-btn {

@@ -17,6 +17,16 @@
         <text class="menu-text">用户资料</text>
         <text class="arrow">></text>
       </view>
+      <view class="menu-item" @click="navigateTo('/pages/friends/friends')">
+        <text class="icon">🤝</text>
+        <text class="menu-text">好友管理</text>
+        <text class="arrow">></text>
+      </view>
+      <view class="menu-item" @click="navigateTo('/pages/dashboard/dashboard')">
+        <text class="icon">📊</text>
+        <text class="menu-text">学习仪表盘</text>
+        <text class="arrow">></text>
+      </view>
       <view class="menu-item" @click="navigateTo('/pages/my-learning/my-learning')">
         <text class="icon">📚</text>
         <text class="menu-text">我的学习</text>
