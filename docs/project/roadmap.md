@@ -69,9 +69,9 @@
 
 ## 4. 运维与质量
 
-- [ ] 接入 Flower 监控 Celery
+- [x] 接入 Flower 监控 Celery
 - [ ] 接入 ELK/Loki 日志聚合
-- [ ] 增加 ES/Redis/MySQL 指标与告警
+- [x] 增加 ES/Redis/MySQL 指标与告警（Prometheus + Grafana，`--profile monitoring`）
 - [x] CI：lint、测试、迁移检查、依赖扫描（Ruff、ESLint、pip-audit、pnpm audit）
 - [x] 增加 OpenAPI/Swagger 文档（`/api/schema/`、`/api/swagger/`、`/api/redoc/`）
 - [x] 统一分页默认值（全局与 `BaseModelViewSet` 均为 12）

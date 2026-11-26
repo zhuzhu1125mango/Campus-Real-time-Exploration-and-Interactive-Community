@@ -7,9 +7,51 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, Spec
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
 
 
-# 简单的健康检查
+# 健康检查：默认仅返回存活状态；?deep=1 时检查依赖组件
 def health_check(request):
-    return JsonResponse({"status": "ok"})
+    if request.GET.get('deep') != '1':
+        return JsonResponse({"status": "ok"})
+
+    checks = {
+        'database': _check_database,
+        'cache': _check_cache,
+        'elasticsearch': _check_elasticsearch,
+    }
+    components = {}
+    for name, checker in checks.items():
+        try:
+            checker()
+            components[name] = 'ok'
+        except Exception:
+            components[name] = 'error'
+
+    healthy = all(value == 'ok' for value in components.values())
+    return JsonResponse(
+        {
+            'status': 'ok' if healthy else 'degraded',
+            'components': components,
+        },
+        status=200 if healthy else 503,
+    )
+
+
+def _check_database():
+    from django.db import connection
+    connection.ensure_connection()
+
+
+def _check_cache():
+    from django.core.cache import cache
+    key = 'health:ping'
+    cache.set(key, '1', 5)
+    if cache.get(key) != '1':
+        raise RuntimeError('cache read/write failed')
+
+
+def _check_elasticsearch():
+    from search.client import es_is_available
+    if not es_is_available():
+        raise RuntimeError('elasticsearch unavailable')
 
 # 根路径欢迎页面
 def home(request):

@@ -95,6 +95,18 @@
 模板字段约定为 `thing1` / `thing2` / `time3`，详见
 [小程序指南](../guides/mini-program.md#3-订阅消息)。
 
+### 2.8 监控（可选）
+
+仅在启用 `--profile monitoring` 时需要：
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `GRAFANA_ADMIN_PASSWORD` | `admin` | Grafana 初始管理员密码 |
+| `MYSQLD_EXPORTER_USER` | `exporter` | MySQL 监控账号 |
+| `MYSQLD_EXPORTER_PASSWORD` | `exporter` | MySQL 监控账号密码 |
+
+监控栈说明见 [运维手册](../guides/operations.md#10-监控-prometheus--grafana)。
+
 ## 3. H5 前端环境变量
 
 Vite 只暴露 `VITE_` 前缀变量。当前代码实际读取情况：

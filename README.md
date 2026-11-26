@@ -66,6 +66,7 @@
 │   ├── nginx.prod.conf.template     # 生产 HTTPS 配置模板（通过 envsubst 渲染）
 │   ├── Dockerfile                   # Nginx 生产镜像
 │   └── entrypoint.sh                # 容器启动时渲染模板为最终配置
+├── monitoring/                      # 可选监控栈（Prometheus 抓取与告警、Grafana 数据源）
 ├── docker-compose.yml               # 基础容器编排
 ├── docker-compose.prod.yml          # 生产环境覆盖配置
 ├── .env.example                     # 生产/部署环境变量示例

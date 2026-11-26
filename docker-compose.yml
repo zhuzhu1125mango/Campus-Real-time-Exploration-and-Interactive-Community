@@ -202,6 +202,121 @@ services:
     networks:
       - campus_network
 
+  # Flower：Celery 监控面板
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: campus_flower
+    command:
+      [
+        "uv", "run", "celery", "-A", "config", "flower",
+        "--port=5555", "--persistent=True", "--db=/data/flower.db",
+      ]
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DB_HOST: mysql
+      DB_NAME: ${DB_NAME:-university_exchange}
+      DB_USER: ${DB_USER:-campus}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      REDIS_WS_URL: redis://redis-ws:6379/0
+      REDIS_CACHE_URL: redis://redis-cache:6379/0
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER:-campus}:${RABBITMQ_PASSWORD:-campus}@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis-cache:6379/1
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    volumes:
+      - flower_data:/data
+    ports:
+      - "127.0.0.1:5555:5555"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - campus_network
+
+  # 监控栈（可选）：docker compose --profile monitoring up -d
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: campus_prometheus
+    profiles: ["monitoring"]
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - campus_network
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: campus_grafana
+    profiles: ["monitoring"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - campus_network
+
+  mysql-exporter:
+    image: prom/mysqld-exporter:v0.16.0
+    container_name: campus_mysql_exporter
+    profiles: ["monitoring"]
+    command:
+      - "--mysqld.address=mysql:3306"
+      - "--mysqld.username=${MYSQLD_EXPORTER_USER:-exporter}"
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: ${MYSQLD_EXPORTER_PASSWORD:-exporter}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - campus_network
+
+  redis-exporter-ws:
+    image: oliver006/redis_exporter:v1.67.0
+    container_name: campus_redis_exporter_ws
+    profiles: ["monitoring"]
+    command: ["--redis.addr=redis://redis-ws:6379"]
+    depends_on:
+      redis-ws:
+        condition: service_healthy
+    networks:
+      - campus_network
+
+  redis-exporter-cache:
+    image: oliver006/redis_exporter:v1.67.0
+    container_name: campus_redis_exporter_cache
+    profiles: ["monitoring"]
+    command: ["--redis.addr=redis://redis-cache:6379"]
+    depends_on:
+      redis-cache:
+        condition: service_healthy
+    networks:
+      - campus_network
+
+  elasticsearch-exporter:
+    image: quay.io/prometheuscommunity/elasticsearch-exporter:v1.7.0
+    container_name: campus_es_exporter
+    profiles: ["monitoring"]
+    command: ["--es.uri=http://elasticsearch:9200"]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - campus_network
+
   # Nginx 反向代理
   nginx:
     image: nginx:alpine
@@ -224,6 +339,9 @@ volumes:
   redis_cache_data:
   rabbitmq_data:
   elasticsearch_data:
+  flower_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   campus_network:

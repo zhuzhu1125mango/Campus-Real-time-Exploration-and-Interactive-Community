@@ -1,0 +1,59 @@
+groups:
+  - name: campus-infra
+    rules:
+      - alert: ScrapeTargetDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} 抓取失败"
+          description: "Prometheus 已连续 2 分钟无法抓取 {{ $labels.instance }}。"
+
+      - alert: MySQLTooManyConnections
+        expr: mysql_global_status_threads_connected > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MySQL 连接数过高"
+          description: "当前连接数 {{ $value }}，请检查连接泄漏或慢查询。"
+
+      - alert: MySQLSlowQueries
+        expr: rate(mysql_global_status_slow_queries[5m]) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MySQL 慢查询增多"
+          description: "近 5 分钟慢查询速率 {{ $value }}/s。"
+
+      - alert: RedisMemoryHigh
+        expr: redis_memory_max_bytes > 0 and redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis 内存使用率超过 85%"
+          description: "实例 {{ $labels.instance }} 内存使用率 {{ $value | humanizePercentage }}。"
+
+      - alert: ElasticsearchClusterRed
+        expr: elasticsearch_cluster_health_status{color="red"} == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Elasticsearch 集群状态为 red"
+          description: "存在不可用主分片，搜索功能可能不可用。"
+
+      - alert: CeleryNoWorkersOnline
+        # Worker 全部离线；Flower 在线但无任何 Worker 指标时也触发
+        expr: |
+          sum(flower_worker_online) == 0
+          or (absent(flower_worker_online) and on() (up{job="flower"} == 1))
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "没有在线的 Celery Worker"
+          description: "异步任务（通知、积分、搜索索引）将无法执行。"

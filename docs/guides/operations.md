@@ -8,6 +8,7 @@
 | 检查项 | 方式 | 预期 |
 |---|---|---|
 | 后端存活 | `GET /api/health/` | `{"status":"ok"}` |
+| 依赖组件 | `GET /api/health/?deep=1` | 全部正常返回 200；任一异常返回 503 与 `components` 明细 |
 | 聊天服务 | `GET /api/chat/health/` | 200 |
 | 学校服务 | `GET /api/schools/test-connection/` | 200 |
 | 前端 | 访问站点首页 | 正常渲染 |
@@ -58,7 +59,24 @@ uv run celery -A config inspect stats
 
 详细参数见 [后台任务参考](../reference/background-jobs.md)。
 
-### 3.3 任务堆积
+### 3.3 Flower
+
+Flower 随 Compose 启动，仅绑定本机回环地址：
+
+```bash
+docker compose up -d flower
+# 浏览器打开 http://127.0.0.1:5555
+```
+
+生产环境仅绑定本机回环地址（`127.0.0.1:5555`），通过 SSH 隧道访问：
+
+```bash
+ssh -L 5555:127.0.0.1:5555 user@server
+```
+
+Flower 同时提供 Prometheus 指标：`http://flower:5555/metrics`。
+
+### 3.4 任务堆积
 
 1. 检查 Worker 是否存活：`docker compose ps celery-worker`
 2. 检查 Broker：RabbitMQ 管理台 `15672` 或 Redis
@@ -205,3 +223,51 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 4. 重建 ES 索引（如模型/文档结构变化）
 
 > 生产迁移遵循“先备份、再迁移、后发布”的顺序。
+
+## 10. 监控（Prometheus + Grafana）
+
+监控栈为可选 profile，不影响默认启动：
+
+```bash
+docker compose --profile monitoring up -d
+```
+
+生产环境（叠加 `docker-compose.prod.yml`）下 Prometheus、Grafana、Flower
+均只绑定 `127.0.0.1`，需通过 SSH 隧道访问，例如：
+
+```bash
+ssh -L 3000:127.0.0.1:3000 -L 9090:127.0.0.1:9090 user@server
+```
+
+| 服务 | 地址 | 说明 |
+|---|---|---|
+| Prometheus | http://localhost:9090 | 指标抓取与告警规则 |
+| Grafana | http://localhost:3000 | 默认账号 `admin`，密码取 `GRAFANA_ADMIN_PASSWORD` |
+| Flower | http://127.0.0.1:5555 | Celery 任务/Worker，同时提供 `/metrics` |
+| MySQL Exporter | 内部 `mysql-exporter:9104` | 需预先创建监控账号 |
+| Redis Exporter | 内部 `redis-exporter-ws:9121`、`redis-exporter-cache:9121` | 两个 Redis 实例 |
+| ES Exporter | 内部 `elasticsearch-exporter:9114` | 集群健康与索引指标 |
+
+首次启用前，在 MySQL 中创建只读监控账号：
+
+```sql
+CREATE USER 'exporter'@'%' IDENTIFIED BY 'change-me';
+GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'exporter'@'%';
+FLUSH PRIVILEGES;
+```
+
+并在 `.env` 中设置 `MYSQLD_EXPORTER_PASSWORD` 为同一密码。
+
+告警规则位于 `monitoring/prometheus/alerts.yml`：
+
+| 告警 | 触发条件 |
+|---|---|
+| `ScrapeTargetDown` | 任意抓取目标 2 分钟不可达 |
+| `MySQLTooManyConnections` | 连接数 > 100 持续 5 分钟 |
+| `MySQLSlowQueries` | 慢查询速率 > 1/s 持续 10 分钟 |
+| `RedisMemoryHigh` | 内存使用率 > 85% |
+| `ElasticsearchClusterRed` | 集群状态 red |
+| `CeleryNoWorkersOnline` | 无在线 Worker |
+
+Grafana 已预置 Prometheus 数据源，可直接导入社区面板：
+MySQL `7362`、Redis `763`、Elasticsearch `12436`、Celery `12364`。

@@ -31,6 +31,7 @@ prod = [
     "gunicorn>=25.0,<26",
     "daphne>=4.2,<4.3",
     "uvicorn[standard]>=0.42,<0.43",
+    "flower>=2.0,<3",
 ]
 
 [dependency-groups]

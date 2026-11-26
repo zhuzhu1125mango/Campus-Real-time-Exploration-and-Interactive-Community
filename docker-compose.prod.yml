@@ -74,6 +74,22 @@ services:
     depends_on:
       - django-init
 
+  # Flower：仅绑定本机回环，通过 SSH 隧道访问
+  flower:
+    ports: !override
+      - "127.0.0.1:5555:5555"
+    depends_on:
+      - django-init
+
+  # 监控栈：仅绑定本机回环，通过 SSH 隧道访问
+  prometheus:
+    ports: !override
+      - "127.0.0.1:9090:9090"
+
+  grafana:
+    ports: !override
+      - "127.0.0.1:3000:3000"
+
   # Nginx：对外仅暴露 80（HTTP 自动跳转 HTTPS）和 443（HTTPS）
   nginx:
     build: ./nginx

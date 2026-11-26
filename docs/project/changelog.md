@@ -98,6 +98,12 @@
 
 - `User` 增加 `wechat_openid`、`wechat_subscriptions` 字段。
 
+### Added（2026-11-26）
+
+- 新增 Flower 服务与 `flower` 生产依赖，Compose 中默认启动并仅绑定本机端口。
+- 新增可选监控栈 `--profile monitoring`：Prometheus、Grafana、MySQL/Redis/Elasticsearch Exporter 与告警规则。
+- `/api/health/?deep=1` 支持检查数据库、缓存与 Elasticsearch，异常时返回 503。
+
 ### 已知问题
 
 - 部分 app 测试为空。
