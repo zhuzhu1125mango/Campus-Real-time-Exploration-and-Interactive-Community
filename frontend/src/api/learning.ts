@@ -1,5 +1,5 @@
 import request from '../utils/request'
-import type { Course, Enrollment } from '../types/learning'
+import type { Course, Enrollment, PaymentOrder, Certificate } from '../types/learning'
 
 export const learningApi = {
   // 课程相关API
@@ -133,6 +133,45 @@ export const learningApi = {
   // 完成课程
   completeCourse(enrollmentId: number | string): Promise<{ status: string }> {
     return request.post(`/learning/enrollments/${enrollmentId}/complete/`)
+  },
+
+  // 支付订单相关API
+
+  // 创建支付订单（付费课程）
+  createPaymentOrder(courseId: number, paymentMethod = 'mock'): Promise<PaymentOrder> {
+    return request.post('/learning/orders/', { course: courseId, payment_method: paymentMethod })
+  },
+
+  // 获取我的支付订单
+  getPaymentOrders(params?: { page?: number }): Promise<{ count: number; next: string | null; previous: string | null; results: PaymentOrder[] }> {
+    return request.get('/learning/orders/', { params })
+  },
+
+  // 支付订单（当前为模拟支付）
+  payOrder(orderId: number | string): Promise<PaymentOrder & { enrollment_id: number }> {
+    return request.post(`/learning/orders/${orderId}/pay/`)
+  },
+
+  // 取消待支付订单
+  cancelOrder(orderId: number | string): Promise<PaymentOrder> {
+    return request.post(`/learning/orders/${orderId}/cancel/`)
+  },
+
+  // 证书相关API
+
+  // 获取我的证书
+  getCertificates(params?: { course?: number; page?: number }): Promise<{ count: number; next: string | null; previous: string | null; results: Certificate[] }> {
+    return request.get('/learning/certificates/', { params })
+  },
+
+  // 获取证书详情
+  getCertificate(certificateId: number | string): Promise<Certificate> {
+    return request.get(`/learning/certificates/${certificateId}/`)
+  },
+
+  // 按编号公开校验证书
+  verifyCertificate(number: string): Promise<Certificate> {
+    return request.get('/learning/certificates/verify/', { params: { number } })
   },
   
   // 进度相关API

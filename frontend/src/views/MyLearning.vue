@@ -6,6 +6,13 @@
       icon="i-ep-notebook"
     />
 
+    <div class="learning-toolbar">
+      <router-link to="/certificates" class="btn btn-secondary">
+        <span class="i-ep-medal" />
+        我的证书
+      </router-link>
+    </div>
+
     <GlassCard :hover="false" class="my-learning-card">
       <div v-if="loading" class="loading-state">
         <div class="loading-spinner" />
@@ -59,6 +66,14 @@
               <span v-else class="i-ep-right" />
               {{ enrollment.is_completed ? '复习' : '继续学习' }}
             </button>
+            <button
+              v-if="certificateMap[enrollment.course.id]"
+              class="btn btn-secondary"
+              @click.stop="goCertificate(enrollment.course.id)"
+            >
+              <span class="i-ep-medal" />
+              查看证书
+            </button>
           </div>
         </div>
       </div>
@@ -72,21 +87,31 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { learningApi } from '../api/learning'
 import { getApiErrorMessage } from '../utils/error'
-import type { Enrollment } from '../types/learning'
+import type { Enrollment, Certificate } from '../types/learning'
 import GlassCard from '@/components/GlassCard.vue'
 import SectionHeader from '@/components/SectionHeader.vue'
 
 const router = useRouter()
 
 const enrollments = ref<Enrollment[]>([])
+const certificates = ref<Certificate[]>([])
+const certificateMap = ref<Record<number, Certificate>>({})
 const loading = ref(false)
 const defaultCover = '/trae-api/api/ide/v1/text_to_image?prompt=campus%20online%20course%20cover%20image&image_size=landscape_16_9'
 
 const loadEnrollments = async () => {
   loading.value = true
   try {
-    const response = await learningApi.getEnrollments()
-    enrollments.value = response.results
+    const [enrollmentRes, certificateRes] = await Promise.all([
+      learningApi.getEnrollments(),
+      learningApi.getCertificates()
+    ])
+    enrollments.value = enrollmentRes.results
+    certificates.value = certificateRes.results || []
+    certificateMap.value = certificates.value.reduce<Record<number, Certificate>>((acc, item) => {
+      acc[item.course_id] = item
+      return acc
+    }, {})
   } catch (error) {
     ElMessage.error(getApiErrorMessage(error, '加载学习记录失败'))
   } finally {
@@ -96,6 +121,13 @@ const loadEnrollments = async () => {
 
 const goCourse = (courseId: number) => {
   router.push(`/learning/course/${courseId}`)
+}
+
+const goCertificate = (courseId: number) => {
+  const certificate = certificateMap.value[courseId]
+  if (certificate) {
+    router.push(`/certificate/${certificate.id}`)
+  }
 }
 
 const goLearning = () => {
@@ -114,6 +146,12 @@ onMounted(() => {
 
 .my-learning-card {
   min-height: 400px;
+}
+
+.learning-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-4);
 }
 
 .loading-state,
@@ -250,6 +288,9 @@ onMounted(() => {
 
 .enrollment-action {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .btn {

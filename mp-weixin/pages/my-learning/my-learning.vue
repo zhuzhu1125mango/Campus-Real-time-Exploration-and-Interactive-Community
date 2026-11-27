@@ -4,6 +4,9 @@
     <view class="header">
       <view class="header-title">我的学习</view>
       <view class="header-desc">管理你的课程学习进度</view>
+      <view class="header-actions">
+        <text class="header-link" @click="goCertificates">我的证书</text>
+      </view>
     </view>
 
     <view class="learning-body">
@@ -45,6 +48,13 @@
               <button class="action-btn" @click.stop="goCourse(enrollment.course.id)">
                 {{ enrollment.is_completed ? '复习' : '继续学习' }}
               </button>
+              <button
+                v-if="certificateMap[enrollment.course.id]"
+                class="cert-btn"
+                @click.stop="goCertificate(enrollment.course.id)"
+              >
+                证书
+              </button>
             </view>
           </view>
         </view>
@@ -54,12 +64,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
+import { onMounted, onPullDownRefresh } from '@dcloudio/uni-app'
 import learningApi from '../../api/learning'
 
 const defaultCover = 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=campus%20online%20course%20cover%20image&image_size=landscape_16_9'
 
 const enrollments = ref([])
+const certificateMap = ref({})
 const loading = ref(false)
 
 onMounted(() => {
@@ -69,8 +81,16 @@ onMounted(() => {
 const loadEnrollments = async () => {
   loading.value = true
   try {
-    const res = await learningApi.getEnrollments()
-    enrollments.value = res.results || []
+    const [enrollmentRes, certificateRes] = await Promise.all([
+      learningApi.getEnrollments(),
+      learningApi.getCertificates()
+    ])
+    enrollments.value = enrollmentRes.results || []
+    const map = {}
+    ;(certificateRes.results || []).forEach((item) => {
+      map[item.course_id] = item
+    })
+    certificateMap.value = map
   } catch (error) {
     console.error('加载学习记录失败', error)
     uni.showToast({ title: '加载学习记录失败', icon: 'none' })
@@ -83,15 +103,26 @@ const goCourse = (courseId) => {
   uni.navigateTo({ url: `/pages/course-detail/course-detail?id=${courseId}` })
 }
 
+const goCertificate = (courseId) => {
+  const certificate = certificateMap.value[courseId]
+  if (certificate) {
+    uni.navigateTo({ url: `/pages/certificate-detail/certificate-detail?id=${certificate.id}` })
+  }
+}
+
+const goCertificates = () => {
+  uni.navigateTo({ url: '/pages/certificates/certificates' })
+}
+
 const goLearning = () => {
   uni.switchTab({ url: '/pages/learning/learning' })
 }
 
 // 下拉刷新
-const onPullDownRefresh = async () => {
+onPullDownRefresh(async () => {
   await loadEnrollments()
   uni.stopPullDownRefresh()
-}
+})
 </script>
 
 <style scoped>
@@ -116,6 +147,18 @@ const onPullDownRefresh = async () => {
 .header-desc {
   font-size: 26rpx;
   opacity: 0.9;
+}
+
+.header-actions {
+  margin-top: 20rpx;
+}
+
+.header-link {
+  font-size: 26rpx;
+  color: #fff;
+  border: 1rpx solid rgba(255, 255, 255, 0.6);
+  border-radius: 30rpx;
+  padding: 8rpx 28rpx;
 }
 
 .learning-body {
@@ -211,6 +254,9 @@ const onPullDownRefresh = async () => {
 
 .enrollment-action {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
 }
 
 .action-btn {
@@ -220,5 +266,14 @@ const onPullDownRefresh = async () => {
   padding: 10rpx 24rpx;
   border-radius: 30rpx;
   border: none;
+}
+
+.cert-btn {
+  background-color: #fff;
+  color: #b8860b;
+  font-size: 24rpx;
+  padding: 8rpx 24rpx;
+  border-radius: 30rpx;
+  border: 1rpx solid #b8860b;
 }
 </style>

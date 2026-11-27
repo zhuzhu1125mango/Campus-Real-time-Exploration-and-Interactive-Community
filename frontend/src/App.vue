@@ -160,6 +160,7 @@ const navLinks = computed(() => [
 const moreMenuItems = computed<NavDropdownItem[]>(() => [
   { label: '内容中心', icon: 'i-ep-document', to: '/content' },
   { label: '校园活动', icon: 'i-ep-calendar', to: '/events' },
+  { label: '我的证书', icon: 'i-ep-medal', to: '/certificates' },
   { label: '搜索', icon: 'i-ep-search', to: '/search' },
 ])
 

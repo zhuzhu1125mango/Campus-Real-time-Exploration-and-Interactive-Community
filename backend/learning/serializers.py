@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import Course, Category, CourseCategory, Chapter, Lesson, Enrollment, Progress, Review, LearningResource
+from .models import (
+    Course, Category, CourseCategory, Chapter, Lesson, Enrollment, Progress,
+    Review, LearningResource, PaymentOrder, Certificate,
+)
 from users.serializers import UserSerializer
 
 
@@ -217,3 +220,50 @@ class LearningResourceUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = LearningResource
         fields = ['title', 'description', 'file', 'file_type', 'file_size', 'is_free']
+
+
+class PaymentOrderSerializer(serializers.ModelSerializer):
+    course_id = serializers.IntegerField(source='course.id', read_only=True)
+    course_title = serializers.CharField(source='course.title', read_only=True)
+    course_cover = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PaymentOrder
+        fields = [
+            'id', 'order_no', 'amount', 'status', 'payment_method',
+            'course_id', 'course_title', 'course_cover',
+            'created_at', 'paid_at',
+        ]
+
+    def get_course_cover(self, obj):
+        if obj.course.cover_image:
+            return obj.course.cover_image.url
+        return None
+
+
+class PaymentOrderCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaymentOrder
+        fields = ['course', 'payment_method']
+
+
+class CertificateSerializer(serializers.ModelSerializer):
+    course_id = serializers.IntegerField(source='enrollment.course.id', read_only=True)
+    course_title = serializers.CharField(source='enrollment.course.title', read_only=True)
+    course_cover = serializers.SerializerMethodField()
+    instructor_name = serializers.CharField(source='enrollment.course.instructor.username', read_only=True)
+    username = serializers.CharField(source='enrollment.user.username', read_only=True)
+    enrollment_id = serializers.IntegerField(source='enrollment.id', read_only=True)
+
+    class Meta:
+        model = Certificate
+        fields = [
+            'id', 'number', 'status', 'issued_at', 'revoked_at', 'remark',
+            'enrollment_id', 'username', 'course_id', 'course_title',
+            'course_cover', 'instructor_name',
+        ]
+
+    def get_course_cover(self, obj):
+        if obj.enrollment.course.cover_image:
+            return obj.enrollment.course.cover_image.url
+        return None

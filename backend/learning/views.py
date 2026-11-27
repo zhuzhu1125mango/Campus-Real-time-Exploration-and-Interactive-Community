@@ -2,7 +2,10 @@ from rest_framework import status, filters
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.utils import timezone
-from .models import Course, Category, Chapter, Lesson, Enrollment, Progress, Review, LearningResource
+from .models import (
+    Course, Category, Chapter, Lesson, Enrollment, Progress, Review,
+    LearningResource, PaymentOrder, Certificate,
+)
 from .serializers import (
     CategorySerializer, CourseSerializer, CourseCreateSerializer, CourseUpdateSerializer,
     ChapterSerializer, ChapterCreateSerializer, ChapterUpdateSerializer,
@@ -10,8 +13,10 @@ from .serializers import (
     EnrollmentSerializer, EnrollmentCreateSerializer,
     ProgressSerializer, ProgressUpdateSerializer,
     ReviewSerializer, ReviewCreateSerializer,
-    LearningResourceSerializer, LearningResourceCreateSerializer, LearningResourceUpdateSerializer
+    LearningResourceSerializer, LearningResourceCreateSerializer, LearningResourceUpdateSerializer,
+    PaymentOrderSerializer, PaymentOrderCreateSerializer, CertificateSerializer,
 )
+from .services import complete_enrollment, ensure_enrollment
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from users.permissions import IsOwnerOrAdmin, IsInstructorOrAdmin, IsCourseInstructorOrAdmin
 from users.throttles import SearchThrottle, WriteThrottle
@@ -19,7 +24,6 @@ from users.tasks import queue_update_user_points
 from search.services import SearchService
 from rest_framework.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.utils import IntegrityError
 from django.db.models import Q, F, Avg
 from core.base_viewsets import (
     BaseModelViewSet,
@@ -272,50 +276,13 @@ class EnrollmentViewSet(AuthenticatedModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         course = serializer.validated_data['course']
-        user = request.user
 
-        with transaction.atomic():
-            # 锁定课程行，并检查是否已报名，防止并发重复报名
-            course = Course.objects.select_for_update().get(pk=course.pk)
-            existing = Enrollment.objects.filter(user=user, course=course).first()
-            if existing:
-                serializer = EnrollmentSerializer(existing, context={'request': request})
-                return Response(serializer.data, status=status.HTTP_200_OK)
-
-            try:
-                self.perform_create(serializer, course=course)
-            except IntegrityError:
-                # 唯一约束冲突时返回已存在的报名记录
-                existing = Enrollment.objects.get(user=user, course=course)
-                serializer = EnrollmentSerializer(existing, context={'request': request})
-                return Response(serializer.data, status=status.HTTP_200_OK)
-
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
-    def perform_create(self, serializer, course=None):
-        # 保存报名并更新课程的报名人数
-        enrollment = serializer.save(user=self.request.user)
-        if course is None:
-            course = enrollment.course
-        # 使用 F() 表达式原子更新报名人数，避免并发覆盖
-        Course.objects.filter(pk=course.pk).update(enroll_count=F('enroll_count') + 1)
-
-        # 为课程的所有课时创建进度记录
-        lessons = Lesson.objects.filter(chapter__course=course)
-        for lesson in lessons:
-            Progress.objects.get_or_create(
-                enrollment=enrollment,
-                lesson=lesson,
-                defaults={'is_completed': False}
-            )
-
-        # 异步发放报名课程积分
-        queue_update_user_points(
-            self.request.user.id,
-            'favorite',
-            description=f'报名课程 {course.title}'
-        )
+        enrollment, created = ensure_enrollment(request.user, course)
+        data = EnrollmentSerializer(enrollment, context={'request': request}).data
+        if created:
+            headers = self.get_success_headers(data)
+            return Response(data, status=status.HTTP_201_CREATED, headers=headers)
+        return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def progress(self, request, pk=None):
@@ -323,25 +290,17 @@ class EnrollmentViewSet(AuthenticatedModelViewSet):
         progresses = enrollment.progresses.all()
         serializer = ProgressSerializer(progresses, many=True)
         return Response(serializer.data)
-    
+
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
         enrollment = self.get_object()
-        was_completed = enrollment.is_completed
-        enrollment.is_completed = True
-        enrollment.progress = 100.0
-        enrollment.completed_at = timezone.now()
-        enrollment.save()
+        certificate = complete_enrollment(enrollment)
 
-        # 仅在首次完成时发放完成课程积分
-        if not was_completed:
-            queue_update_user_points(
-                request.user.id,
-                'complete_course',
-                description=f'完成课程 {enrollment.course.title}'
-            )
-
-        return Response({'status': 'course_completed'})
+        payload = {'status': 'course_completed'}
+        if certificate:
+            payload['certificate_id'] = certificate.id
+            payload['certificate_number'] = certificate.number
+        return Response(payload)
 
 
 class ProgressViewSet(AuthenticatedModelViewSet):
@@ -374,7 +333,11 @@ class ProgressViewSet(AuthenticatedModelViewSet):
             total_lessons = Lesson.objects.filter(chapter__course=enrollment.course).count()
             completed_lessons = Progress.objects.filter(enrollment=enrollment, is_completed=True).count()
             enrollment.progress = (completed_lessons / total_lessons) * 100 if total_lessons > 0 else 0
-            enrollment.save(update_fields=['progress'])
+            if enrollment.progress >= 100 and not enrollment.is_completed:
+                # 全部课时完成后自动结业并发放证书
+                complete_enrollment(enrollment)
+            else:
+                enrollment.save(update_fields=['progress'])
 
     @action(detail=False, methods=['post'])
     def record(self, request):
@@ -515,3 +478,142 @@ class LearningResourceViewSet(BaseModelViewSet):
         # 使用 F() 表达式原子更新下载次数，避免并发覆盖
         LearningResource.objects.filter(pk=resource.pk).update(download_count=F('download_count') + 1)
         return Response({'status': 'download_count_incremented'})
+
+
+class PaymentOrderViewSet(AuthenticatedModelViewSet):
+    """课程支付订单视图集。
+
+    当前为模拟支付：创建订单后调用 ``pay`` 即支付成功并完成报名。
+    """
+    queryset = PaymentOrder.objects.all()
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'create': [WriteThrottle],
+        'pay': [WriteThrottle],
+        'cancel': [WriteThrottle],
+    }
+
+    def get_queryset(self):
+        return PaymentOrder.objects.filter(user=self.request.user).select_related('course')
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return PaymentOrderCreateSerializer
+        return PaymentOrderSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        course = serializer.validated_data['course']
+
+        if not course.is_published:
+            return Response({'detail': '课程未发布，无法购买'}, status=status.HTTP_400_BAD_REQUEST)
+        if course.is_free or course.price <= 0:
+            return Response({'detail': '免费课程无需支付，可直接报名'}, status=status.HTTP_400_BAD_REQUEST)
+        if Enrollment.objects.filter(user=request.user, course=course).exists():
+            return Response({'detail': '已报名该课程'}, status=status.HTTP_400_BAD_REQUEST)
+
+        pending = PaymentOrder.objects.filter(
+            user=request.user, course=course, status=PaymentOrder.STATUS_PENDING
+        ).first()
+        if pending:
+            return Response(PaymentOrderSerializer(pending).data, status=status.HTTP_200_OK)
+
+        order = PaymentOrder.objects.create(
+            user=request.user,
+            course=course,
+            amount=course.price,
+            payment_method=serializer.validated_data.get('payment_method', PaymentOrder.METHOD_MOCK),
+        )
+        return Response(
+            PaymentOrderSerializer(order).data,
+            status=status.HTTP_201_CREATED,
+            headers=self.get_success_headers(PaymentOrderSerializer(order).data),
+        )
+
+    @action(detail=True, methods=['post'])
+    def pay(self, request, pk=None):
+        with transaction.atomic():
+            order = PaymentOrder.objects.select_for_update().get(pk=self.get_object().pk)
+            if order.status == PaymentOrder.STATUS_PAID:
+                return Response({'detail': '订单已支付'}, status=status.HTTP_400_BAD_REQUEST)
+            if order.status != PaymentOrder.STATUS_PENDING:
+                return Response({'detail': '订单状态不允许支付'}, status=status.HTTP_400_BAD_REQUEST)
+
+            enrollment, _ = ensure_enrollment(request.user, order.course)
+            order.status = PaymentOrder.STATUS_PAID
+            order.paid_at = timezone.now()
+            order.save(update_fields=['status', 'paid_at'])
+
+        data = PaymentOrderSerializer(order).data
+        data['enrollment_id'] = enrollment.id
+        return Response(data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        order = self.get_object()
+        if order.status != PaymentOrder.STATUS_PENDING:
+            return Response({'detail': '仅待支付订单可取消'}, status=status.HTTP_400_BAD_REQUEST)
+        order.status = PaymentOrder.STATUS_CANCELLED
+        order.save(update_fields=['status'])
+        return Response(PaymentOrderSerializer(order).data)
+
+
+class CertificateViewSet(AuthenticatedModelViewSet):
+    """课程证书视图集：我的证书、公开校验与管理员撤销。"""
+    queryset = Certificate.objects.all()
+    permission_config = {
+        'list': [IsAuthenticated],
+        'retrieve': [IsAuthenticated],
+        'verify': [AllowAny],
+        'revoke': [IsAuthenticated, IsAdminUser],
+        'create': [IsAdminUser],
+        'update': [IsAdminUser],
+        'partial_update': [IsAdminUser],
+        'destroy': [IsAdminUser],
+    }
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'verify': [SearchThrottle],
+        'revoke': [WriteThrottle],
+    }
+
+    def get_queryset(self):
+        queryset = Certificate.objects.select_related(
+            'enrollment__user', 'enrollment__course', 'enrollment__course__instructor'
+        )
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(enrollment__user=self.request.user)
+
+        course = self.request.query_params.get('course')
+        if course:
+            queryset = queryset.filter(enrollment__course_id=course)
+        return queryset
+
+    def get_serializer_class(self):
+        return CertificateSerializer
+
+    @action(detail=False, methods=['get'])
+    def verify(self, request):
+        """按证书编号公开校验证书真伪。"""
+        number = (request.query_params.get('number') or '').strip()
+        if not number:
+            return Response({'detail': '缺少证书编号'}, status=status.HTTP_400_BAD_REQUEST)
+
+        certificate = Certificate.objects.select_related(
+            'enrollment__user', 'enrollment__course', 'enrollment__course__instructor'
+        ).filter(number=number).first()
+        if not certificate:
+            return Response({'detail': '证书不存在'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(CertificateSerializer(certificate).data)
+
+    @action(detail=True, methods=['post'])
+    def revoke(self, request, pk=None):
+        certificate = self.get_object()
+        certificate.status = Certificate.STATUS_REVOKED
+        certificate.revoked_at = timezone.now()
+        certificate.remark = request.data.get('remark', certificate.remark)
+        certificate.save(update_fields=['status', 'revoked_at', 'remark'])
+        return Response(CertificateSerializer(certificate).data)

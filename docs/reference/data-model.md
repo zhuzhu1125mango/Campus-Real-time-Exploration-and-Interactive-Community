@@ -121,6 +121,8 @@ Content ──1:N── Comment / ContentRevision
 | `Progress` | `learning_progress` | `enrollment`、`lesson`、`is_completed`、`last_position`（唯一 enrollment+lesson） |
 | `Review` | `learning_review` | `user`、`course`、`rating`、`comment`、`is_approved`（唯一 user+course） |
 | `LearningResource` | `learning_learningresource` | `course`、`file`、`file_type`、`file_size`、`download_count` |
+| `PaymentOrder` | `learning_paymentorder` | `user`、`course`、`order_no`（唯一）、`amount`、`status`、`payment_method`、`paid_at` |
+| `Certificate` | `learning_certificate` | `enrollment`（一对一）、`number`（唯一）、`status`、`issued_at`、`revoked_at` |
 
 ## 6. 内容（`content`）
 

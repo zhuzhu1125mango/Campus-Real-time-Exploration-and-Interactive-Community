@@ -57,6 +57,41 @@ const learningApi = {
     return request.post(`/learning/enrollments/${enrollmentId}/complete/`)
   },
 
+  // 创建支付订单（付费课程）
+  createPaymentOrder(courseId, paymentMethod = 'mock') {
+    return request.post('/learning/orders/', { course: courseId, payment_method: paymentMethod })
+  },
+
+  // 支付订单（当前为模拟支付）
+  payOrder(orderId) {
+    return request.post(`/learning/orders/${orderId}/pay/`)
+  },
+
+  // 取消待支付订单
+  cancelOrder(orderId) {
+    return request.post(`/learning/orders/${orderId}/cancel/`)
+  },
+
+  // 我的支付订单
+  getPaymentOrders(params = {}) {
+    return request.get('/learning/orders/', params)
+  },
+
+  // 我的证书
+  getCertificates(params = {}) {
+    return request.get('/learning/certificates/', params)
+  },
+
+  // 证书详情
+  getCertificate(certificateId) {
+    return request.get(`/learning/certificates/${certificateId}/`)
+  },
+
+  // 按编号公开校验证书
+  verifyCertificate(number) {
+    return request.get('/learning/certificates/verify/', { number })
+  },
+
   // 进度列表
   getProgresses(params = {}) {
     return request.get('/learning/progresses/', params)

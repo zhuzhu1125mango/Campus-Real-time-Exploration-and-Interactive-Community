@@ -8,7 +8,10 @@ from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Course, Chapter, Lesson, Enrollment, Progress, Review, LearningResource
+from .models import (
+    Course, Chapter, Lesson, Enrollment, Progress, Review, LearningResource,
+    PaymentOrder, Certificate,
+)
 
 User = get_user_model()
 
@@ -295,3 +298,174 @@ class ReviewRatingTests(LearningBaseAPITest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         course.refresh_from_db()
         self.assertEqual(course.average_rating, 3.0)
+
+
+class PaymentOrderTests(LearningBaseAPITest):
+    """课程支付订单测试。"""
+
+    def setUp(self):
+        super().setUp()
+        self.user = self.create_user('orderuser')
+        self.instructor = self.create_user('orderinstructor')
+        self.paid_course = self.create_course(
+            self.instructor, title='Paid Course', is_free=False, price='99.00'
+        )
+        self.authenticate(self.user)
+
+    def test_create_order_for_paid_course(self):
+        """付费课程可创建待支付订单，重复创建返回同一订单。"""
+        response = self.client.post('/api/learning/orders/', {'course': self.paid_course.id})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['status'], PaymentOrder.STATUS_PENDING)
+        self.assertEqual(str(response.data['amount']), '99.00')
+        self.assertTrue(response.data['order_no'].startswith('ORD'))
+
+        again = self.client.post('/api/learning/orders/', {'course': self.paid_course.id})
+        self.assertEqual(again.status_code, status.HTTP_200_OK)
+        self.assertEqual(again.data['id'], response.data['id'])
+        self.assertEqual(PaymentOrder.objects.count(), 1)
+
+    def test_free_course_cannot_create_order(self):
+        """免费课程不允许创建支付订单。"""
+        free_course = self.create_course(
+            self.instructor, title='Free Course', is_free=True, price='0.00'
+        )
+        response = self.client.post('/api/learning/orders/', {'course': free_course.id})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_pay_order_enrolls_user(self):
+        """支付成功后应完成报名并初始化学习进度。"""
+        chapter = self.create_chapter(self.paid_course)
+        self.create_lesson(chapter, title='Lesson 1')
+        order = PaymentOrder.objects.create(
+            user=self.user, course=self.paid_course, amount=self.paid_course.price
+        )
+
+        response = self.client.post(f'/api/learning/orders/{order.id}/pay/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order.refresh_from_db()
+        self.assertEqual(order.status, PaymentOrder.STATUS_PAID)
+        self.assertIsNotNone(order.paid_at)
+        enrollment = Enrollment.objects.get(user=self.user, course=self.paid_course)
+        self.assertEqual(enrollment.progresses.count(), 1)
+        self.paid_course.refresh_from_db()
+        self.assertEqual(self.paid_course.enroll_count, 1)
+
+        # 已支付订单不能再次支付
+        again = self.client.post(f'/api/learning/orders/{order.id}/pay/')
+        self.assertEqual(again.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_enrolled_user_cannot_create_order(self):
+        """已报名用户不能重复下单。"""
+        Enrollment.objects.create(user=self.user, course=self.paid_course)
+        response = self.client.post('/api/learning/orders/', {'course': self.paid_course.id})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_cancel_pending_order(self):
+        """待支付订单可取消。"""
+        order = PaymentOrder.objects.create(
+            user=self.user, course=self.paid_course, amount=self.paid_course.price
+        )
+        response = self.client.post(f'/api/learning/orders/{order.id}/cancel/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order.refresh_from_db()
+        self.assertEqual(order.status, PaymentOrder.STATUS_CANCELLED)
+
+
+class CertificateTests(LearningBaseAPITest):
+    """课程证书测试。"""
+
+    def setUp(self):
+        super().setUp()
+        self.user = self.create_user('certuser')
+        self.other = self.create_user('certother')
+        self.admin = self.create_user('certadmin', is_staff=True)
+        self.instructor = self.create_user('certinstructor')
+        self.course = self.create_course(self.instructor)
+        self.chapter = self.create_chapter(self.course)
+        self.lesson = self.create_lesson(self.chapter)
+
+    def _create_enrollment(self):
+        enrollment = Enrollment.objects.create(user=self.user, course=self.course)
+        Progress.objects.create(enrollment=enrollment, lesson=self.lesson)
+        return enrollment
+
+    def test_complete_enrollment_issues_certificate(self):
+        """完成课程应自动发放证书。"""
+        enrollment = self._create_enrollment()
+        self.authenticate(self.user)
+
+        response = self.client.post(f'/api/learning/enrollments/{enrollment.id}/complete/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        certificate = Certificate.objects.get(enrollment=enrollment)
+        self.assertEqual(response.data['certificate_id'], certificate.id)
+        self.assertEqual(certificate.status, Certificate.STATUS_VALID)
+        self.assertTrue(certificate.number.startswith('CERT-'))
+
+        # 重复完成不会重复发证
+        self.client.post(f'/api/learning/enrollments/{enrollment.id}/complete/')
+        self.assertEqual(Certificate.objects.filter(enrollment=enrollment).count(), 1)
+
+    def test_progress_completion_issues_certificate(self):
+        """学完全部课时应自动结业并发放证书。"""
+        enrollment = self._create_enrollment()
+        self.authenticate(self.user)
+
+        response = self.client.post('/api/learning/progresses/record/', {
+            'enrollment': enrollment.id,
+            'lesson': self.lesson.id,
+            'is_completed': True,
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        enrollment.refresh_from_db()
+        self.assertTrue(enrollment.is_completed)
+        self.assertEqual(enrollment.progress, 100.0)
+        self.assertTrue(Certificate.objects.filter(enrollment=enrollment).exists())
+
+    def test_verify_certificate_public(self):
+        """证书编号可公开校验。"""
+        enrollment = self._create_enrollment()
+        self.authenticate(self.user)
+        self.client.post(f'/api/learning/enrollments/{enrollment.id}/complete/')
+        certificate = Certificate.objects.get(enrollment=enrollment)
+
+        self.client.credentials()
+        response = self.client.get('/api/learning/certificates/verify/', {'number': certificate.number})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['number'], certificate.number)
+        self.assertEqual(response.data['course_title'], self.course.title)
+
+        missing = self.client.get('/api/learning/certificates/verify/')
+        self.assertEqual(missing.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_other_user_cannot_view_certificate(self):
+        """其他用户不能查看他人证书。"""
+        enrollment = self._create_enrollment()
+        self.authenticate(self.user)
+        self.client.post(f'/api/learning/enrollments/{enrollment.id}/complete/')
+        certificate = Certificate.objects.get(enrollment=enrollment)
+
+        self.authenticate(self.other)
+        listing = self.client.get('/api/learning/certificates/')
+        self.assertEqual(listing.status_code, status.HTTP_200_OK)
+        self.assertEqual(listing.data['count'], 0)
+
+        detail = self.client.get(f'/api/learning/certificates/{certificate.id}/')
+        self.assertEqual(detail.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_admin_can_revoke_certificate(self):
+        """管理员可撤销证书。"""
+        enrollment = self._create_enrollment()
+        self.authenticate(self.user)
+        self.client.post(f'/api/learning/enrollments/{enrollment.id}/complete/')
+        certificate = Certificate.objects.get(enrollment=enrollment)
+
+        self.authenticate(self.admin)
+        response = self.client.post(
+            f'/api/learning/certificates/{certificate.id}/revoke/',
+            {'remark': '违规'}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        certificate.refresh_from_db()
+        self.assertEqual(certificate.status, Certificate.STATUS_REVOKED)
+        self.assertIsNotNone(certificate.revoked_at)

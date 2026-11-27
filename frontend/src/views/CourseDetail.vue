@@ -60,10 +60,27 @@
                 </template>
                 <template v-else-if="course.is_enrolled">
                   <button class="btn btn-primary" @click="startLearning">继续学习</button>
+                  <button v-if="certificate" class="btn btn-secondary" @click="goCertificate">
+                    <span class="i-ep-medal" />
+                    查看证书
+                  </button>
                 </template>
                 <template v-else>
-                  <button class="btn btn-primary" :disabled="enrolling" @click="enroll">
+                  <button
+                    v-if="course.is_free"
+                    class="btn btn-primary"
+                    :disabled="enrolling"
+                    @click="enroll"
+                  >
                     {{ enrolling ? '报名中...' : '立即报名' }}
+                  </button>
+                  <button
+                    v-else
+                    class="btn btn-primary"
+                    :disabled="purchasing"
+                    @click="purchase"
+                  >
+                    {{ purchasing ? '支付中...' : '购买课程' }}
                   </button>
                 </template>
                 <span v-if="!course.is_free" class="course-price">¥{{ course.price }}</span>
@@ -167,7 +184,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '../stores/userStore'
 import { learningApi } from '../api/learning'
 import { formatDate } from '../utils/date'
@@ -175,7 +192,7 @@ import { getApiErrorMessage } from '../utils/error'
 import LessonPlayer from '../components/LessonPlayer.vue'
 import GlassCard from '@/components/GlassCard.vue'
 import SectionHeader from '@/components/SectionHeader.vue'
-import type { Course, Chapter, Lesson, LearningResource, Review, Enrollment } from '../types/learning'
+import type { Course, Chapter, Lesson, LearningResource, Review, Enrollment, Certificate } from '../types/learning'
 
 const route = useRoute()
 const router = useRouter()
@@ -188,8 +205,10 @@ const chapters = ref<Chapter[]>([])
 const resources = ref<LearningResource[]>([])
 const reviews = ref<Review[]>([])
 const enrollment = ref<Enrollment | null>(null)
+const certificate = ref<Certificate | null>(null)
 const loading = ref(false)
 const enrolling = ref(false)
+const purchasing = ref(false)
 const expandedChapters = ref<number[]>([])
 const playerVisible = ref(false)
 const currentLesson = ref<Lesson | null>(null)
@@ -224,6 +243,9 @@ const loadCourse = async () => {
     reviews.value = Array.isArray(reviewsRes) ? reviewsRes : reviewsRes.results
     if (enrollmentRes && enrollmentRes.results.length > 0) {
       enrollment.value = enrollmentRes.results[0]
+    }
+    if (enrollment.value?.is_completed) {
+      loadCertificate()
     }
 
     // 默认展开第一个章节
@@ -300,6 +322,51 @@ const enroll = async () => {
 
 const handleLessonComplete = () => {
   // 课时学习完成后的回调，可刷新学习进度
+}
+
+const purchase = async () => {
+  if (!userStore.isLoggedIn) {
+    goLogin()
+    return
+  }
+  if (!course.value) return
+
+  try {
+    await ElMessageBox.confirm(
+      `确认支付 ¥${course.value.price} 购买《${course.value.title}》？当前为模拟支付，不会产生真实扣款。`,
+      '确认支付',
+      { confirmButtonText: '确认支付', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+
+  purchasing.value = true
+  try {
+    const order = await learningApi.createPaymentOrder(courseId)
+    await learningApi.payOrder(order.id)
+    ElMessage.success('支付成功，已加入学习')
+    await loadCourse()
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '支付失败，请稍后重试'))
+  } finally {
+    purchasing.value = false
+  }
+}
+
+const loadCertificate = async () => {
+  try {
+    const response = await learningApi.getCertificates({ course: courseId })
+    certificate.value = response.results?.[0] || null
+  } catch {
+    certificate.value = null
+  }
+}
+
+const goCertificate = () => {
+  if (certificate.value) {
+    router.push(`/certificate/${certificate.value.id}`)
+  }
 }
 
 const openNextLesson = () => {

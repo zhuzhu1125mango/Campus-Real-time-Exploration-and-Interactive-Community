@@ -105,3 +105,31 @@ export interface LearningResource {
   created_at: string
   updated_at: string
 }
+
+export interface PaymentOrder {
+  id: number
+  order_no: string
+  amount: number | string
+  status: 'pending' | 'paid' | 'cancelled' | 'refunded'
+  payment_method: string
+  course_id: number
+  course_title: string
+  course_cover: string | null
+  created_at: string
+  paid_at: string | null
+}
+
+export interface Certificate {
+  id: number
+  number: string
+  status: 'valid' | 'revoked'
+  issued_at: string
+  revoked_at: string | null
+  remark: string
+  enrollment_id: number
+  username: string
+  course_id: number
+  course_title: string
+  course_cover: string | null
+  instructor_name: string
+}

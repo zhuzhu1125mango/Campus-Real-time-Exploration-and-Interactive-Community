@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from django.urls import reverse
+import uuid
 
 
 class Course(models.Model):
@@ -192,3 +193,105 @@ class LearningResource(models.Model):
 
     def __str__(self):
         return f'{self.course.title} - {self.title}'
+
+
+def generate_order_no():
+    """生成唯一的支付订单号。"""
+    return f'ORD{timezone.now():%Y%m%d%H%M%S}{uuid.uuid4().hex[:6].upper()}'
+
+
+class PaymentOrder(models.Model):
+    """课程支付订单。
+
+    当前接入的是模拟支付：创建订单后调用 pay 接口即视为支付成功，
+    后续可替换为微信/支付宝等真实网关，只需在 pay 流程中补充回调校验。
+    """
+    STATUS_PENDING = 'pending'
+    STATUS_PAID = 'paid'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_REFUNDED = 'refunded'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, '待支付'),
+        (STATUS_PAID, '已支付'),
+        (STATUS_CANCELLED, '已取消'),
+        (STATUS_REFUNDED, '已退款'),
+    ]
+    METHOD_MOCK = 'mock'
+    METHOD_CHOICES = [
+        (METHOD_MOCK, '模拟支付'),
+        ('wechat', '微信支付'),
+        ('alipay', '支付宝'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='payment_orders', verbose_name='用户'
+    )
+    course = models.ForeignKey(
+        Course, on_delete=models.CASCADE,
+        related_name='payment_orders', verbose_name='课程'
+    )
+    order_no = models.CharField(max_length=64, unique=True, verbose_name='订单号')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='订单金额')
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, verbose_name='订单状态'
+    )
+    payment_method = models.CharField(
+        max_length=20, choices=METHOD_CHOICES, default=METHOD_MOCK, verbose_name='支付方式'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    paid_at = models.DateTimeField(null=True, blank=True, verbose_name='支付时间')
+
+    class Meta:
+        verbose_name = '支付订单'
+        verbose_name_plural = '支付订单'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'status'], name='learn_order_user_status_idx'),
+            models.Index(fields=['course', 'status'], name='learn_order_course_status_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.order_no} - {self.user.username} - {self.course.title}'
+
+    def save(self, *args, **kwargs):
+        if not self.order_no:
+            self.order_no = generate_order_no()
+        super().save(*args, **kwargs)
+
+
+class Certificate(models.Model):
+    """课程结业证书。
+
+    用户完成课程后自动发放，一条报名记录最多对应一张证书，
+    可通过证书编号公开校验真伪。
+    """
+    STATUS_VALID = 'valid'
+    STATUS_REVOKED = 'revoked'
+    STATUS_CHOICES = [
+        (STATUS_VALID, '有效'),
+        (STATUS_REVOKED, '已撤销'),
+    ]
+
+    enrollment = models.OneToOneField(
+        Enrollment, on_delete=models.CASCADE,
+        related_name='certificate', verbose_name='报名记录'
+    )
+    number = models.CharField(max_length=64, unique=True, verbose_name='证书编号')
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_VALID, verbose_name='证书状态'
+    )
+    issued_at = models.DateTimeField(auto_now_add=True, verbose_name='发放时间')
+    revoked_at = models.DateTimeField(null=True, blank=True, verbose_name='撤销时间')
+    remark = models.CharField(max_length=200, blank=True, verbose_name='备注')
+
+    class Meta:
+        verbose_name = '课程证书'
+        verbose_name_plural = '课程证书'
+        ordering = ['-issued_at']
+        indexes = [
+            models.Index(fields=['status', '-issued_at'], name='learn_cert_status_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.number} - {self.enrollment.user.username} - {self.enrollment.course.title}'

@@ -32,6 +32,11 @@
         <text class="menu-text">我的学习</text>
         <text class="arrow">></text>
       </view>
+      <view class="menu-item" @click="navigateTo('/pages/certificates/certificates')">
+        <text class="icon">🎖️</text>
+        <text class="menu-text">我的证书</text>
+        <text class="arrow">></text>
+      </view>
       <view class="menu-item" @click="navigateTo('/pages/content/content')">
         <text class="icon">📄</text>
         <text class="menu-text">内容中心</text>

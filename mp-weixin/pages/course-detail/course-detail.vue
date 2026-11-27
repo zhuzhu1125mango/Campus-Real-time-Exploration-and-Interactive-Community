@@ -40,10 +40,28 @@
           </view>
           <view class="course-actions">
             <button v-if="!isLoggedIn" class="btn btn-primary" @click="goLogin">登录后报名</button>
-            <button v-else-if="course.is_enrolled" class="btn btn-primary" @click="startLearning">继续学习</button>
-            <button v-else class="btn btn-primary" :disabled="enrolling" @click="enroll">
-              {{ enrolling ? '报名中...' : '立即报名' }}
-            </button>
+            <template v-else-if="course.is_enrolled">
+              <button class="btn btn-primary" @click="startLearning">继续学习</button>
+              <button v-if="certificate" class="btn btn-secondary" @click="goCertificate">查看证书</button>
+            </template>
+            <template v-else>
+              <button
+                v-if="course.is_free"
+                class="btn btn-primary"
+                :disabled="enrolling"
+                @click="enroll"
+              >
+                {{ enrolling ? '报名中...' : '立即报名' }}
+              </button>
+              <button
+                v-else
+                class="btn btn-primary"
+                :disabled="purchasing"
+                @click="purchase"
+              >
+                {{ purchasing ? '支付中...' : '购买课程' }}
+              </button>
+            </template>
             <text v-if="!course.is_free" class="course-price">¥{{ course.price }}</text>
           </view>
         </view>
@@ -191,6 +209,8 @@ const reviews = ref([])
 const enrollment = ref(null)
 const loading = ref(false)
 const enrolling = ref(false)
+const purchasing = ref(false)
+const certificate = ref(null)
 const error = ref('')
 const isLoggedIn = ref(false)
 const expandedChapters = ref([])
@@ -271,6 +291,9 @@ const loadCourse = async () => {
       enrollment.value = enrollmentRes.results[0]
       course.value.is_enrolled = true
       await loadProgresses()
+      if (enrollment.value.is_completed) {
+        loadCertificate()
+      }
     }
 
     if (chapters.value.length > 0) {
@@ -493,6 +516,48 @@ const enroll = async () => {
   }
 }
 
+const purchase = () => {
+  if (!isLoggedIn.value) {
+    goLogin()
+    return
+  }
+  uni.showModal({
+    title: '确认支付',
+    content: `需支付 ¥${course.value?.price || 0} 购买该课程（当前为模拟支付）`,
+    confirmText: '确认支付',
+    success: async (res) => {
+      if (!res.confirm) return
+      purchasing.value = true
+      try {
+        const order = await learningApi.createPaymentOrder(courseId.value)
+        await learningApi.payOrder(order.id)
+        uni.showToast({ title: '支付成功', icon: 'success' })
+        await loadCourse()
+      } catch (err) {
+        console.error('支付失败', err)
+        uni.showToast({ title: err?.detail || '支付失败', icon: 'none' })
+      } finally {
+        purchasing.value = false
+      }
+    }
+  })
+}
+
+const loadCertificate = async () => {
+  try {
+    const res = await learningApi.getCertificates({ course: courseId.value })
+    certificate.value = (res?.results || [])[0] || null
+  } catch (err) {
+    console.error('加载证书失败', err)
+    certificate.value = null
+  }
+}
+
+const goCertificate = () => {
+  if (!certificate.value) return
+  uni.navigateTo({ url: `/pages/certificate-detail/certificate-detail?id=${certificate.value.id}` })
+}
+
 const downloadResource = (resource) => {
   if (!resource.file_url) {
     uni.showToast({ title: '资源链接无效', icon: 'none' })
@@ -680,6 +745,12 @@ const formatDate = (date) => {
 .btn-primary {
   background-color: #fff;
   color: #4361ee;
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: #fff;
+  border: 1rpx solid rgba(255, 255, 255, 0.8);
 }
 
 .btn-primary:disabled {

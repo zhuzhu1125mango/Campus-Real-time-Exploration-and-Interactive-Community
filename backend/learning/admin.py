@@ -1,5 +1,8 @@
 from django.contrib import admin
-from .models import Course, Category, CourseCategory, Chapter, Lesson, Enrollment, Progress, Review, LearningResource
+from .models import (
+    Course, Category, CourseCategory, Chapter, Lesson, Enrollment, Progress,
+    Review, LearningResource, PaymentOrder, Certificate,
+)
 
 
 @admin.register(Course)
@@ -77,3 +80,29 @@ class LearningResourceAdmin(admin.ModelAdmin):
     search_fields = ('title', 'description', 'course__title')
     date_hierarchy = 'created_at'
     ordering = ('-created_at',)
+
+
+@admin.register(PaymentOrder)
+class PaymentOrderAdmin(admin.ModelAdmin):
+    list_display = ('order_no', 'user', 'course', 'amount', 'status', 'payment_method', 'created_at', 'paid_at')
+    list_filter = ('status', 'payment_method', 'created_at', 'paid_at')
+    search_fields = ('order_no', 'user__username', 'course__title')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+    readonly_fields = ('order_no', 'created_at', 'paid_at')
+
+
+@admin.register(Certificate)
+class CertificateAdmin(admin.ModelAdmin):
+    list_display = ('number', 'user', 'course', 'status', 'issued_at', 'revoked_at')
+    list_filter = ('status', 'issued_at', 'revoked_at')
+    search_fields = ('number', 'enrollment__user__username', 'enrollment__course__title')
+    date_hierarchy = 'issued_at'
+    ordering = ('-issued_at',)
+    readonly_fields = ('number', 'issued_at')
+
+    def user(self, obj):
+        return obj.enrollment.user.username
+
+    def course(self, obj):
+        return obj.enrollment.course.title

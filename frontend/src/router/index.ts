@@ -155,6 +155,18 @@ const routes = [
     component: () => import('../views/MyLearning.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/certificates',
+    name: 'Certificates',
+    component: () => import('../views/Certificates.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/certificate/:id',
+    name: 'CertificateDetail',
+    component: () => import('../views/CertificateDetail.vue'),
+    meta: { requiresAuth: true }
+  },
   // 全局搜索
   {
     path: '/search',
