@@ -35,6 +35,10 @@ media/banners/*
 # Ignore legacy localized asset directories and user uploads
 media/avatars1/
 media/banners1/
+media/content/
+media/learning/
+media/forum/
+media/school_images/
 
 # Data and temporary files
 data.json

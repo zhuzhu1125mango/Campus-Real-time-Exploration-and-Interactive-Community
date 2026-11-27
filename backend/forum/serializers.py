@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from notifications.notification_sender import notify_forum_event
 from users.tasks import queue_update_user_points
+from core.antivirus import validate_upload
 from .models import (
     Category, Board, Topic, Post, Attachment,
     Like, Tag, Report, Bookmark,
@@ -241,7 +242,10 @@ class AttachmentSerializer(serializers.ModelSerializer):
             'file_type', 'download_count', 'created_at'
         )
         read_only_fields = ('filename', 'file_size', 'file_type', 'download_count')
-    
+
+    def validate_file(self, value):
+        return validate_upload(value)
+
     def create(self, validated_data):
         file = validated_data.get('file')
         validated_data['filename'] = file.name

@@ -433,6 +433,13 @@ WECHAT_SUBSCRIBE_TEMPLATES = {
     'reminder': os.environ.get('WECHAT_TEMPLATE_REMINDER', ''),
 }
 
+# 上传文件病毒扫描（ClamAV clamd）
+# 默认关闭；开启后扫描服务不可用会拒绝上传（fail closed）
+ANTIVIRUS_ENABLED = os.environ.get('ANTIVIRUS_ENABLED', 'False').lower() in ('true', '1', 'yes')
+CLAMAV_HOST = os.environ.get('CLAMAV_HOST', 'clamav')
+CLAMAV_PORT = int(os.environ.get('CLAMAV_PORT', '3310'))
+CLAMAV_TIMEOUT = int(os.environ.get('CLAMAV_TIMEOUT', '10'))
+
 # Celery 配置
 # Broker 默认使用 RabbitMQ；未配置时回退到 Redis 缓存地址（开发环境可用）
 CELERY_BROKER_URL = os.environ.get(

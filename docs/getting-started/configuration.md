@@ -96,17 +96,22 @@
 模板字段约定为 `thing1` / `thing2` / `time3`，详见
 [小程序指南](../guides/mini-program.md#3-订阅消息)。
 
-### 2.8 监控（可选）
+### 2.8 监控与上传安全（可选）
 
-仅在启用 `--profile monitoring` 时需要：
+仅在启用 `--profile monitoring` 或 `--profile security` 时需要：
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `GRAFANA_ADMIN_PASSWORD` | `admin` | Grafana 初始管理员密码 |
 | `MYSQLD_EXPORTER_USER` | `exporter` | MySQL 监控账号 |
 | `MYSQLD_EXPORTER_PASSWORD` | `exporter` | MySQL 监控账号密码 |
+| `ANTIVIRUS_ENABLED` | `False` | 是否开启上传文件病毒扫描（fail-closed） |
+| `CLAMAV_HOST` | `clamav` | ClamAV 服务地址 |
+| `CLAMAV_PORT` | `3310` | clamd 端口 |
+| `CLAMAV_TIMEOUT` | `10` | 扫描超时（秒） |
 
-监控栈说明见 [运维手册](../guides/operations.md#10-监控-prometheus--grafana)。
+监控与日志聚合见 [运维手册](../guides/operations.md#10-监控-prometheus--grafana)，
+病毒扫描启用步骤见 [10.2 上传文件病毒扫描](../guides/operations.md#102-上传文件病毒扫描clamav)。
 
 ## 3. H5 前端环境变量
 

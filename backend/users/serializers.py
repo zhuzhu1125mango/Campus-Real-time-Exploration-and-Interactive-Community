@@ -8,6 +8,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 
 from .models import UserProfile, VerificationCode, PointsRecord
+from core.antivirus import validate_upload
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -69,6 +70,12 @@ class UserSerializer(serializers.ModelSerializer):
                   'follower_count', 'following_count', 'is_following')
         read_only_fields = ('id', 'date_joined', 'last_login', 'is_verified', 'favorite_schools',
                             'follower_count', 'following_count', 'is_following')
+
+    def validate_avatar(self, value):
+        return validate_upload(value)
+
+    def validate_banner(self, value):
+        return validate_upload(value)
 
     def get_favorite_schools(self, obj):
         """从通用收藏模型中返回用户收藏的学校ID列表"""

@@ -122,6 +122,10 @@ services:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
       ELASTICSEARCH_FALLBACK_TO_DB: "True"
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      ANTIVIRUS_ENABLED: ${ANTIVIRUS_ENABLED:-False}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+      CLAMAV_TIMEOUT: ${CLAMAV_TIMEOUT:-10}
     volumes:
       - ./backend/media:/app/media
       - ./backend/static:/app/static
@@ -347,6 +351,55 @@ services:
     networks:
       - campus_network
 
+  # --------------------------------------------
+  # 日志聚合：Loki + Promtail（--profile monitoring）
+  # --------------------------------------------
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: campus_loki
+    profiles: ["monitoring"]
+    command: ["-config.file=/etc/loki/loki-config.yml"]
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    ports:
+      - "127.0.0.1:3100:3100"
+    networks:
+      - campus_network
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    container_name: campus_promtail
+    profiles: ["monitoring"]
+    command: ["-config.file=/etc/promtail/promtail-config.yml"]
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    networks:
+      - campus_network
+
+  # --------------------------------------------
+  # 病毒扫描：ClamAV（--profile security）
+  # --------------------------------------------
+  clamav:
+    image: clamav/clamav:stable
+    container_name: campus_clamav
+    profiles: ["security"]
+    environment:
+      CLAMAV_NO_MILTERD: "true"
+    volumes:
+      - clamav_data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
+    networks:
+      - campus_network
+
   # Nginx 反向代理
   nginx:
     image: nginx:alpine
@@ -372,6 +425,8 @@ volumes:
   flower_data:
   prometheus_data:
   grafana_data:
+  loki_data:
+  clamav_data:
 
 networks:
   campus_network:

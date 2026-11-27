@@ -96,6 +96,10 @@ services:
     ports: !override
       - "127.0.0.1:3000:3000"
 
+  loki:
+    ports: !override
+      - "127.0.0.1:3100:3100"
+
   # Nginx：对外仅暴露 80（HTTP 自动跳转 HTTPS）和 443（HTTPS）
   nginx:
     build: ./nginx

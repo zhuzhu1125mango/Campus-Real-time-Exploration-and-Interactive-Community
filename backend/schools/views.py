@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action, api_view, parser_classes, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.exceptions import ValidationError
 from django.db.models import Q, Avg, Count
 from django.db import transaction
 from django.utils import timezone
@@ -23,6 +24,7 @@ from .serializers import (
 from forum.models import Post as ForumPost
 from forum.serializers import PostSerializer as ForumPostSerializer
 from users.throttles import SearchThrottle, WriteThrottle
+from core.antivirus import validate_upload
 from users.tasks import queue_update_user_points
 from users.models import PointsRecord
 from search.services import SearchService
@@ -202,7 +204,12 @@ class SchoolViewSet(PublicReadOnlyModelViewSet):
         csv_file = request.FILES['file']
         if not csv_file.name.endswith('.csv'):
             return Response({"error": "请上传CSV格式的文件"}, status=status.HTTP_400_BAD_REQUEST)
-        
+
+        try:
+            validate_upload(csv_file)
+        except ValidationError as exc:
+            return Response({"error": exc.detail[0]}, status=status.HTTP_400_BAD_REQUEST)
+
         # 解码CSV文件
         try:
             csv_data = csv_file.read().decode('utf-8')

@@ -16,11 +16,13 @@ from .serializers import (
     ContentReportSerializer, ContentReportCreateSerializer, ContentImageSerializer,
 )
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from rest_framework.exceptions import ValidationError
 from users.permissions import IsOwnerOrAdmin
 from users.throttles import SearchThrottle, WriteThrottle
 from users.tasks import queue_update_user_points
 from notifications.notification_sender import notify_forum_event
 from search.services import SearchService
+from core.antivirus import validate_upload
 from core.base_viewsets import (
     PublicReadOnlyModelViewSet,
     BaseModelViewSet,
@@ -435,6 +437,11 @@ class ContentImageUploadView(APIView):
         content_type = getattr(image, 'content_type', '') or ''
         if not content_type.startswith('image/'):
             return Response({'error': '仅支持上传图片文件'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            validate_upload(image)
+        except ValidationError as exc:
+            return Response({'error': exc.detail[0]}, status=status.HTTP_400_BAD_REQUEST)
 
         content_image = ContentImage.objects.create(uploader=request.user, image=image)
         serializer = ContentImageSerializer(content_image, context={'request': request})

@@ -108,6 +108,8 @@
 - 学习：新增付费课程下单与模拟支付（`PaymentOrder`、`/api/learning/orders/`），支付成功后自动完成报名。
 - 学习：新增课程证书（完成全部课时或手动完成后自动发放），支持我的证书、证书详情、按编号公开校验与管理员撤销；H5 与小程序同步接入。
 - 学习：新增学习提醒（`StudyReminder`、`/api/learning/reminders/`），Celery Beat 每 10 分钟扫描并发送站内通知，支持微信订阅消息模板；H5 与小程序可设置每日提醒时间。
+- 运维：新增 Loki + Promtail 日志聚合（`--profile monitoring`），Grafana 预置 Loki 数据源，日志默认保留 30 天。
+- 安全：新增上传文件病毒扫描（ClamAV，`--profile security`），覆盖头像、富文本图片、论坛附件、课程封面与资源文件，默认关闭、启用后 fail-closed。
 
 ### 已知问题
 

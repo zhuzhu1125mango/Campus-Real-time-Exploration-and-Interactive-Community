@@ -35,6 +35,8 @@ docker compose logs -f --tail=200 celery-worker
 docker compose logs -f --tail=200 nginx
 ```
 
+集中查询与留存见 [10.1 日志查询（Loki）](#101-日志查询loki)。
+
 日志级别在 `settings.LOGGING` 中配置；`chat`、`users` 默认 `DEBUG`，
 生产环境建议调为 `INFO` 以减少日志量。
 
@@ -250,6 +252,8 @@ ssh -L 3000:127.0.0.1:3000 -L 9090:127.0.0.1:9090 user@server
 | Prometheus | http://localhost:9090 | 指标抓取与告警规则 |
 | Grafana | http://localhost:3000 | 默认账号 `admin`，密码取 `GRAFANA_ADMIN_PASSWORD` |
 | Flower | http://127.0.0.1:5555 | Celery 任务/Worker，同时提供 `/metrics` |
+| Loki | http://localhost:3100 | 日志聚合存储（默认保留 30 天） |
+| Promtail | 内部 | 通过 Docker API 采集所有容器日志并推送 Loki |
 | MySQL Exporter | 内部 `mysql-exporter:9104` | 需预先创建监控账号 |
 | Redis Exporter | 内部 `redis-exporter-ws:9121`、`redis-exporter-cache:9121` | 两个 Redis 实例 |
 | ES Exporter | 内部 `elasticsearch-exporter:9114` | 集群健康与索引指标 |
@@ -277,3 +281,39 @@ FLUSH PRIVILEGES;
 
 Grafana 已预置 Prometheus 数据源，可直接导入社区面板：
 MySQL `7362`、Redis `763`、Elasticsearch `12436`、Celery `12364`。
+
+### 10.1 日志查询（Loki）
+
+Grafana 已预置 Loki 数据源，可在 **Explore → Loki** 中按标签查询：
+
+```logql
+{service="django-http"} |= "ERROR"
+{service="celery-worker"} |= "Traceback"
+{container="campus_django_http", stream="stderr"}
+{service="nginx"} |= " 500 "
+```
+
+常用标签：`service`（Compose 服务名）、`container`（容器名）、`stream`（stdout/stderr）。
+日志由 Promtail 通过 Docker API 采集，无需额外配置宿主机日志路径；
+在 Docker Desktop 上需允许容器挂载 `/var/run/docker.sock`。
+
+### 10.2 上传文件病毒扫描（ClamAV）
+
+病毒扫描默认关闭。启用步骤：
+
+```bash
+# 1. 启动 ClamAV（首次启动需下载病毒库，可能持续数分钟）
+docker compose --profile security up -d clamav
+
+# 2. 在 .env 中开启扫描并重建后端
+# ANTIVIRUS_ENABLED=True
+
+docker compose up -d django-http
+```
+
+配置项：`ANTIVIRUS_ENABLED`、`CLAMAV_HOST`（默认 `clamav`）、`CLAMAV_PORT`（默认 `3310`）、
+`CLAMAV_TIMEOUT`（默认 10 秒）。
+
+覆盖范围：用户头像/背景、富文本图片、论坛附件、课程封面、课程资源文件、学校 CSV 导入。
+启用后采用 **fail-closed**：扫描服务不可用或检测到病毒都会拒绝上传，返回 400。
+本地开发一般保持关闭，避免上传功能依赖 ClamAV 启动时间。

@@ -6,6 +6,7 @@ from .models import (
     Review, LearningResource, PaymentOrder, Certificate, StudyReminder,
 )
 from users.serializers import UserSerializer
+from core.antivirus import validate_upload
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -68,6 +69,9 @@ class CourseCreateSerializer(serializers.ModelSerializer):
             CourseCategory.objects.create(course=course, category=category)
         return course
 
+    def validate_cover_image(self, value):
+        return validate_upload(value)
+
 
 class CourseUpdateSerializer(serializers.ModelSerializer):
     categories = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), many=True, required=False)
@@ -89,6 +93,9 @@ class CourseUpdateSerializer(serializers.ModelSerializer):
             for category in categories:
                 CourseCategory.objects.create(course=instance, category=category)
         return instance
+
+    def validate_cover_image(self, value):
+        return validate_upload(value)
 
 
 class LessonSerializer(serializers.ModelSerializer):
@@ -217,11 +224,17 @@ class LearningResourceCreateSerializer(serializers.ModelSerializer):
         model = LearningResource
         fields = ['course', 'title', 'description', 'file', 'file_type', 'file_size', 'is_free']
 
+    def validate_file(self, value):
+        return validate_upload(value)
+
 
 class LearningResourceUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = LearningResource
         fields = ['title', 'description', 'file', 'file_type', 'file_size', 'is_free']
+
+    def validate_file(self, value):
+        return validate_upload(value)
 
 
 class PaymentOrderSerializer(serializers.ModelSerializer):
