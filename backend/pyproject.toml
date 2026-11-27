@@ -21,6 +21,7 @@ dependencies = [
     "django-redis>=5.4,<5.5",
     "bleach>=6.0,<7",
     "drf-spectacular>=0.28,<0.30",
+    "django-storages[s3]>=1.14,<2",
 ]
 
 [project.optional-dependencies]

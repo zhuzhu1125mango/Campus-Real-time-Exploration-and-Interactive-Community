@@ -113,6 +113,25 @@
 监控与日志聚合见 [运维手册](../guides/operations.md#10-监控-prometheus--grafana)，
 病毒扫描启用步骤见 [10.2 上传文件病毒扫描](../guides/operations.md#102-上传文件病毒扫描clamav)。
 
+### 2.9 对象存储（可选）
+
+默认使用本地 `backend/media/`。OSS/COS/MinIO 等 S3 兼容服务通过以下变量启用，
+配置示例见 [部署指南 4.5](../guides/deployment.md#45-对象存储可选)。
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `STORAGE_BACKEND` | `local` | `local` 或 `s3`（`oss`/`cos` 同义） |
+| `STORAGE_S3_BUCKET_NAME` | 空 | 存储桶名称 |
+| `STORAGE_S3_ENDPOINT_URL` | 空 | S3 兼容 Endpoint |
+| `STORAGE_S3_REGION_NAME` | 空 | 区域，如 `oss-cn-hangzhou` |
+| `STORAGE_S3_ACCESS_KEY_ID` | 空 | AccessKey ID |
+| `STORAGE_S3_SECRET_ACCESS_KEY` | 空 | AccessKey Secret |
+| `STORAGE_S3_LOCATION` | 空 | 对象前缀，如 `media` |
+| `STORAGE_S3_CUSTOM_DOMAIN` | 空 | 自定义域名/CDN |
+| `STORAGE_S3_ADDRESSING_STYLE` | `virtual` | `virtual` 或 `path` |
+| `STORAGE_S3_DEFAULT_ACL` | `public-read` | 对象 ACL |
+| `STORAGE_S3_QUERYSTRING_EXPIRE` | `3600` | 私有对象签名有效期（秒） |
+
 ## 3. H5 前端环境变量
 
 Vite 只暴露 `VITE_` 前缀变量。当前代码实际读取情况：

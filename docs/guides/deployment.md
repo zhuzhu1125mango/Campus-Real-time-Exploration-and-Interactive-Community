@@ -190,6 +190,42 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml config
 docker compose exec nginx nginx -t
 ```
 
+### 4.5 对象存储（可选）
+
+默认使用本地 `backend/media/`。生产建议切换到对象存储（阿里云 OSS / 腾讯云 COS /
+MinIO 等 S3 兼容服务），上传与访问不再占用服务器磁盘和带宽。
+
+在 `.env` 中配置（两者二选一）：
+
+```bash
+# 阿里云 OSS
+STORAGE_BACKEND=s3
+STORAGE_S3_BUCKET_NAME=your-bucket
+STORAGE_S3_ENDPOINT_URL=https://oss-cn-hangzhou.aliyuncs.com
+STORAGE_S3_REGION_NAME=oss-cn-hangzhou
+STORAGE_S3_ACCESS_KEY_ID=...
+STORAGE_S3_SECRET_ACCESS_KEY=...
+STORAGE_S3_LOCATION=media
+STORAGE_S3_DEFAULT_ACL=public-read
+# STORAGE_S3_CUSTOM_DOMAIN=cdn.example.com
+
+# 腾讯云 COS
+STORAGE_BACKEND=s3
+STORAGE_S3_BUCKET_NAME=example-1250000000
+STORAGE_S3_ENDPOINT_URL=https://cos.ap-guangzhou.myqcloud.com
+STORAGE_S3_REGION_NAME=ap-guangzhou
+STORAGE_S3_ACCESS_KEY_ID=...
+STORAGE_S3_SECRET_ACCESS_KEY=...
+STORAGE_S3_LOCATION=media
+```
+
+说明：
+
+- 统一使用 S3 兼容接口，`STORAGE_BACKEND` 设为 `s3`（`oss`/`cos` 为同义值）。
+- 默认 ACL 为 `public-read`，也可设为 `private` 并通过 `STORAGE_S3_CUSTOM_DOMAIN` 走 CDN。
+- 切换后 `/media/` 不再由 Nginx 提供，历史文件需自行同步（如 `ossutil cp -r` / `coscli cp`）。
+- 修改后重启 `django-http` 与 `django-ws` 使配置生效。
+
 ## 5. 非容器化部署（systemd）
 
 生产也可直接在宿主机运行三个进程：

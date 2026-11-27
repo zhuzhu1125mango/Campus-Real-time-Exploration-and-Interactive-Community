@@ -356,7 +356,36 @@ SIMPLE_JWT = {
 
 # Media 文件配置
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media') 
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# 对象存储（S3 兼容：阿里云 OSS / 腾讯云 COS / MinIO）
+# STORAGE_BACKEND=local 时使用本地 media 目录；设置为 s3/oss/cos 时切换为对象存储
+STORAGE_BACKEND = (os.environ.get('STORAGE_BACKEND') or 'local').strip().lower()
+if STORAGE_BACKEND in ('s3', 'oss', 'cos'):
+    from core.storage import build_s3_options
+
+    _s3_options = build_s3_options()
+    STORAGES = {
+        'default': {
+            'BACKEND': 'storages.backends.s3.S3Storage',
+            'OPTIONS': _s3_options,
+        },
+        'staticfiles': {
+            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    }
+    if _s3_options.get('custom_domain'):
+        MEDIA_URL = f"https://{_s3_options['custom_domain'].rstrip('/')}/"
+    elif _s3_options.get('endpoint_url') and _s3_options.get('bucket_name'):
+        _endpoint = _s3_options['endpoint_url'].rstrip('/')
+        _bucket = _s3_options['bucket_name']
+        if _s3_options.get('addressing_style') == 'path':
+            MEDIA_URL = f"{_endpoint}/{_bucket}/"
+        else:
+            _scheme, _, _host = _endpoint.partition('://')
+            MEDIA_URL = f"{_scheme}://{_bucket}.{_host}/" if _host else f"{_endpoint}/{_bucket}/"
+    elif _s3_options.get('bucket_name'):
+        MEDIA_URL = f"https://{_s3_options['bucket_name']}.s3.amazonaws.com/"
 
 # 日志配置
 LOGGING = {

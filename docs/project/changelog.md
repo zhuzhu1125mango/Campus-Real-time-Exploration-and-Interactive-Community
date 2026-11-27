@@ -110,6 +110,7 @@
 - 学习：新增学习提醒（`StudyReminder`、`/api/learning/reminders/`），Celery Beat 每 10 分钟扫描并发送站内通知，支持微信订阅消息模板；H5 与小程序可设置每日提醒时间。
 - 运维：新增 Loki + Promtail 日志聚合（`--profile monitoring`），Grafana 预置 Loki 数据源，日志默认保留 30 天。
 - 安全：新增上传文件病毒扫描（ClamAV，`--profile security`），覆盖头像、富文本图片、论坛附件、课程封面与资源文件，默认关闭、启用后 fail-closed。
+- 存储：支持对象存储（S3 兼容：阿里云 OSS / 腾讯云 COS / MinIO），通过 `STORAGE_BACKEND=s3` 切换，默认仍为本地 media。
 
 ### 已知问题
 

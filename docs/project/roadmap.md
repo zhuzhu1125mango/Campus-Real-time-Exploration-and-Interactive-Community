@@ -83,7 +83,7 @@
 - [x] 日志脱敏（token、手机号、邮箱）
 - [x] 依赖漏洞扫描（CI 使用 pip-audit 与 pnpm audit）
 - [x] 上传文件病毒扫描（ClamAV，`--profile security`）
-- [ ] 对象存储（OSS/COS）
+- [x] 对象存储（S3 兼容：OSS/COS/MinIO）
 
 ## 6. 文档
 
