@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     Course, Category, CourseCategory, Chapter, Lesson, Enrollment, Progress,
-    Review, LearningResource, PaymentOrder, Certificate,
+    Review, LearningResource, PaymentOrder, Certificate, StudyReminder,
 )
 
 
@@ -106,3 +106,11 @@ class CertificateAdmin(admin.ModelAdmin):
 
     def course(self, obj):
         return obj.enrollment.course.title
+
+
+@admin.register(StudyReminder)
+class StudyReminderAdmin(admin.ModelAdmin):
+    list_display = ('user', 'course', 'is_active', 'remind_time', 'last_reminded_at', 'updated_at')
+    list_filter = ('is_active', 'remind_time', 'updated_at')
+    search_fields = ('user__username', 'course__title')
+    ordering = ('-updated_at',)

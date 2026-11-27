@@ -74,6 +74,12 @@ services:
     depends_on:
       - django-init
 
+  # Celery Beat：不暴露端口
+  celery-beat:
+    ports: !reset []
+    depends_on:
+      - django-init
+
   # Flower：仅绑定本机回环，通过 SSH 隧道访问
   flower:
     ports: !override

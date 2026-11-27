@@ -1,5 +1,5 @@
 import request from '../utils/request'
-import type { Course, Enrollment, PaymentOrder, Certificate } from '../types/learning'
+import type { Course, Enrollment, PaymentOrder, Certificate, StudyReminder } from '../types/learning'
 
 export const learningApi = {
   // 课程相关API
@@ -172,6 +172,28 @@ export const learningApi = {
   // 按编号公开校验证书
   verifyCertificate(number: string): Promise<Certificate> {
     return request.get('/learning/certificates/verify/', { params: { number } })
+  },
+
+  // 学习提醒相关API
+
+  // 获取我的学习提醒
+  getReminders(params?: { page?: number }): Promise<{ count: number; next: string | null; previous: string | null; results: StudyReminder[] }> {
+    return request.get('/learning/reminders/', { params })
+  },
+
+  // 创建或更新课程学习提醒
+  createReminder(data: { course: number; remind_time?: string; is_active?: boolean }): Promise<StudyReminder> {
+    return request.post('/learning/reminders/', data)
+  },
+
+  // 更新学习提醒
+  updateReminder(reminderId: number | string, data: { remind_time?: string; is_active?: boolean }): Promise<StudyReminder> {
+    return request.patch(`/learning/reminders/${reminderId}/`, data)
+  },
+
+  // 删除学习提醒
+  deleteReminder(reminderId: number | string): Promise<void> {
+    return request.delete(`/learning/reminders/${reminderId}/`)
   },
   
   // 进度相关API

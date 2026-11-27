@@ -9,7 +9,8 @@ import wechatApi from '../api/wechat'
 export const SUBSCRIBE_TEMPLATE_IDS = {
   comment: '',
   message: '',
-  interaction: ''
+  interaction: '',
+  reminder: ''
 }
 
 export const SUBSCRIBE_TEMPLATE_KEYS = Object.keys(SUBSCRIBE_TEMPLATE_IDS)

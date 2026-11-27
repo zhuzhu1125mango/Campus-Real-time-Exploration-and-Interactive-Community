@@ -28,6 +28,7 @@ VUE_APP_WS_BASE_URL=wss://api.example.com/ws/chat
 | 好友列表、好友请求、添加好友 | ✅ | ✅ |
 | 通知、收藏、我的学习 | ✅ | ✅ |
 | 付费课程购买与课程证书 | ✅ | ✅ |
+| 学习提醒设置 | ✅ | ✅ |
 | 校园活动列表与报名 | ✅ | ✅ |
 | 数据仪表盘 | ✅ | ✅（统计卡片 + 分布条，无 echarts） |
 | 分享卡片与深链 | ✅ | ✅ |
@@ -66,6 +67,7 @@ VUE_APP_WS_BASE_URL=wss://api.example.com/ws/chat
 | `WECHAT_TEMPLATE_COMMENT` | “新评论”模板 ID |
 | `WECHAT_TEMPLATE_MESSAGE` | “新私信”模板 ID |
 | `WECHAT_TEMPLATE_INTERACTION` | “点赞/好友请求”模板 ID |
+| `WECHAT_TEMPLATE_REMINDER` | “学习提醒”模板 ID（可选） |
 
 模板字段约定为：`thing1`（标题）、`thing2`（内容，最多 20 字）、`time3`（时间）。
 在微信公众平台创建模板时请使用对应字段名。
@@ -78,7 +80,8 @@ VUE_APP_WS_BASE_URL=wss://api.example.com/ws/chat
 export const SUBSCRIBE_TEMPLATE_IDS = {
   comment: '模板ID',
   message: '模板ID',
-  interaction: '模板ID'
+  interaction: '模板ID',
+  reminder: '模板ID'
 }
 ```
 

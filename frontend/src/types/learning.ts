@@ -133,3 +133,18 @@ export interface Certificate {
   course_cover: string | null
   instructor_name: string
 }
+
+export interface StudyReminder {
+  id: number
+  course: number
+  course_id: number
+  course_title: string
+  course_cover: string | null
+  is_active: boolean
+  remind_time: string
+  progress: number
+  is_completed: boolean
+  last_reminded_at: string | null
+  created_at: string
+  updated_at: string
+}

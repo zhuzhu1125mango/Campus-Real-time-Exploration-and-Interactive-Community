@@ -425,11 +425,12 @@ ALIYUN_SMS_TEMPLATE_CODE = os.environ.get('ALIYUN_SMS_TEMPLATE_CODE', '')
 # 微信小程序配置（订阅消息）
 WECHAT_APPID = os.environ.get('WECHAT_APPID', '')
 WECHAT_SECRET = os.environ.get('WECHAT_SECRET', '')
-# 订阅消息模板 ID：comment=评论，message=私信，interaction=点赞/好友
+# 订阅消息模板 ID：comment=评论，message=私信，interaction=点赞/好友，reminder=学习提醒
 WECHAT_SUBSCRIBE_TEMPLATES = {
     'comment': os.environ.get('WECHAT_TEMPLATE_COMMENT', ''),
     'message': os.environ.get('WECHAT_TEMPLATE_MESSAGE', ''),
     'interaction': os.environ.get('WECHAT_TEMPLATE_INTERACTION', ''),
+    'reminder': os.environ.get('WECHAT_TEMPLATE_REMINDER', ''),
 }
 
 # Celery 配置
@@ -459,6 +460,14 @@ CELERY_TASK_ALWAYS_EAGER = os.environ.get(
     'CELERY_TASK_ALWAYS_EAGER',
     'False'
 ).lower() in ('true', '1', 'yes')
+
+# 定时任务：扫描并发送学习提醒（每 10 分钟一次）
+CELERY_BEAT_SCHEDULE = {
+    'send-study-reminders': {
+        'task': 'learning.tasks.send_study_reminders',
+        'schedule': 600.0,
+    },
+}
 
 # Elasticsearch 配置
 ELASTICSEARCH_HOSTS = os.environ.get(

@@ -20,6 +20,7 @@ NOTIFICATION_TEMPLATE_MAP = {
     'content_comment': 'comment',
     'message': 'message',
     'interaction': 'interaction',
+    'course_reminder': 'reminder',
 }
 
 

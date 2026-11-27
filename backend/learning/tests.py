@@ -1,17 +1,22 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, time, timedelta
 
 from django.test import override_settings, TransactionTestCase
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.db import connection
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from notifications.models import Notification
+
 from .models import (
     Course, Chapter, Lesson, Enrollment, Progress, Review, LearningResource,
-    PaymentOrder, Certificate,
+    PaymentOrder, Certificate, StudyReminder,
 )
+from .tasks import send_study_reminders
 
 User = get_user_model()
 
@@ -469,3 +474,140 @@ class CertificateTests(LearningBaseAPITest):
         certificate.refresh_from_db()
         self.assertEqual(certificate.status, Certificate.STATUS_REVOKED)
         self.assertIsNotNone(certificate.revoked_at)
+
+
+class StudyReminderTests(LearningBaseAPITest):
+    """学习提醒接口测试。"""
+
+    def setUp(self):
+        super().setUp()
+        self.user = self.create_user('reminderuser')
+        self.other = self.create_user('reminderother')
+        self.instructor = self.create_user('reminderinstructor')
+        self.course = self.create_course(self.instructor)
+
+    def _enroll(self, user=None):
+        return Enrollment.objects.create(user=user or self.user, course=self.course)
+
+    def test_create_requires_enrollment(self):
+        """未报名课程不能创建提醒。"""
+        self.authenticate(self.user)
+        response = self.client.post('/api/learning/reminders/', {'course': self.course.id})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(StudyReminder.objects.count(), 0)
+
+    def test_create_and_update_reminder(self):
+        """重复创建同一课程提醒应更新已有设置。"""
+        self._enroll()
+        self.authenticate(self.user)
+
+        response = self.client.post('/api/learning/reminders/', {
+            'course': self.course.id,
+            'remind_time': '20:30',
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['remind_time'], '20:30')
+        self.assertTrue(response.data['is_active'])
+        self.assertEqual(StudyReminder.objects.count(), 1)
+
+        again = self.client.post('/api/learning/reminders/', {
+            'course': self.course.id,
+            'remind_time': '07:15',
+            'is_active': False,
+        })
+        self.assertEqual(again.status_code, status.HTTP_200_OK)
+        reminder = StudyReminder.objects.get(user=self.user, course=self.course)
+        self.assertEqual(reminder.remind_time, time(7, 15))
+        self.assertFalse(reminder.is_active)
+        self.assertEqual(StudyReminder.objects.count(), 1)
+
+    def test_list_only_own_reminders(self):
+        """只能看到自己的提醒。"""
+        other_reminder = StudyReminder.objects.create(user=self.other, course=self.course)
+        self._enroll()
+        StudyReminder.objects.create(user=self.user, course=self.course, remind_time=time(21, 0))
+
+        self.authenticate(self.user)
+        response = self.client.get('/api/learning/reminders/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 1)
+        self.assertNotEqual(response.data['results'][0]['id'], other_reminder.id)
+
+    def test_update_and_delete_reminder(self):
+        """可以切换提醒开关并删除提醒。"""
+        self._enroll()
+        reminder = StudyReminder.objects.create(user=self.user, course=self.course)
+        self.authenticate(self.user)
+
+        response = self.client.patch(
+            f'/api/learning/reminders/{reminder.id}/', {'is_active': False}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        reminder.refresh_from_db()
+        self.assertFalse(reminder.is_active)
+
+        deleted = self.client.delete(f'/api/learning/reminders/{reminder.id}/')
+        self.assertEqual(deleted.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(StudyReminder.objects.filter(id=reminder.id).exists())
+
+
+class StudyReminderTaskTests(LearningBaseAPITest):
+    """学习提醒定时任务测试。"""
+
+    def setUp(self):
+        super().setUp()
+        self.user = self.create_user('remindertaskuser')
+        self.instructor = self.create_user('remindertaskinstructor')
+        self.course = self.create_course(self.instructor, title='Reminder Course')
+        self.enrollment = Enrollment.objects.create(user=self.user, course=self.course)
+
+    def _due_now(self):
+        return timezone.make_aware(datetime(2026, 11, 27, 20, 5))
+
+    def test_send_due_reminder(self):
+        """到点且未完成的课程应发送一次提醒。"""
+        reminder = StudyReminder.objects.create(
+            user=self.user, course=self.course, remind_time=time(20, 0)
+        )
+
+        sent = send_study_reminders(now=self._due_now())
+        self.assertEqual(sent, 1)
+        notification = Notification.objects.get(recipient=self.user, notification_type='course_reminder')
+        self.assertEqual(notification.title, '学习提醒')
+        self.assertIn(self.course.title, notification.content)
+        self.assertEqual(notification.url, f'/learning/course/{self.course.id}')
+
+        reminder.refresh_from_db()
+        self.assertIsNotNone(reminder.last_reminded_at)
+
+        # 同一天不重复提醒
+        again = send_study_reminders(now=self._due_now() + timedelta(minutes=5))
+        self.assertEqual(again, 0)
+        self.assertEqual(Notification.objects.filter(recipient=self.user).count(), 1)
+
+    def test_skip_not_due_or_inactive(self):
+        """未到时间或已停用的提醒不发送。"""
+        other_course = self.create_course(self.instructor, title='Other Reminder Course')
+        StudyReminder.objects.create(user=self.user, course=self.course, remind_time=time(21, 0))
+        StudyReminder.objects.create(
+            user=self.user, course=other_course, remind_time=time(20, 0), is_active=False
+        )
+        self.assertEqual(send_study_reminders(now=self._due_now()), 0)
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_skip_completed_course(self):
+        """已完成的课程不再提醒。"""
+        self.enrollment.is_completed = True
+        self.enrollment.save(update_fields=['is_completed'])
+        StudyReminder.objects.create(user=self.user, course=self.course, remind_time=time(20, 0))
+
+        self.assertEqual(send_study_reminders(now=self._due_now()), 0)
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_skip_without_enrollment(self):
+        """报名记录不存在时跳过提醒。"""
+        StudyReminder.objects.create(user=self.user, course=self.course, remind_time=time(20, 0))
+        self.enrollment.delete()
+
+        self.assertEqual(send_study_reminders(now=self._due_now()), 0)
+        self.assertEqual(Notification.objects.count(), 0)

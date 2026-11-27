@@ -53,7 +53,7 @@
 
 - [x] 付费课程支付流程（`PaymentOrder` + 模拟支付，`/api/learning/orders/`）
 - [x] 课程证书（完成课程自动发证，`/api/learning/certificates/`，支持编号校验）
-- [ ] 学习提醒
+- [x] 学习提醒（`StudyReminder` + Celery Beat 每 10 分钟扫描，站内通知/订阅消息）
 
 ### 3.3 内容
 

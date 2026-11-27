@@ -147,20 +147,33 @@ uv run python manage.py cleanup_content_images --days 7
 
 ## 8. 定时任务
 
-当前 `settings.py` 未配置 `CELERY_BEAT_SCHEDULE`，`start_beat.sh` 可以启动，
-但不会自动执行任何周期性任务。若需要：
+`settings.py` 已配置 Beat 调度：
 
 ```python
-# settings.py
 CELERY_BEAT_SCHEDULE = {
-    'cleanup-expired-messages': {
-        'task': '...',
-        'schedule': crontab(hour=3, minute=0),
+    'send-study-reminders': {
+        'task': 'learning.tasks.send_study_reminders',
+        'schedule': 600.0,  # 每 10 分钟
     },
 }
 ```
 
-请先实现对应任务并加入测试，再配置调度。
+| 任务 | 说明 |
+|---|---|
+| `learning.tasks.send_study_reminders` | 扫描到期的学习提醒，向未完成课程的用户发送站内通知；同一提醒每天最多一次 |
+
+启动方式：
+
+```bash
+# 本地
+cd backend
+uv run celery -A config beat --loglevel info
+
+# Compose（已包含 celery-beat 服务）
+docker compose up -d celery-beat
+```
+
+新增周期任务时，请同时补充任务实现与测试，再加入 `CELERY_BEAT_SCHEDULE`。
 
 ## 9. 失败排查
 

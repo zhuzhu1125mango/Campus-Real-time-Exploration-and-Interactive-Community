@@ -1,10 +1,11 @@
 from rest_framework import status, filters
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from datetime import time
 from django.utils import timezone
 from .models import (
     Course, Category, Chapter, Lesson, Enrollment, Progress, Review,
-    LearningResource, PaymentOrder, Certificate,
+    LearningResource, PaymentOrder, Certificate, StudyReminder,
 )
 from .serializers import (
     CategorySerializer, CourseSerializer, CourseCreateSerializer, CourseUpdateSerializer,
@@ -15,6 +16,7 @@ from .serializers import (
     ReviewSerializer, ReviewCreateSerializer,
     LearningResourceSerializer, LearningResourceCreateSerializer, LearningResourceUpdateSerializer,
     PaymentOrderSerializer, PaymentOrderCreateSerializer, CertificateSerializer,
+    StudyReminderSerializer,
 )
 from .services import complete_enrollment, ensure_enrollment
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
@@ -617,3 +619,53 @@ class CertificateViewSet(AuthenticatedModelViewSet):
         certificate.remark = request.data.get('remark', certificate.remark)
         certificate.save(update_fields=['status', 'revoked_at', 'remark'])
         return Response(CertificateSerializer(certificate).data)
+
+
+class StudyReminderViewSet(AuthenticatedModelViewSet):
+    """学习提醒设置视图集。
+
+    同一用户对同一课程只保留一条提醒，重复创建会更新已有设置。
+    """
+    queryset = StudyReminder.objects.all()
+    throttle_config = {
+        'list': [SearchThrottle],
+        'retrieve': [SearchThrottle],
+        'create': [WriteThrottle],
+        'update': [WriteThrottle],
+        'partial_update': [WriteThrottle],
+        'destroy': [WriteThrottle],
+    }
+
+    def get_queryset(self):
+        return StudyReminder.objects.filter(
+            user=self.request.user
+        ).select_related('course', 'course__instructor')
+
+    def get_serializer_class(self):
+        return StudyReminderSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        course = serializer.validated_data['course']
+
+        if not Enrollment.objects.filter(user=request.user, course=course).exists():
+            return Response(
+                {'detail': '请先报名该课程再设置学习提醒'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        is_active = serializer.validated_data.get('is_active', True)
+        remind_time = serializer.validated_data.get('remind_time', time(20, 0))
+        reminder, created = StudyReminder.objects.get_or_create(
+            user=request.user,
+            course=course,
+            defaults={'is_active': is_active, 'remind_time': remind_time},
+        )
+        if not created:
+            reminder.is_active = is_active
+            reminder.remind_time = remind_time
+            reminder.save(update_fields=['is_active', 'remind_time', 'updated_at'])
+
+        data = StudyReminderSerializer(reminder).data
+        return Response(data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)

@@ -123,6 +123,7 @@ Content ──1:N── Comment / ContentRevision
 | `LearningResource` | `learning_learningresource` | `course`、`file`、`file_type`、`file_size`、`download_count` |
 | `PaymentOrder` | `learning_paymentorder` | `user`、`course`、`order_no`（唯一）、`amount`、`status`、`payment_method`、`paid_at` |
 | `Certificate` | `learning_certificate` | `enrollment`（一对一）、`number`（唯一）、`status`、`issued_at`、`revoked_at` |
+| `StudyReminder` | `learning_studyreminder` | `user`、`course`、`is_active`、`remind_time`、`last_reminded_at`（唯一 user+course） |
 
 ## 6. 内容（`content`）
 

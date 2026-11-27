@@ -1,7 +1,9 @@
 from rest_framework import serializers
+from datetime import time
+
 from .models import (
     Course, Category, CourseCategory, Chapter, Lesson, Enrollment, Progress,
-    Review, LearningResource, PaymentOrder, Certificate,
+    Review, LearningResource, PaymentOrder, Certificate, StudyReminder,
 )
 from users.serializers import UserSerializer
 
@@ -267,3 +269,43 @@ class CertificateSerializer(serializers.ModelSerializer):
         if obj.enrollment.course.cover_image:
             return obj.enrollment.course.cover_image.url
         return None
+
+
+class StudyReminderSerializer(serializers.ModelSerializer):
+    course = serializers.PrimaryKeyRelatedField(queryset=Course.objects.filter(is_published=True))
+    course_id = serializers.IntegerField(source='course.id', read_only=True)
+    course_title = serializers.CharField(source='course.title', read_only=True)
+    course_cover = serializers.SerializerMethodField()
+    remind_time = serializers.TimeField(format='%H:%M', default=time(20, 0))
+    is_active = serializers.BooleanField(default=True)
+    progress = serializers.SerializerMethodField()
+    is_completed = serializers.SerializerMethodField()
+
+    class Meta:
+        model = StudyReminder
+        fields = [
+            'id', 'course', 'course_id', 'course_title', 'course_cover',
+            'is_active', 'remind_time', 'progress', 'is_completed',
+            'last_reminded_at', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['last_reminded_at', 'created_at', 'updated_at']
+
+    def get_course_cover(self, obj):
+        if obj.course.cover_image:
+            return obj.course.cover_image.url
+        return None
+
+    def _enrollment(self, obj):
+        if not hasattr(obj, '_enrollment_cache'):
+            obj._enrollment_cache = Enrollment.objects.filter(
+                user_id=obj.user_id, course_id=obj.course_id
+            ).only('progress', 'is_completed').first()
+        return obj._enrollment_cache
+
+    def get_progress(self, obj):
+        enrollment = self._enrollment(obj)
+        return round(enrollment.progress, 1) if enrollment else 0
+
+    def get_is_completed(self, obj):
+        enrollment = self._enrollment(obj)
+        return bool(enrollment and enrollment.is_completed)

@@ -55,6 +55,13 @@
               >
                 证书
               </button>
+              <button
+                v-if="!enrollment.is_completed"
+                class="reminder-btn"
+                @click.stop="goReminder(enrollment)"
+              >
+                {{ reminderMap[enrollment.course.id]?.is_active ? '提醒已开' : '学习提醒' }}
+              </button>
             </view>
           </view>
         </view>
@@ -72,6 +79,7 @@ const defaultCover = 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?p
 
 const enrollments = ref([])
 const certificateMap = ref({})
+const reminderMap = ref({})
 const loading = ref(false)
 
 onMounted(() => {
@@ -81,9 +89,10 @@ onMounted(() => {
 const loadEnrollments = async () => {
   loading.value = true
   try {
-    const [enrollmentRes, certificateRes] = await Promise.all([
+    const [enrollmentRes, certificateRes, reminderRes] = await Promise.all([
       learningApi.getEnrollments(),
-      learningApi.getCertificates()
+      learningApi.getCertificates(),
+      learningApi.getReminders()
     ])
     enrollments.value = enrollmentRes.results || []
     const map = {}
@@ -91,6 +100,11 @@ const loadEnrollments = async () => {
       map[item.course_id] = item
     })
     certificateMap.value = map
+    const reminderMapValue = {}
+    ;(reminderRes.results || []).forEach((item) => {
+      reminderMapValue[item.course_id] = item
+    })
+    reminderMap.value = reminderMapValue
   } catch (error) {
     console.error('加载学习记录失败', error)
     uni.showToast({ title: '加载学习记录失败', icon: 'none' })
@@ -112,6 +126,13 @@ const goCertificate = (courseId) => {
 
 const goCertificates = () => {
   uni.navigateTo({ url: '/pages/certificates/certificates' })
+}
+
+const goReminder = (enrollment) => {
+  const title = encodeURIComponent(enrollment.course.title || '')
+  uni.navigateTo({
+    url: `/pages/study-reminder/study-reminder?course=${enrollment.course.id}&title=${title}`
+  })
 }
 
 const goLearning = () => {
@@ -275,5 +296,14 @@ onPullDownRefresh(async () => {
   padding: 8rpx 24rpx;
   border-radius: 30rpx;
   border: 1rpx solid #b8860b;
+}
+
+.reminder-btn {
+  background-color: #fff;
+  color: #4361ee;
+  font-size: 24rpx;
+  padding: 8rpx 24rpx;
+  border-radius: 30rpx;
+  border: 1rpx solid #4361ee;
 }
 </style>

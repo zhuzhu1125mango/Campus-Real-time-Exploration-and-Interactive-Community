@@ -83,7 +83,13 @@ Flower 同时提供 Prometheus 指标：`http://flower:5555/metrics`。
 3. 临时扩容：`--concurrency` 或增加 Worker 副本
 4. 若大量任务失败，先查看 Worker 日志中的异常堆栈
 
-> 当前未配置 `CELERY_BEAT_SCHEDULE`，启动 Beat 不会自动执行周期性任务。
+> 已配置 `CELERY_BEAT_SCHEDULE`：每 10 分钟执行一次 `learning.tasks.send_study_reminders`
+> 扫描学习提醒。Compose 中由 `celery-beat` 服务负责调度，排查时先确认该服务运行：
+>
+> ```bash
+> docker compose ps celery-beat
+> docker compose logs -f --tail=100 celery-beat
+> ```
 
 ## 4. Elasticsearch
 

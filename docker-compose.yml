@@ -202,6 +202,36 @@ services:
     networks:
       - campus_network
 
+  # Celery Beat：周期性任务调度（学习提醒等）
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: campus_celery_beat
+    command: ["./scripts/start_beat.sh"]
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DB_HOST: mysql
+      DB_NAME: ${DB_NAME:-university_exchange}
+      DB_USER: ${DB_USER:-campus}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      REDIS_WS_URL: redis://redis-ws:6379/0
+      REDIS_CACHE_URL: redis://redis-cache:6379/0
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER:-campus}:${RABBITMQ_PASSWORD:-campus}@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis-cache:6379/1
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_FALLBACK_TO_DB: "True"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis-cache:
+        condition: service_healthy
+    networks:
+      - campus_network
+
   # Flower：Celery 监控面板
   flower:
     build:

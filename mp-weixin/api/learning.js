@@ -92,6 +92,26 @@ const learningApi = {
     return request.get('/learning/certificates/verify/', { number })
   },
 
+  // 学习提醒列表
+  getReminders(params = {}) {
+    return request.get('/learning/reminders/', params)
+  },
+
+  // 创建/更新课程提醒
+  createReminder(data) {
+    return request.post('/learning/reminders/', data)
+  },
+
+  // 更新提醒
+  updateReminder(reminderId, data) {
+    return request.patch(`/learning/reminders/${reminderId}/`, data)
+  },
+
+  // 删除提醒
+  deleteReminder(reminderId) {
+    return request.delete(`/learning/reminders/${reminderId}/`)
+  },
+
   // 进度列表
   getProgresses(params = {}) {
     return request.get('/learning/progresses/', params)

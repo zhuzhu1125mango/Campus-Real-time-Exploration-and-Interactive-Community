@@ -74,10 +74,45 @@
               <span class="i-ep-medal" />
               查看证书
             </button>
+            <button
+              v-if="!enrollment.is_completed"
+              class="btn btn-secondary"
+              @click.stop="openReminder(enrollment)"
+            >
+              <span :class="isReminderOn(enrollment.course.id) ? 'i-ep-bell-filled' : 'i-ep-bell'" />
+              {{ isReminderOn(enrollment.course.id) ? '提醒已开启' : '学习提醒' }}
+            </button>
           </div>
         </div>
       </div>
     </GlassCard>
+
+    <el-dialog v-model="reminderDialogVisible" title="学习提醒" width="420px">
+      <div class="reminder-form">
+        <p class="reminder-course">{{ editingReminder.courseTitle }}</p>
+        <div class="reminder-row">
+          <span class="reminder-label">开启每日提醒</span>
+          <el-switch v-model="editingReminder.is_active" />
+        </div>
+        <div class="reminder-row">
+          <span class="reminder-label">提醒时间</span>
+          <el-time-picker
+            v-model="editingReminder.remind_time"
+            format="HH:mm"
+            value-format="HH:mm"
+            placeholder="选择时间"
+            :disabled="!editingReminder.is_active"
+          />
+        </div>
+        <p class="reminder-tip">提醒通过站内通知发送，课程完成后自动停止。</p>
+      </div>
+      <template #footer>
+        <button class="btn btn-secondary" @click="reminderDialogVisible = false">取消</button>
+        <button class="btn btn-primary" :disabled="savingReminder" @click="saveReminder">
+          {{ savingReminder ? '保存中...' : '保存' }}
+        </button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -87,7 +122,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { learningApi } from '../api/learning'
 import { getApiErrorMessage } from '../utils/error'
-import type { Enrollment, Certificate } from '../types/learning'
+import type { Enrollment, Certificate, StudyReminder } from '../types/learning'
 import GlassCard from '@/components/GlassCard.vue'
 import SectionHeader from '@/components/SectionHeader.vue'
 
@@ -96,15 +131,25 @@ const router = useRouter()
 const enrollments = ref<Enrollment[]>([])
 const certificates = ref<Certificate[]>([])
 const certificateMap = ref<Record<number, Certificate>>({})
+const reminderMap = ref<Record<number, StudyReminder>>({})
+const reminderDialogVisible = ref(false)
+const savingReminder = ref(false)
+const editingReminder = ref({
+  courseId: 0,
+  courseTitle: '',
+  is_active: true,
+  remind_time: '20:00'
+})
 const loading = ref(false)
 const defaultCover = '/trae-api/api/ide/v1/text_to_image?prompt=campus%20online%20course%20cover%20image&image_size=landscape_16_9'
 
 const loadEnrollments = async () => {
   loading.value = true
   try {
-    const [enrollmentRes, certificateRes] = await Promise.all([
+    const [enrollmentRes, certificateRes, reminderRes] = await Promise.all([
       learningApi.getEnrollments(),
-      learningApi.getCertificates()
+      learningApi.getCertificates(),
+      learningApi.getReminders()
     ])
     enrollments.value = enrollmentRes.results
     certificates.value = certificateRes.results || []
@@ -112,10 +157,49 @@ const loadEnrollments = async () => {
       acc[item.course_id] = item
       return acc
     }, {})
+    reminderMap.value = (reminderRes.results || []).reduce<Record<number, StudyReminder>>((acc, item) => {
+      acc[item.course_id] = item
+      return acc
+    }, {})
   } catch (error) {
     ElMessage.error(getApiErrorMessage(error, '加载学习记录失败'))
   } finally {
     loading.value = false
+  }
+}
+
+const isReminderOn = (courseId: number) => {
+  const reminder = reminderMap.value[courseId]
+  return Boolean(reminder && reminder.is_active)
+}
+
+const openReminder = (enrollment: Enrollment) => {
+  const reminder = reminderMap.value[enrollment.course.id]
+  editingReminder.value = {
+    courseId: enrollment.course.id,
+    courseTitle: enrollment.course.title,
+    is_active: reminder ? reminder.is_active : true,
+    remind_time: reminder?.remind_time || '20:00'
+  }
+  reminderDialogVisible.value = true
+}
+
+const saveReminder = async () => {
+  if (!editingReminder.value.courseId) return
+  savingReminder.value = true
+  try {
+    const saved = await learningApi.createReminder({
+      course: editingReminder.value.courseId,
+      remind_time: editingReminder.value.remind_time,
+      is_active: editingReminder.value.is_active
+    })
+    reminderMap.value = { ...reminderMap.value, [saved.course_id]: saved }
+    reminderDialogVisible.value = false
+    ElMessage.success(saved.is_active ? `已设置每天 ${saved.remind_time} 提醒` : '学习提醒已关闭')
+  } catch (error) {
+    ElMessage.error(getApiErrorMessage(error, '保存提醒失败'))
+  } finally {
+    savingReminder.value = false
   }
 }
 
@@ -152,6 +236,37 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-bottom: var(--space-4);
+}
+
+.reminder-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.reminder-course {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.reminder-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.reminder-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.reminder-tip {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
 }
 
 .loading-state,

@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from django.urls import reverse
+from datetime import time
 import uuid
 
 
@@ -295,3 +296,35 @@ class Certificate(models.Model):
 
     def __str__(self):
         return f'{self.number} - {self.enrollment.user.username} - {self.enrollment.course.title}'
+
+
+class StudyReminder(models.Model):
+    """学习提醒设置。
+
+    每个用户对每门课程最多一条提醒，由 Celery Beat 定时扫描并发送站内通知。
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='study_reminders', verbose_name='用户'
+    )
+    course = models.ForeignKey(
+        Course, on_delete=models.CASCADE,
+        related_name='study_reminders', verbose_name='课程'
+    )
+    is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    remind_time = models.TimeField(default=time(20, 0), verbose_name='提醒时间')
+    last_reminded_at = models.DateTimeField(null=True, blank=True, verbose_name='最近提醒时间')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        verbose_name = '学习提醒'
+        verbose_name_plural = '学习提醒'
+        ordering = ['-updated_at']
+        unique_together = ('user', 'course')
+        indexes = [
+            models.Index(fields=['is_active', 'remind_time'], name='learn_reminder_active_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.user.username} - {self.course.title} - {self.remind_time:%H:%M}'

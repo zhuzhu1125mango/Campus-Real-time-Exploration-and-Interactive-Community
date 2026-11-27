@@ -18,6 +18,7 @@ class Notification(models.Model):
         ('content_comment', '内容评论'),  # 评论/回复类通知
         ('message', '私信'),
         ('activity', '活动通知'),
+        ('course_reminder', '学习提醒'),
     )
 
     # 通知接收者

@@ -91,6 +91,7 @@
 | `WECHAT_TEMPLATE_COMMENT` | 空 | “新评论”订阅消息模板 ID |
 | `WECHAT_TEMPLATE_MESSAGE` | 空 | “新私信”模板 ID |
 | `WECHAT_TEMPLATE_INTERACTION` | 空 | “点赞/好友请求”模板 ID |
+| `WECHAT_TEMPLATE_REMINDER` | 空 | “学习提醒”模板 ID（可选） |
 
 模板字段约定为 `thing1` / `thing2` / `time3`，详见
 [小程序指南](../guides/mini-program.md#3-订阅消息)。
